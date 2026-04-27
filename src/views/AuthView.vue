@@ -1,0 +1,535 @@
+<template>
+  <div class="auth-layout relative">
+    <div class="bg-shape shape-1"></div>
+    <div class="bg-shape shape-2"></div>
+
+    <div class="auth-container relative z-10">
+      
+      <!-- Left side visual area -->
+      <div class="auth-left">
+        <!-- Abstract Illustration Background -->
+        <div class="abstract-visual">
+          <div class="glow-orb orb-1"></div>
+          <div class="glow-orb orb-2"></div>
+          <div class="glow-orb orb-3"></div>
+          <div class="grid-overlay"></div>
+        </div>
+
+        <div class="brand mb-8 relative z-10 text-white">
+          <div class="brand-icon">
+            <img :src="logoUrl" alt="Hi AI Image Studio logo" width="20" height="20" loading="eager" fetchpriority="high" />
+          </div>
+          <span class="text-h3" style="font-weight: 800; font-size: 22px; letter-spacing: -0.5px; color: #fff;">Hi AI Image Studio</span>
+        </div>
+        
+        <div class="mt-auto relative z-10 mb-12" style="max-width: 440px;">
+          <div class="badge-wrapper mb-6">
+            <div class="badge-content" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); color: #fff;">
+              <SparklesIcon :size="14" class="badge-icon" />
+              <span>Professional Design Power</span>
+            </div>
+          </div>
+          <h2 class="text-h1 mb-6" style="font-size: 38px; font-weight: 800; color: #ffffff; letter-spacing: -0.02em; line-height: 1.3;">
+            把一句想法，<br/>变成可以直接使用的<br/>商业图片。
+          </h2>
+          <div style="width: 40px; height: 4px; background: var(--gradient-primary); margin-bottom: 24px; border-radius: 2px;"></div>
+          <p style="line-height: 1.7; font-size: 16px; color: rgba(255,255,255,0.7);">
+            面向内容创作者、电商卖家和个人品牌，快速生成海报、封面、商品图与灵感视觉，让设计生产更高效。
+          </p>
+        </div>
+
+        <div class="features-row mt-auto relative z-10">
+          <div class="f-item">
+            <div class="f-icon"><ZapIcon :size="16" aria-hidden="true" /></div>
+            <div>
+              <div class="f-title">极速出图</div>
+              <div class="f-desc">gpt-image-2模型支持</div>
+            </div>
+          </div>
+          <div class="f-item">
+            <div class="f-icon"><LayoutIcon :size="16" aria-hidden="true" /></div>
+            <div>
+              <div class="f-title">多比例适配</div>
+              <div class="f-desc">主流社交平台尺寸</div>
+            </div>
+          </div>
+          <div class="f-item">
+            <div class="f-icon"><LibraryIcon :size="16" aria-hidden="true" /></div>
+            <div>
+              <div class="f-title">灵感管理</div>
+              <div class="f-desc">自动保存随时回溯</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right side form area -->
+      <div class="auth-right">
+        <div class="auth-tabs flex mb-12" role="tablist">
+          <button
+            role="tab"
+            :aria-selected="mode === 'login'"
+            class="tab-btn flex-1"
+            :class="{ 'active': mode === 'login' }"
+            @click="mode = 'login'"
+          >登录</button>
+          <button
+            role="tab"
+            :aria-selected="mode === 'register'"
+            class="tab-btn flex-1"
+            :class="{ 'active': mode === 'register' }"
+            @click="mode = 'register'"
+          >注册</button>
+        </div>
+
+        <div class="mb-10">
+          <h2 class="text-h3 mb-3" style="font-size: 28px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px;">
+            {{ mode === 'login' ? '欢迎回来 👋' : '创建账户 ✨' }}
+          </h2>
+          <p class="text-muted" style="font-size: 14px;">
+            {{ mode === 'login' ? '登录你的 Hi AI Image Studio 账户，继续你的 AI 创造之旅' : '加入我们，开启智能设计新体验' }}
+          </p>
+        </div>
+
+        <form @submit.prevent="submitAuth" class="flex-col" style="flex: 1; display: flex;">
+          <div class="mb-5">
+            <label for="username" class="label" style="font-size: 13px; font-weight: 700; color: #334155;">邮箱 / 用户名</label>
+            <div class="input-wrapper">
+              <MailIcon class="input-icon" :size="18" aria-hidden="true" />
+              <input id="username" name="username" autocomplete="username" spellcheck="false" v-model.trim="form.username" class="input with-icon custom-input" required maxlength="32" placeholder="admin" />
+            </div>
+          </div>
+          <div class="mb-6">
+            <label for="password" class="label flex justify-between" style="font-size: 13px; font-weight: 700; color: #334155;">
+              密码
+            </label>
+            <div class="input-wrapper">
+              <LockIcon class="input-icon" :size="18" aria-hidden="true" />
+              <input id="password" name="password" autocomplete="current-password" v-model="form.password" :type="showPassword ? 'text' : 'password'" class="input with-icon custom-input" required minlength="6" placeholder="••••••" />
+              <button type="button" class="eye-btn" @click="showPassword = !showPassword" :aria-label="showPassword ? '隐藏密码' : '显示密码'">
+                <EyeIcon v-if="!showPassword" :size="18" aria-hidden="true" />
+                <EyeOffIcon v-else :size="18" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+
+          <div class="flex justify-between items-center mb-8" style="font-size: 13px;" v-if="mode === 'login'">
+            <label for="remember" class="flex items-center gap-2 cursor-pointer" style="color: #475569; font-weight: 500;">
+              <input id="remember" name="remember" type="checkbox" class="custom-checkbox" /> 记住我
+            </label>
+            <button type="button" class="btn-link text-primary hover-underline" style="font-weight: 600;">忘记密码?</button>
+          </div>
+
+          <button class="btn btn-primary submit-btn" type="submit" :disabled="loading">
+            <span v-if="loading" class="spinner" aria-hidden="true"></span>
+            {{ loading ? '处理中...' : (mode === 'login' ? '登 录' : '注 册') }}
+          </button>
+          
+          <div class="divider mt-8 mb-6">
+            <span>或通过以下方式</span>
+          </div>
+
+          <div class="social-login flex gap-4 mb-6">
+            <button type="button" class="social-btn flex-1" aria-label="使用 Google 登录">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+            </button>
+            <button type="button" class="social-btn flex-1" aria-label="使用 GitHub 登录">
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+            </button>
+          </div>
+
+          <div class="mt-auto text-center" style="font-size: 13px; color: #64748b;">
+            {{ mode === 'login' ? '还没有账户？' : '已有账户？' }}
+            <button type="button" class="btn-link text-primary hover-underline" style="font-weight: 600;" @click="mode = mode === 'login' ? 'register' : 'login'">
+              {{ mode === 'login' ? '立即注册' : '立即登录' }}
+            </button>
+          </div>
+
+          <div v-if="errorMsg" aria-live="polite" class="error-container mt-4 p-3 rounded-lg flex items-center justify-center gap-2">
+            <AlertCircleIcon :size="16" class="text-accent" aria-hidden="true" />
+            <span class="error-text m-0">{{ errorMsg }}</span>
+          </div>
+        </form>
+      </div>
+
+    </div>
+    
+    <div class="absolute bottom-6 text-center w-full" style="font-size: 12px; color: rgba(255,255,255,0.6);">
+      © 2024 Hi AI Image Studio. All rights reserved.
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
+import { ArrowLeftIcon, AlertCircleIcon, ZapIcon, LayoutIcon, ShieldIcon, MailIcon, LockIcon, EyeIcon, EyeOffIcon, SparklesIcon, LibraryIcon } from 'lucide-vue-next'
+import logoUrl from '../hi-image-logo.png'
+
+const router = useRouter()
+const authStore = useAuthStore()
+
+const mode = ref('login')
+const loading = ref(false)
+const errorMsg = ref('')
+const showPassword = ref(false)
+
+const form = reactive({
+  username: '',
+  password: ''
+})
+
+async function submitAuth() {
+  errorMsg.value = ''
+  loading.value = true
+  try {
+    if (mode.value === 'login') {
+      await authStore.login(form.username, form.password)
+    } else {
+      await authStore.register(form.username, form.password)
+    }
+    router.push('/studio')
+  } catch (e) {
+    errorMsg.value = e.message || '操作失败'
+  } finally {
+    loading.value = false
+  }
+}
+</script>
+
+<style scoped>
+.custom-input {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  height: 52px;
+  color: #334155;
+  transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.custom-input:focus {
+  background: #ffffff !important;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+.input-icon {
+  position: absolute;
+  left: 16px;
+  color: #94a3b8;
+  pointer-events: none;
+  transition: color 0.2s;
+}
+.input-wrapper:focus-within .input-icon {
+  color: var(--primary);
+}
+.input.with-icon {
+  padding-left: 46px;
+}
+.eye-btn {
+  position: absolute;
+  right: 16px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.eye-btn:hover {
+  color: #64748b;
+}
+.custom-checkbox {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #ffffff;
+  cursor: pointer;
+  position: relative;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+.custom-checkbox:checked {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.custom-checkbox:checked::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 5px;
+  width: 4px;
+  height: 8px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.auth-tabs {
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 0;
+}
+
+.tab-btn {
+  border: none;
+  background: transparent;
+  padding: 12px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: color 0.2s ease;
+  position: relative;
+}
+
+.tab-btn.active {
+  color: var(--primary);
+}
+
+.tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: var(--primary);
+}
+
+.error-container {
+  background: rgba(236, 72, 153, 0.1);
+  border: 1px solid rgba(236, 72, 153, 0.2);
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.back-link:hover {
+  color: var(--text);
+}
+
+.font-medium { font-weight: 500; }
+.text-primary { color: var(--primary); text-decoration: none; }
+.text-primary:hover { text-decoration: underline; }
+.text-accent { color: var(--accent); }
+.rounded-lg { border-radius: 8px; }
+.cursor-pointer { cursor: pointer; }
+.absolute { position: absolute; }
+.bottom-6 { bottom: 24px; }
+.w-full { width: 100%; }
+
+/* Input with Icons */
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.abstract-visual {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.glow-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.6;
+  animation: float 10s ease-in-out infinite alternate;
+}
+.orb-1 {
+  top: -10%; left: -10%;
+  width: 300px; height: 300px;
+  background: radial-gradient(circle, #6366f1, transparent 70%);
+}
+.orb-2 {
+  bottom: -10%; right: -10%;
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, #ec4899, transparent 70%);
+  animation-delay: -5s;
+}
+.orb-3 {
+  top: 40%; left: 50%;
+  width: 250px; height: 250px;
+  background: radial-gradient(circle, #8b5cf6, transparent 70%);
+  animation-duration: 15s;
+}
+.grid-overlay {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+  background-size: 30px 30px;
+  mask-image: radial-gradient(circle at center, black, transparent 80%);
+  -webkit-mask-image: radial-gradient(circle at center, black, transparent 80%);
+}
+
+@keyframes float {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(30px, -30px); }
+}
+
+/* Features Row */
+.features-row {
+  display: flex;
+  gap: 16px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  padding: 20px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.2);
+}
+.f-item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.f-icon {
+  width: 36px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.f-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.5px;
+}
+.f-desc {
+  font-size: 12px;
+  color: rgba(255,255,255,0.6);
+  margin-top: 4px;
+}
+
+/* Auth Right Refinements */
+.submit-btn {
+  width: 100%;
+  height: 52px;
+  font-size: 16px;
+  border-radius: 12px;
+  font-weight: 600;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 12px;
+}
+.divider::before, .divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid #e2e8f0;
+}
+.divider span {
+  padding: 0 10px;
+}
+
+.social-login {
+  display: flex;
+  gap: 16px;
+}
+.social-btn {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+  color: #0f172a;
+}
+.social-btn:hover {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  transform: translateY(-1px);
+}
+
+.hover-underline:hover {
+  text-decoration: underline;
+}
+
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-radius: 50%;
+  border-top-color: #fff;
+  animation: spin 0.8s linear infinite;
+  margin-right: 8px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.badge-wrapper {
+  position: relative;
+  display: inline-block;
+}
+.badge-content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border-radius: 100px;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  backdrop-filter: blur(8px);
+}
+.badge-icon {
+  display: inline;
+  margin-top: -2px;
+}
+.bg-shape {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  z-index: 0;
+  opacity: 0.6;
+  pointer-events: none;
+}
+.shape-1 {
+  top: 10%;
+  left: 20%;
+  width: 40vw;
+  height: 40vw;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+}
+.shape-2 {
+  bottom: 10%;
+  right: 20%;
+  width: 50vw;
+  height: 50vw;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.15) 0%, transparent 70%);
+}
+</style>
