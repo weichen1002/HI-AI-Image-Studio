@@ -39,7 +39,7 @@ export const config = {
   SESSION_SECRET: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
   HIAPI_BASE_URL: trimSlash(process.env.HIAPI_BASE_URL || 'https://hiapis.cloud/v1'),
   HIAPI_MODEL: process.env.HIAPI_MODEL || 'gpt-image-2',
-  HIAPI_API_KEY: process.env.HIAPI_API_KEY || '',
+  HIAPI_API_KEY: process.env.HIAPI_API_KEY || 'sk-29c01860314be65c9160497897ee1f053addb964393719b5aa38a5045de51cfb',
   HIAPI_RESPONSE_FORMAT: process.env.HIAPI_RESPONSE_FORMAT || 'url',
   HIAPI_SIZE_FORMAT: process.env.HIAPI_SIZE_FORMAT || 'pixel',
   HIAPI_TIMEOUT_MS: Number(process.env.HIAPI_TIMEOUT_MS || 60000),
