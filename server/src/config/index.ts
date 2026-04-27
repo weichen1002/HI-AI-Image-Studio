@@ -35,7 +35,7 @@ export const config = {
   DATA_DIR,
   DB_FILE,
   PORT: Number(process.env.PORT || 3000),
-  HOST: process.env.HOST || '127.0.0.1',
+  HOST: process.env.HOST || '0.0.0.0',
   SESSION_SECRET: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
   HIAPI_BASE_URL: trimSlash(process.env.HIAPI_BASE_URL || 'https://hiapis.cloud/v1'),
   HIAPI_MODEL: process.env.HIAPI_MODEL || 'gpt-image-2',
