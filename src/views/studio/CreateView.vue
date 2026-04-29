@@ -114,7 +114,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, onMounted } from 'vue'
+import { reactive, ref, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { SparklesIcon, LoaderIcon, Wand2Icon, Trash2Icon, RefreshCcwIcon, ImageIcon } from 'lucide-vue-next'
 import { useImagesStore } from '../../stores/images'
@@ -177,8 +177,10 @@ async function submitGenerate() {
   try {
     const image = await imagesStore.generate(form.prompt, form.aspectRatio)
     if (image && image.imageUrls && image.imageUrls[0]) {
-      previewUrl.value = image.imageUrls[0]
       statusText.value = '生成完成'
+      loading.value = false
+      await nextTick()
+      previewUrl.value = image.imageUrls[0]
     } else {
       statusText.value = '未能解析到图片地址'
     }

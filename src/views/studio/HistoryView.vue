@@ -5,7 +5,7 @@
         <h2 class="text-h2">灵感记录</h2>
         <p class="text-lead mt-2">每次生成都会保存到这里，方便回看提示词和继续优化方向。</p>
       </div>
-      <button class="btn btn-ghost" @click="fetchImages">
+      <button class="btn btn-ghost" @click="fetchImages" :disabled="imagesStore.isLoading">
         <RefreshCwIcon :size="18" />
         刷新
       </button>
