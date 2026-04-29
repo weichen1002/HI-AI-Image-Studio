@@ -32,16 +32,22 @@
     </div>
 
     <div v-else class="grid-history">
-      <div v-for="img in imagesStore.images" :key="img.id" class="history-card">
+      <div v-for="img in imagesStore.images" :key="img.id" class="history-card" role="button" tabindex="0" @click="openDetail(img)" @keydown.enter.prevent="openDetail(img)">
         <div class="history-cover">
-          <img v-if="img.imageUrls && img.imageUrls[0]" :src="img.imageUrls[0]" loading="lazy" />
+          <img v-if="coverUrl(img)" :src="coverUrl(img)" loading="lazy" />
           <div v-else class="fallback-cover">无图片</div>
+
+          <div v-if="img.inputImageUrls && img.inputImageUrls[0]" class="cover-toggle" @click.stop>
+            <button type="button" class="toggle-btn" :class="{ active: coverMode[img.id] !== 'input' }" @click="setCoverMode(img, 'result')">结果</button>
+            <button type="button" class="toggle-btn" :class="{ active: coverMode[img.id] === 'input' }" @click="setCoverMode(img, 'input')">参考</button>
+          </div>
+
           <button
-            v-if="img.imageUrls && img.imageUrls[0]"
+            v-if="coverUrl(img)"
             class="cover-action"
             type="button"
             title="下载图片"
-            @click="downloadImage(img)"
+            @click.stop="downloadCover(img)"
           >
             <DownloadIcon :size="16" />
           </button>
@@ -53,15 +59,15 @@
             <span>{{ formatTime(img.createdAt) }}</span>
           </div>
           <div class="card-actions">
-            <button class="btn btn-ghost action-btn" type="button" @click="reusePrompt(img)">
+            <button class="btn btn-ghost action-btn" type="button" @click.stop="reusePrompt(img)">
               <Wand2Icon :size="15" />
               再次创作
             </button>
             <button
-              v-if="img.imageUrls && img.imageUrls[0]"
+              v-if="coverUrl(img)"
               class="btn btn-ghost action-btn"
               type="button"
-              @click="downloadImage(img)"
+              @click.stop="downloadCover(img)"
             >
               <DownloadIcon :size="15" />
               下载
@@ -74,13 +80,14 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { onMounted, reactive } from 'vue'
 import { DownloadIcon, RefreshCwIcon, ImageOffIcon, Wand2Icon } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { useImagesStore } from '../../stores/images'
 
 const imagesStore = useImagesStore()
 const router = useRouter()
+const coverMode = reactive({})
 
 onMounted(() => {
   fetchImages()
@@ -97,12 +104,31 @@ function formatTime(val) {
 }
 
 function reusePrompt(image) {
+  if (image.mode === 'image' && image.inputImageUrls?.[0]) {
+    router.push({ path: '/studio', query: { mode: 'image', prompt: image.prompt, input: encodeURIComponent(image.inputImageUrls[0]) } })
+    return
+  }
   router.push({ path: '/studio', query: { prompt: image.prompt } })
+}
+
+function openDetail(image) {
+  router.push({ path: `/studio/history/${image.id}` })
+}
+
+function setCoverMode(image, val) {
+  coverMode[image.id] = val
+}
+
+function coverUrl(image) {
+  const current = coverMode[image.id] === 'input' ? 'input' : 'result'
+  if (current === 'input') return image.inputImageUrls?.[0] || image.imageUrls?.[0] || ''
+  return image.imageUrls?.[0] || ''
 }
 
 function downloadName(image) {
   const date = new Date(image.createdAt || Date.now()).toISOString().slice(0, 10)
-  return `hi-image-${date}-${image.id || Date.now()}.png`
+  const current = coverMode[image.id] === 'input' ? 'input' : 'result'
+  return `hi-image-${date}-${current}-${image.id || Date.now()}.png`
 }
 
 function triggerDownload(url, filename) {
@@ -114,8 +140,8 @@ function triggerDownload(url, filename) {
   link.remove()
 }
 
-async function downloadImage(image) {
-  const url = image.imageUrls?.[0]
+async function downloadCover(image) {
+  const url = coverUrl(image)
   if (!url) return
 
   if (url.startsWith('data:')) {
@@ -169,6 +195,37 @@ async function downloadImage(image) {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.cover-toggle {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+}
+
+.toggle-btn {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.toggle-btn.active {
+  color: var(--primary);
+  border-color: rgba(99, 102, 241, 0.35);
+  background: var(--gradient-subtle);
 }
 
 .cover-action {

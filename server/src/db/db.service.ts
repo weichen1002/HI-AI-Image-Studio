@@ -12,10 +12,12 @@ export interface User {
 export interface Image {
   id: string;
   userId: string;
+  mode?: 'text' | 'image';
   prompt: string;
   aspectRatio: string;
   content: string;
   imageUrls: string[];
+  inputImageUrls?: string[];
   createdAt: string;
 }
 

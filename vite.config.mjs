@@ -9,7 +9,8 @@ export default defineConfig({
     port: 5171,
     allowedHosts: ["studio.hiapis.cloud"],
     proxy: {
-      "/api": "http://127.0.0.1:3000"
+      "/api": "http://127.0.0.1:3000",
+      "/uploads": "http://127.0.0.1:3000"
     }
   }
 });

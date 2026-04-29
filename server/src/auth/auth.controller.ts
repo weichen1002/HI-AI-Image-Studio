@@ -1,14 +1,23 @@
-import { Controller, Get, Post, Body, Req, Res, HttpStatus, HttpException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Req,
+  Res,
+  HttpStatus,
+  HttpException,
+} from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { DbService } from '../db/db.service';
 import * as crypto from 'crypto';
-import { 
-  signSession, 
-  verifySession, 
-  hashPassword, 
-  verifyPassword, 
-  publicUser, 
-  cleanUsername 
+import {
+  signSession,
+  verifySession,
+  hashPassword,
+  verifyPassword,
+  publicUser,
+  cleanUsername,
 } from '../utils';
 
 @Controller('api')
@@ -45,11 +54,16 @@ export class AuthController {
     const password = String(body.password || '');
 
     if (!username || password.length < 6) {
-      throw new HttpException('用户名不能为空，密码至少 6 位', HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        '用户名不能为空，密码至少 6 位',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const db = this.dbService.readDb();
-    if (db.users.some((u) => u.username.toLowerCase() === username.toLowerCase())) {
+    if (
+      db.users.some((u) => u.username.toLowerCase() === username.toLowerCase())
+    ) {
       throw new HttpException('用户名已存在', HttpStatus.CONFLICT);
     }
 
@@ -71,7 +85,9 @@ export class AuthController {
     const username = cleanUsername(body.username);
     const password = String(body.password || '');
     const db = this.dbService.readDb();
-    const user = db.users.find((u) => u.username.toLowerCase() === username.toLowerCase());
+    const user = db.users.find(
+      (u) => u.username.toLowerCase() === username.toLowerCase(),
+    );
 
     if (!user || !verifyPassword(password, user.passwordHash)) {
       throw new HttpException('用户名或密码不正确', HttpStatus.UNAUTHORIZED);

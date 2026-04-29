@@ -29,6 +29,11 @@ const routes = [
         component: () => import('../views/studio/HistoryView.vue')
       },
       {
+        path: 'history/:id',
+        name: 'studio-history-detail',
+        component: () => import('../views/studio/HistoryDetailView.vue')
+      },
+      {
         path: 'models',
         name: 'studio-models',
         component: () => import('../views/studio/ModelsView.vue'),

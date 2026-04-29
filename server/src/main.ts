@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import cookieParser from 'cookie-parser';
 import * as express from 'express';
+import * as path from 'path';
 import { config } from './config';
 
 async function bootstrap() {
@@ -10,9 +11,17 @@ async function bootstrap() {
   app.use(express.json({ limit: '10mb' }));
   app.use(cookieParser());
   app.enableCors();
+  app.use(
+    '/uploads',
+    express.static(path.join(config.DATA_DIR, 'uploads'), {
+      fallthrough: false,
+    }),
+  );
 
   await app.listen(config.PORT, config.HOST);
-  console.log(`NestJS Image2 Create API running at http://${config.HOST}:${config.PORT}`);
+  console.log(
+    `NestJS Image2 Create API running at http://${config.HOST}:${config.PORT}`,
+  );
   console.log(`HiAPI key: ${config.HIAPI_API_KEY ? 'configured' : 'missing'}`);
 }
 bootstrap();

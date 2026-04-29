@@ -12,6 +12,8 @@
         <span class="badge">gpt-image-2</span>
       </div>
 
+      <ModeSwitch v-model="mode" />
+
       <form @submit.prevent="submitGenerate" class="flex flex-col gap-6">
         <div>
           <label class="label">灵感库</label>
@@ -27,6 +29,11 @@
             </button>
           </div>
           
+          <div v-if="mode === 'image'" class="mb-4">
+            <label class="label">参考图</label>
+            <ImageUpload v-model="inputFile" />
+          </div>
+
           <label class="label">提示词 (Prompt)</label>
           <div class="textarea-wrapper">
             <textarea
@@ -114,10 +121,12 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, onMounted } from 'vue'
+import { computed, reactive, ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { SparklesIcon, LoaderIcon, Wand2Icon, Trash2Icon, RefreshCcwIcon, ImageIcon } from 'lucide-vue-next'
 import { useImagesStore } from '../../stores/images'
+import ModeSwitch from '../../components/ModeSwitch.vue'
+import ImageUpload from '../../components/ImageUpload.vue'
 
 const imagesStore = useImagesStore()
 const route = useRoute()
@@ -132,16 +141,48 @@ const templates = [
 
 const ratios = ["1:1", "16:9", "9:16", "4:3", "3:4"]
 
+const mode = ref('text')
+const inputFile = ref(null)
+
 const form = reactive({
   prompt: '',
   aspectRatio: '1:1'
 })
 
-onMounted(() => {
+async function loadInputFromUrl(value) {
+  const url = decodeURIComponent(String(value || ''))
+  if (!url) return
+  const response = await fetch(url)
+  if (!response.ok) throw new Error('参考图加载失败')
+  const blob = await response.blob()
+  const name = url.split('/').pop() || 'input.png'
+  inputFile.value = new File([blob], name, { type: blob.type || 'image/png' })
+}
+
+onMounted(async () => {
+  const nextMode = route.query.mode === 'image' ? 'image' : 'text'
+  mode.value = nextMode
+
   if (route.query.prompt) {
-    form.prompt = route.query.prompt
+    form.prompt = String(route.query.prompt)
+  }
+
+  if (route.query.input) {
+    mode.value = 'image'
+    try {
+      await loadInputFromUrl(route.query.input)
+    } catch (e) {
+      errorMsg.value = e.message || '参考图加载失败'
+    }
+  }
+
+  if (route.query.prompt || route.query.mode || route.query.input) {
     router.replace({ query: {} })
   }
+})
+
+watch(mode, (val) => {
+  if (val === 'text') inputFile.value = null
 })
 
 const errorMsg = ref('')
@@ -168,7 +209,6 @@ function getRatioValue(ratio) {
 }
 
 function insertTemplate(tpl) {
-  // If the user clicks a template chip, replace the prompt with the full template string, removing the "..."
   const cleanTpl = tpl.replace('...', '')
   form.prompt = cleanTpl
 }
@@ -179,7 +219,12 @@ async function submitGenerate() {
   errorMsg.value = ''
 
   try {
-    await imagesStore.generate(form.prompt, form.aspectRatio)
+    if (mode.value === 'text') {
+      await imagesStore.generate(form.prompt, form.aspectRatio)
+      return
+    }
+
+    await imagesStore.generateFromImage(inputFile.value, form.prompt, form.aspectRatio)
   } catch (e) {
     errorMsg.value = e.message || '生成失败'
   }

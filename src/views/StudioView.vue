@@ -113,6 +113,7 @@ const imagesStore = useImagesStore()
 const routeNames = {
   'studio-create': '工作台 / 创建',
   'studio-history': '灵感记录',
+  'studio-history-detail': '灵感记录 / 详情',
   'studio-models': '灵感库',
   'studio-settings': '偏好设置'
 }
