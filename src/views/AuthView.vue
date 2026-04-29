@@ -15,21 +15,21 @@
           <div class="grid-overlay"></div>
         </div>
 
-        <div class="brand mb-8 relative z-10 text-white">
+        <div class="brand auth-brand relative z-10 text-white">
           <div class="brand-icon">
             <img :src="logoUrl" alt="Hi AI Image Studio logo" width="20" height="20" loading="eager" fetchpriority="high" />
           </div>
           <span class="text-h3" style="font-weight: 800; font-size: 22px; letter-spacing: -0.5px; color: #fff;">Hi AI Image Studio</span>
         </div>
         
-        <div class="mt-auto relative z-10 mb-12" style="max-width: 440px;">
-          <div class="badge-wrapper mb-6">
+        <div class="auth-hero-copy relative z-10" style="max-width: 440px;">
+          <div class="badge-wrapper auth-badge-space">
             <div class="badge-content" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); color: #fff;">
               <SparklesIcon :size="14" class="badge-icon" />
               <span>Professional Design Power</span>
             </div>
           </div>
-          <h2 class="text-h1 mb-6" style="font-size: 38px; font-weight: 800; color: #ffffff; letter-spacing: -0.02em; line-height: 1.3;">
+          <h2 class="text-h1 auth-hero-title" style="font-size: 38px; font-weight: 800; color: #ffffff; letter-spacing: -0.02em; line-height: 1.3;">
             把一句想法，<br/>变成可以直接使用的<br/>商业图片。
           </h2>
           <div style="width: 40px; height: 4px; background: var(--gradient-primary); margin-bottom: 24px; border-radius: 2px;"></div>
@@ -38,7 +38,7 @@
           </p>
         </div>
 
-        <div class="features-row mt-auto relative z-10">
+        <div class="features-row auth-features relative z-10">
           <div class="f-item">
             <div class="f-icon"><ZapIcon :size="16" aria-hidden="true" /></div>
             <div>
@@ -64,8 +64,8 @@
       </div>
 
       <!-- Right side form area -->
-      <div class="auth-right">
-        <div class="auth-tabs flex mb-12" role="tablist">
+      <div class="auth-right auth-form-panel">
+        <div class="auth-tabs flex" role="tablist">
           <button
             role="tab"
             :aria-selected="mode === 'login'"
@@ -82,7 +82,7 @@
           >注册</button>
         </div>
 
-        <div class="mb-10">
+        <div class="auth-title-block">
           <h2 class="text-h3 mb-3" style="font-size: 28px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px;">
             {{ mode === 'login' ? '欢迎回来 👋' : '创建账户 ✨' }}
           </h2>
@@ -91,15 +91,15 @@
           </p>
         </div>
 
-        <form @submit.prevent="submitAuth" class="flex-col" style="flex: 1; display: flex;">
-          <div class="mb-5">
+        <form @submit.prevent="submitAuth" class="auth-form flex-col" style="flex: 1; display: flex;">
+          <div class="auth-field">
             <label for="username" class="label" style="font-size: 13px; font-weight: 700; color: #334155;">邮箱 / 用户名</label>
             <div class="input-wrapper">
               <MailIcon class="input-icon" :size="18" aria-hidden="true" />
               <input id="username" name="username" autocomplete="username" spellcheck="false" v-model.trim="form.username" class="input with-icon custom-input" required maxlength="32" placeholder="admin" />
             </div>
           </div>
-          <div class="mb-6">
+          <div class="auth-field">
             <label for="password" class="label flex justify-between" style="font-size: 13px; font-weight: 700; color: #334155;">
               密码
             </label>
@@ -113,7 +113,7 @@
             </div>
           </div>
 
-          <div class="flex justify-between items-center mb-8" style="font-size: 13px;" v-if="mode === 'login'">
+          <div class="auth-options flex justify-between items-center" style="font-size: 13px;" v-if="mode === 'login'">
             <label for="remember" class="flex items-center gap-2 cursor-pointer" style="color: #475569; font-weight: 500;">
               <input id="remember" name="remember" type="checkbox" class="custom-checkbox" /> 记住我
             </label>
@@ -125,11 +125,11 @@
             {{ loading ? '处理中...' : (mode === 'login' ? '登 录' : '注 册') }}
           </button>
           
-          <div class="divider mt-8 mb-6">
+          <div class="divider auth-divider">
             <span>或通过以下方式</span>
           </div>
 
-          <div class="social-login flex gap-4 mb-6">
+          <div class="social-login flex gap-4">
             <button type="button" class="social-btn flex-1" aria-label="使用 Google 登录">
               <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
             </button>
@@ -138,7 +138,7 @@
             </button>
           </div>
 
-          <div class="mt-auto text-center" style="font-size: 13px; color: #64748b;">
+          <div class="auth-switch text-center" style="font-size: 13px; color: #64748b;">
             {{ mode === 'login' ? '还没有账户？' : '已有账户？' }}
             <button type="button" class="btn-link text-primary hover-underline" style="font-weight: 600;" @click="mode = mode === 'login' ? 'register' : 'login'">
               {{ mode === 'login' ? '立即注册' : '立即登录' }}
@@ -207,6 +207,18 @@ async function submitAuth() {
   color: #334155;
   transition: background-color 0.2s, border-color 0.2s, box-shadow 0.2s;
 }
+
+.auth-container {
+  min-height: 600px;
+}
+
+.auth-left {
+  padding: 52px 46px;
+}
+
+.auth-right {
+  padding: 52px 44px;
+}
 .custom-input:focus {
   background: #ffffff !important;
   border-color: var(--primary);
@@ -270,6 +282,7 @@ async function submitAuth() {
 .auth-tabs {
   border-bottom: 1px solid #e2e8f0;
   padding-bottom: 0;
+  flex-shrink: 0;
 }
 
 .tab-btn {
@@ -303,6 +316,55 @@ async function submitAuth() {
   border: 1px solid rgba(236, 72, 153, 0.2);
 }
 
+.auth-form-panel {
+  gap: 0;
+}
+
+.auth-form {
+  min-height: 0;
+}
+
+.auth-brand {
+  margin-bottom: 28px;
+}
+
+.auth-hero-copy {
+  margin-top: auto;
+  margin-bottom: 34px;
+}
+
+.auth-badge-space {
+  margin-bottom: 18px;
+}
+
+.auth-hero-title {
+  margin-bottom: 18px;
+}
+
+.auth-features {
+  margin-top: 0;
+}
+
+.auth-title-block {
+  margin-bottom: 28px;
+}
+
+.auth-field {
+  margin-bottom: 18px;
+}
+
+.auth-options {
+  margin-bottom: 22px;
+}
+
+.auth-divider {
+  margin: 22px 0 18px;
+}
+
+.auth-switch {
+  margin-top: 18px;
+}
+
 .back-link {
   display: inline-flex;
   align-items: center;
@@ -317,21 +379,12 @@ async function submitAuth() {
   color: var(--text);
 }
 
-.font-medium { font-weight: 500; }
-.text-primary { color: var(--primary); text-decoration: none; }
-.text-primary:hover { text-decoration: underline; }
-.text-accent { color: var(--accent); }
-.rounded-lg { border-radius: 8px; }
-.cursor-pointer { cursor: pointer; }
-.absolute { position: absolute; }
-.bottom-6 { bottom: 24px; }
-.w-full { width: 100%; }
-
 /* Input with Icons */
 .input-wrapper {
   position: relative;
   display: flex;
   align-items: center;
+  min-height: 52px;
 }
 .abstract-visual {
   position: absolute;
@@ -391,9 +444,10 @@ async function submitAuth() {
   padding: 20px;
   border-radius: 20px;
   border: 1px solid rgba(255,255,255,0.2);
+  flex-wrap: wrap;
 }
 .f-item {
-  flex: 1;
+  flex: 1 1 140px;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -423,7 +477,7 @@ async function submitAuth() {
 /* Auth Right Refinements */
 .submit-btn {
   width: 100%;
-  height: 52px;
+  height: 54px;
   font-size: 16px;
   border-radius: 12px;
   font-weight: 600;
@@ -438,6 +492,7 @@ async function submitAuth() {
   text-align: center;
   color: #94a3b8;
   font-size: 12px;
+  flex-shrink: 0;
 }
 .divider::before, .divider::after {
   content: '';
@@ -451,6 +506,7 @@ async function submitAuth() {
 .social-login {
   display: flex;
   gap: 16px;
+  flex-shrink: 0;
 }
 .social-btn {
   height: 48px;
@@ -531,5 +587,60 @@ async function submitAuth() {
   width: 50vw;
   height: 50vw;
   background: radial-gradient(circle, rgba(236, 72, 153, 0.15) 0%, transparent 70%);
+}
+
+@media (max-width: 1100px) {
+  .auth-container {
+    max-width: 980px;
+    min-height: 600px;
+  }
+
+  .auth-left {
+    padding: 48px 40px;
+  }
+
+  .auth-right {
+    width: 440px;
+    padding: 48px 40px;
+  }
+}
+
+@media (max-width: 900px) {
+  .auth-layout {
+    align-items: flex-start;
+    padding: 20px;
+  }
+
+  .auth-right {
+    padding: 34px 28px;
+  }
+
+  .auth-tabs {
+    margin-bottom: 26px;
+  }
+
+  .social-login {
+    gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .auth-layout {
+    padding: 0;
+  }
+
+  .auth-container {
+    min-height: 100vh;
+    border-radius: 0;
+    border: 0;
+  }
+
+  .auth-right {
+    padding: 28px 20px;
+  }
+
+  .auth-tabs {
+    margin-bottom: 24px;
+  }
 }
 </style>

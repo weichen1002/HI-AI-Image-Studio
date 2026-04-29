@@ -257,7 +257,6 @@ main {
   background: #ffffff;
   box-shadow: 0 4px 12px rgba(0,0,0,0.05);
 }
-.ml-2 { margin-left: 8px; }
 
 /* Showcase Window */
 .hero-showcase {
@@ -458,8 +457,7 @@ main {
   justify-content: center;
   margin-bottom: 28px;
 }
-.text-muted {
-  color: var(--muted);
+.feature-card p {
   line-height: 1.6;
 }
 

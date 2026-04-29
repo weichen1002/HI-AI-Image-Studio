@@ -226,8 +226,4 @@ function useTemplate(tpl) {
     grid-template-columns: 1fr;
   }
 }
-
-.text-primary {
-  color: var(--primary);
-}
 </style>
