@@ -8,8 +8,8 @@ import { config } from '../config';
 import * as crypto from 'crypto';
 
 function normalizeLimit(value: string | undefined) {
-  const limit = Number(value || 24);
-  if (!Number.isFinite(limit)) return 24;
+  const limit = Number(value || 12);
+  if (!Number.isFinite(limit)) return 12;
   return Math.max(1, Math.min(50, Math.floor(limit)));
 }
 
@@ -17,7 +17,7 @@ function toListImage(image: any) {
   return {
     ...image,
     imageUrls: image.imageUrls
-      .filter((url: string) => url && !url.startsWith('data:'))
+      .filter(Boolean)
       .slice(0, 1),
   };
 }

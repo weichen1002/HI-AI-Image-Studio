@@ -79,7 +79,7 @@
     </div>
 
     <!-- Right Panel: Preview -->
-    <div class="panel flex flex-col h-full" style="padding: 24px; min-height: 500px;">
+    <div class="panel flex flex-col h-full" style="padding: 32px; min-height: 540px;">
       <div class="flex justify-between items-center mb-4 px-2">
         <div>
           <h2 class="text-h3">生成预览</h2>
@@ -114,7 +114,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, onMounted, nextTick } from 'vue'
+import { computed, reactive, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { SparklesIcon, LoaderIcon, Wand2Icon, Trash2Icon, RefreshCcwIcon, ImageIcon } from 'lucide-vue-next'
 import { useImagesStore } from '../../stores/images'
@@ -144,14 +144,21 @@ onMounted(() => {
   }
 })
 
-const loading = ref(false)
 const errorMsg = ref('')
-const previewUrl = ref('')
-const statusText = ref('准备就绪')
+const loading = computed(() => imagesStore.isGenerating)
+const previewUrl = computed(() => imagesStore.activeJob?.image?.imageUrls?.[0] || '')
+const statusText = computed(() => {
+  const job = imagesStore.activeJob
+  if (!job) return '准备就绪'
+  if (job.status === 'running') return '正在请求 gpt-image-2...'
+  if (job.status === 'success') return '生成完成'
+  if (job.status === 'error') return '生成失败'
+  return '准备就绪'
+})
 
 function clearPreview() {
-  previewUrl.value = ''
-  statusText.value = '准备就绪'
+  imagesStore.clearJob()
+  errorMsg.value = ''
 }
 
 function getRatioValue(ratio) {
@@ -170,25 +177,11 @@ async function submitGenerate() {
   if (!form.prompt) return
   
   errorMsg.value = ''
-  loading.value = true
-  previewUrl.value = ''
-  statusText.value = '正在请求 gpt-image-2...'
 
   try {
-    const image = await imagesStore.generate(form.prompt, form.aspectRatio)
-    if (image && image.imageUrls && image.imageUrls[0]) {
-      statusText.value = '生成完成'
-      loading.value = false
-      await nextTick()
-      previewUrl.value = image.imageUrls[0]
-    } else {
-      statusText.value = '未能解析到图片地址'
-    }
+    await imagesStore.generate(form.prompt, form.aspectRatio)
   } catch (e) {
     errorMsg.value = e.message || '生成失败'
-    statusText.value = '生成失败'
-  } finally {
-    loading.value = false
   }
 }
 </script>
@@ -226,6 +219,10 @@ async function submitGenerate() {
   cursor: pointer;
   transition: all 0.2s;
   box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .template-chip:hover {
   color: var(--primary);
@@ -246,6 +243,7 @@ async function submitGenerate() {
   border: 1px solid var(--line);
   padding-bottom: 48px;
   border-radius: var(--radius-sm);
+  max-height: 300px;
 }
 .textarea:focus {
   background: #ffffff;
@@ -298,6 +296,7 @@ async function submitGenerate() {
   cursor: pointer;
   transition: all 0.2s;
   box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+  user-select: none;
 }
 .ratio-btn:hover {
   border-color: rgba(99, 102, 241, 0.4);
@@ -366,12 +365,13 @@ async function submitGenerate() {
   padding: 24px;
   border: 1px solid rgba(0,0,0,0.05);
   box-shadow: inset 0 2px 10px rgba(0,0,0,0.02);
-  min-height: 400px;
+  min-height: clamp(320px, 52vh, 620px);
 }
 
 .preview-box {
   width: 100%;
   max-height: 100%;
+  max-width: min(100%, 760px);
   background: transparent;
   border: none;
   display: flex;
@@ -404,6 +404,7 @@ async function submitGenerate() {
   border-radius: var(--radius-md);
   background: var(--bg-subtle);
   transition: all 0.3s;
+  min-height: 280px;
 }
 
 .loading-state {
@@ -477,5 +478,26 @@ async function submitGenerate() {
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(0,0,0,0.2);
+}
+
+@media (max-width: 760px) {
+  .ratio-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .preview-container {
+    min-height: 300px;
+    padding: 16px;
+  }
+
+  .generate-btn {
+    height: 56px;
+  }
+}
+
+@media (max-width: 420px) {
+  .ratio-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 </style>

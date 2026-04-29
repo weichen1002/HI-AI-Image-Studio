@@ -144,7 +144,7 @@ function useTemplate(tpl) {
 <style scoped>
 .grid-templates {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 24px;
 }
 
@@ -157,6 +157,7 @@ function useTemplate(tpl) {
   height: 100%;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .template-card:hover {
@@ -196,14 +197,34 @@ function useTemplate(tpl) {
   padding: 10px 12px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);
+  min-height: 76px;
 }
 
 .prompt-preview code {
+  display: -webkit-box;
   font-family: monospace;
   font-size: 12px;
+  line-height: 1.5;
   color: var(--muted);
   white-space: pre-wrap;
-  word-break: break-all;
+  word-break: break-word;
+  overflow: hidden;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.tpl-body {
+  min-height: 300px;
+}
+
+.tpl-body .btn {
+  margin-top: auto;
+}
+
+@media (max-width: 760px) {
+  .grid-templates {
+    grid-template-columns: 1fr;
+  }
 }
 
 .text-primary {
