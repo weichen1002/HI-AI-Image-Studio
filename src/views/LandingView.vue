@@ -48,7 +48,7 @@
           <div class="flex items-center justify-center gap-4 action-buttons">
             <LinkButton :to="isAuthenticated ? '/studio' : '/login'" class="btn-lg">
               免费开始创作
-              <ArrowRightIcon :size="18" class="ml-2" />
+              <ArrowRightIcon :size="18" class="ml-2 hero-cta-icon" />
             </LinkButton>
             <LinkButton to="/studio/models" variant="ghost" class="btn-lg bg-white">
               浏览灵感库
@@ -253,6 +253,10 @@ main {
   padding: 0 36px;
   font-size: 16px;
   border-radius: 14px;
+}
+
+.hero-cta-icon {
+  color: #fff;
 }
 .bg-white {
   background: #ffffff;
