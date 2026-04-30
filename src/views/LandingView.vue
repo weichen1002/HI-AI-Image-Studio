@@ -125,7 +125,7 @@
               </div>
               <span>Hi AI Image Studio</span>
             </div>
-            <div class="footer-meta">© 2024 Hi AI Image Studio. All rights reserved.</div>
+            <div class="footer-meta">© 2026 Hi AI Image Studio. All rights reserved.</div>
           </div>
           <div class="footer-right">
             <div class="footer-title">友情链接</div>
