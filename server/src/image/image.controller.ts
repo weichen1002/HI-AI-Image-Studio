@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Body,
   Req,
   Query,
@@ -15,7 +16,6 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthGuard } from '../auth/auth.guard';
 import type { RequestWithUser } from '../auth/auth.guard';
-import { DbService } from '../db/db.service';
 import { HiapiService } from '../hiapi/hiapi.service';
 import { normalizeAspectRatio } from '../utils';
 import { config } from '../config';
@@ -24,6 +24,10 @@ import type { Express } from 'express';
 import * as fs from 'fs';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
+import { ImagesRepo } from '../db/repositories/images.repo';
+import { CreditsRepo } from '../credits/credits.repo';
+import { costFor } from '../credits/pricing';
+import { SqliteService } from '../db/sqlite.service';
 
 function normalizeLimit(value: string | undefined) {
   const limit = Number(value || 12);
@@ -46,7 +50,7 @@ function toListImage(image: any) {
   return {
     ...image,
     mode: image.mode || 'text',
-    imageUrls: image.imageUrls.filter(Boolean).slice(0, 1),
+    imageUrls: (image.imageUrls || []).filter(Boolean).slice(0, 1),
     inputImageUrls: (image.inputImageUrls || []).filter(Boolean).slice(0, 1),
   };
 }
@@ -64,36 +68,92 @@ function extForMime(mime: string) {
   return '';
 }
 
+function toUploadFilePath(url: string) {
+  const val = String(url || '');
+  if (!val.startsWith('/uploads/')) return '';
+  const fileName = path.basename(val);
+  if (!fileName) return '';
+  return path.join(uploadDir(), fileName);
+}
+
 @Controller('api/images')
 @UseGuards(AuthGuard)
 export class ImageController {
   constructor(
-    private readonly dbService: DbService,
+    private readonly imagesRepo: ImagesRepo,
     private readonly hiapiService: HiapiService,
+    private readonly creditsRepo: CreditsRepo,
+    private readonly sqlite: SqliteService,
   ) {}
 
   @Get()
   getImages(@Req() req: RequestWithUser, @Query('limit') limitValue?: string) {
     const limit = normalizeLimit(limitValue);
-    const db = this.dbService.readDb();
-    const images = db.images
-      .filter((image) => image.userId === req.user.id)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .slice(0, limit)
+    const images = this.imagesRepo
+      .listByUser({ userId: req.user.id, limit })
       .map(toListImage);
     return { images };
   }
 
   @Get(':id')
   getImage(@Req() req: RequestWithUser, @Param('id') id: string) {
-    const db = this.dbService.readDb();
-    const image = db.images.find(
-      (item) => item.id === id && item.userId === req.user.id,
-    );
+    const image = this.imagesRepo.findById({ id, userId: req.user.id });
     if (!image) {
       throw new HttpException('记录不存在', HttpStatus.NOT_FOUND);
     }
     return { image: { ...image, mode: image.mode || 'text' } };
+  }
+
+  @Delete(':id')
+  async deleteImage(@Req() req: RequestWithUser, @Param('id') id: string) {
+    const image = this.imagesRepo.findById({ id, userId: req.user.id });
+    if (!image) {
+      throw new HttpException('记录不存在', HttpStatus.NOT_FOUND);
+    }
+
+    this.sqlite.transaction(() => {
+      const changes = this.imagesRepo.deleteById({ id, userId: req.user.id });
+      if (changes <= 0) {
+        throw new HttpException('记录不存在', HttpStatus.NOT_FOUND);
+      }
+    });
+
+    const urls = Array.isArray(image.inputImageUrls)
+      ? image.inputImageUrls
+      : [];
+    for (const u of urls) {
+      const filePath = toUploadFilePath(u);
+      if (!filePath) continue;
+      try {
+        await fsp.unlink(filePath);
+      } catch {
+        void 0;
+      }
+    }
+
+    return { ok: true };
+  }
+
+  @Delete()
+  async clearImages(@Req() req: RequestWithUser) {
+    const urls = this.imagesRepo.listInputImageUrlsByUser({
+      userId: req.user.id,
+    });
+    const deleted = this.sqlite.transaction(() => {
+      return this.imagesRepo.deleteAllByUser({ userId: req.user.id });
+    });
+
+    for (const u of urls) {
+      const filePath = toUploadFilePath(u);
+      if (!filePath) continue;
+      try {
+        await fsp.unlink(filePath);
+      } catch {
+        void 0;
+      }
+    }
+
+    return { ok: true, deleted };
   }
 
   @Post()
@@ -110,20 +170,28 @@ export class ImageController {
 
     try {
       const result = await this.hiapiService.generateImage(prompt, aspectRatio);
-      const image = {
-        id: crypto.randomUUID(),
-        userId: req.user.id,
-        mode: 'text' as const,
-        prompt,
-        aspectRatio,
-        content: result.content,
-        imageUrls: result.imageUrls,
-        createdAt: new Date().toISOString(),
-      };
-
-      const db = this.dbService.readDb();
-      db.images.push(image);
-      this.dbService.writeDb(db);
+      const cost = costFor(
+        req.user.plan === 'pro' ? 'pro' : 'free',
+        'text_to_image',
+      );
+      const image = this.sqlite.transaction(() => {
+        const created = this.imagesRepo.create({
+          userId: req.user.id,
+          mode: 'text',
+          prompt,
+          aspectRatio,
+          content: result.content,
+          imageUrls: result.imageUrls,
+        });
+        this.creditsRepo.chargeInTx({
+          userId: req.user.id,
+          cost,
+          reason: 'text_to_image',
+          refType: 'image',
+          refId: created.id,
+        });
+        return created;
+      });
       return { image };
     } catch (error: any) {
       console.error(error);
@@ -183,7 +251,6 @@ export class ImageController {
       });
 
       const image = {
-        id: crypto.randomUUID(),
         userId: req.user.id,
         mode: 'image' as const,
         prompt,
@@ -191,13 +258,23 @@ export class ImageController {
         content: result.content,
         imageUrls: result.imageUrls,
         inputImageUrls: [inputUrl],
-        createdAt: new Date().toISOString(),
       };
-
-      const db = this.dbService.readDb();
-      db.images.push(image);
-      this.dbService.writeDb(db);
-      return { image };
+      const cost = costFor(
+        req.user.plan === 'pro' ? 'pro' : 'free',
+        'image_to_image',
+      );
+      const saved = this.sqlite.transaction(() => {
+        const created = this.imagesRepo.create(image);
+        this.creditsRepo.chargeInTx({
+          userId: req.user.id,
+          cost,
+          reason: 'image_to_image',
+          refType: 'image',
+          refId: created.id,
+        });
+        return created;
+      });
+      return { image: saved };
     } catch (error: any) {
       try {
         await fsp.unlink(filePath);
@@ -212,4 +289,3 @@ export class ImageController {
     }
   }
 }
-

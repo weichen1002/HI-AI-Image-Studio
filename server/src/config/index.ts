@@ -8,6 +8,7 @@ const PUBLIC_DIR = fs.existsSync(path.join(ROOT, 'dist'))
   : path.join(ROOT, 'public');
 const DATA_DIR = path.join(ROOT, 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
+const SQLITE_FILE = path.join(DATA_DIR, 'app.db');
 
 function loadEnv(filePath: string) {
   if (!fs.existsSync(filePath)) return;
@@ -32,15 +33,23 @@ function trimSlash(value: string | undefined): string {
   return String(value || '').replace(/\/+$/, '');
 }
 
+function resolvePath(value: string) {
+  if (!value) return value;
+  return path.isAbsolute(value) ? value : path.join(ROOT, value);
+}
+
 export const config = {
   ROOT,
   PUBLIC_DIR,
   DATA_DIR,
   DB_FILE,
+  SQLITE_FILE: resolvePath(process.env.SQLITE_FILE || SQLITE_FILE),
   PORT: Number(process.env.PORT || 3000),
   HOST: process.env.HOST || '0.0.0.0',
   SESSION_SECRET:
     process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
+  ADMIN_TOKEN: process.env.ADMIN_TOKEN || '',
+  HIAPI_TEXT_MODEL: process.env.HIAPI_TEXT_MODEL || '',
   HIAPI_BASE_URL: trimSlash(
     process.env.HIAPI_BASE_URL || 'https://hiapis.cloud/v1',
   ),

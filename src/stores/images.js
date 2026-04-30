@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { apiFetch } from '../utils/api'
+import { toastSuccess } from '../components/common'
 
 export const useImagesStore = defineStore('images', () => {
   const images = ref([])
@@ -23,29 +25,18 @@ export const useImagesStore = defineStore('images', () => {
   async function fetchImages(limit = 12) {
     isLoading.value = true
     try {
-      const response = await fetch(`/api/images?limit=${limit}`)
-      if (response.ok) {
-        const data = await response.json()
-        images.value = (data.images || []).map(toListImage)
-      }
+      const data = await apiFetch(`/api/images?limit=${limit}`)
+      images.value = (data?.images || []).map(toListImage)
+    } catch {
+      images.value = images.value || []
     } finally {
       isLoading.value = false
     }
   }
 
   async function fetchImage(id) {
-    const response = await fetch(`/api/images/${id}`)
-    const text = await response.text()
-    let data
-    try {
-      data = JSON.parse(text)
-    } catch {
-      data = { message: text }
-    }
-    if (!response.ok) {
-      throw new Error(data.message || data.error || '加载失败')
-    }
-    return data.image
+    const data = await apiFetch(`/api/images/${id}`)
+    return data?.image
   }
 
   async function generate(prompt, aspectRatio) {
@@ -65,22 +56,11 @@ export const useImagesStore = defineStore('images', () => {
     }
 
     try {
-      const response = await fetch('/api/images', {
+      const data = await apiFetch('/api/images', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt, aspectRatio })
       })
-      const text = await response.text()
-      let data
-      try {
-        data = JSON.parse(text)
-      } catch {
-        data = { message: text }
-      }
-
-      if (!response.ok) {
-        throw new Error(data.message || data.error || '生成失败')
-      }
 
       images.value.unshift(toListImage(data.image))
       activeJob.value = {
@@ -127,22 +107,10 @@ export const useImagesStore = defineStore('images', () => {
       form.append('prompt', prompt)
       form.append('aspectRatio', aspectRatio)
 
-      const response = await fetch('/api/images/from-image', {
+      const data = await apiFetch('/api/images/from-image', {
         method: 'POST',
         body: form
       })
-
-      const text = await response.text()
-      let data
-      try {
-        data = JSON.parse(text)
-      } catch {
-        data = { message: text }
-      }
-
-      if (!response.ok) {
-        throw new Error(data.message || data.error || '生成失败')
-      }
 
       images.value.unshift(toListImage(data.image))
       activeJob.value = {
@@ -167,5 +135,18 @@ export const useImagesStore = defineStore('images', () => {
     if (!isGenerating.value) activeJob.value = null
   }
 
-  return { images, isLoading, activeJob, isGenerating, fetchImages, fetchImage, generate, generateFromImage, clearJob }
+  async function deleteImage(id) {
+    await apiFetch(`/api/images/${id}`, { method: 'DELETE' })
+    const idx = images.value.findIndex((im) => String(im.id) === String(id))
+    if (idx >= 0) images.value.splice(idx, 1)
+    toastSuccess('已删除')
+  }
+
+  async function clearImages() {
+    await apiFetch('/api/images', { method: 'DELETE' })
+    images.value = []
+    toastSuccess('已清空')
+  }
+
+  return { images, isLoading, activeJob, isGenerating, fetchImages, fetchImage, generate, generateFromImage, clearJob, deleteImage, clearImages }
 })

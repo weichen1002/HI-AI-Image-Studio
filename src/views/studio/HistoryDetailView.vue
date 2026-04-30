@@ -28,6 +28,10 @@
           <DownloadIcon :size="16" />
           下载{{ tabLabel }}
         </button>
+        <button v-if="image" class="btn btn-ghost hero-action" @click="remove">
+          <Trash2Icon :size="16" />
+          删除
+        </button>
       </div>
     </div>
 
@@ -97,7 +101,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeftIcon, DownloadIcon, Wand2Icon } from 'lucide-vue-next'
+import { ArrowLeftIcon, DownloadIcon, Wand2Icon, Trash2Icon } from 'lucide-vue-next'
 import { useImagesStore } from '../../stores/images'
 
 const route = useRoute()
@@ -151,6 +155,14 @@ function reuse() {
     return
   }
   router.push({ path: '/studio', query: { prompt: image.value.prompt } })
+}
+
+async function remove() {
+  if (!image.value?.id) return
+  const ok = window.confirm('确定删除这条记录吗？')
+  if (!ok) return
+  await imagesStore.deleteImage(image.value.id)
+  router.push('/studio/history')
 }
 
 function downloadName() {

@@ -43,6 +43,18 @@ const routes = [
         path: 'settings',
         name: 'studio-settings',
         component: () => import('../views/studio/SettingsView.vue')
+      },
+      {
+        path: 'admin/users',
+        name: 'studio-admin-users',
+        component: () => import('../views/studio/admin/AdminUsersView.vue'),
+        meta: { requiresRole: ['admin', 'superadmin'] }
+      },
+      {
+        path: 'admin/ledger',
+        name: 'studio-admin-ledger',
+        component: () => import('../views/studio/admin/AdminLedgerView.vue'),
+        meta: { requiresRole: ['admin', 'superadmin'] }
       }
     ]
   }
@@ -60,6 +72,7 @@ router.beforeEach(async (to, from, next) => {
   }
 
   const isAuthenticated = !!authStore.user
+  const role = authStore.user?.role
   
   // If route explicitly overrides parent's requiresAuth to false
   if (to.meta.requiresAuth === false) {
@@ -70,6 +83,17 @@ router.beforeEach(async (to, from, next) => {
     next({ name: 'auth' })
   } else if (to.meta.guestOnly && isAuthenticated) {
     next({ name: 'studio-create' })
+  } else if (to.meta.requiresRole) {
+    const allowed = Array.isArray(to.meta.requiresRole) ? to.meta.requiresRole : []
+    if (!isAuthenticated) {
+      next({ name: 'auth' })
+      return
+    }
+    if (!allowed.includes(role)) {
+      next({ name: 'studio-create' })
+      return
+    }
+    next()
   } else {
     next()
   }

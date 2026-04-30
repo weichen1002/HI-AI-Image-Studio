@@ -9,6 +9,11 @@
     </div>
 
     <div class="mb-6">
+      <label class="label">用户 ID</label>
+      <input type="text" class="input" :value="authStore.user?.id" disabled style="background: var(--bg-subtle);" />
+    </div>
+
+    <div class="mb-6">
       <label class="label">默认图片比例</label>
       <select class="input">
         <option>1:1 (正方形)</option>

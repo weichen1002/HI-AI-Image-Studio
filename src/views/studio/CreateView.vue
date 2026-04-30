@@ -45,6 +45,15 @@
             ></textarea>
             <div class="textarea-footer">
               <span>{{ form.prompt.length }} / 4000</span>
+              <button
+                type="button"
+                class="btn btn-ghost"
+                style="height: 30px; padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 800;"
+                :disabled="loading || isEnhancing || !form.prompt"
+                @click="enhancePrompt"
+              >
+                {{ isEnhancing ? '润色中...' : 'AI 润色' }}
+              </button>
               <button type="button" class="btn btn-ghost btn-icon" @click="form.prompt = ''" v-if="form.prompt" title="清空">
                 <Trash2Icon :size="14" />
               </button>
@@ -125,10 +134,13 @@ import { computed, reactive, ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { SparklesIcon, LoaderIcon, Wand2Icon, Trash2Icon, RefreshCcwIcon, ImageIcon } from 'lucide-vue-next'
 import { useImagesStore } from '../../stores/images'
+import { useAuthStore } from '../../stores/auth'
 import ModeSwitch from '../../components/ModeSwitch.vue'
 import ImageUpload from '../../components/ImageUpload.vue'
+import { apiFetch } from '../../utils/api'
 
 const imagesStore = useImagesStore()
+const authStore = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -186,6 +198,7 @@ watch(mode, (val) => {
 })
 
 const errorMsg = ref('')
+const isEnhancing = ref(false)
 const loading = computed(() => imagesStore.isGenerating)
 const previewUrl = computed(() => imagesStore.activeJob?.image?.imageUrls?.[0] || '')
 const statusText = computed(() => {
@@ -227,6 +240,25 @@ async function submitGenerate() {
     await imagesStore.generateFromImage(inputFile.value, form.prompt, form.aspectRatio)
   } catch (e) {
     errorMsg.value = e.message || '生成失败'
+  }
+}
+
+async function enhancePrompt() {
+  if (!form.prompt || isEnhancing.value) return
+  errorMsg.value = ''
+  isEnhancing.value = true
+  try {
+    const data = await apiFetch('/api/prompts/enhance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: form.prompt })
+    })
+    form.prompt = data?.prompt || form.prompt
+    await authStore.fetchUser()
+  } catch (e) {
+    errorMsg.value = e.message || '润色失败'
+  } finally {
+    isEnhancing.value = false
   }
 }
 </script>

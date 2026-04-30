@@ -1,0 +1,113 @@
+<h2>管理中心（方向 A）细化：表格 + 详情抽屉</h2>
+<p class="subtitle">请选择你更希望的“信息架构/抽屉结构/交互增强”。我会按你的选择把 3 个管理页面统一成一致体验。</p>
+
+<div style="margin-top:14px;padding:14px;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04)">
+  <div style="font-weight:900">1) 信息架构（单选）</div>
+  <div class="options" style="margin-top:10px">
+    <div class="option" data-choice="ia-keep-3" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>保留 3 页（用户/流水/管理员）</h3>
+        <p>用户管理页用抽屉做高频操作；流水页支持按 userId 查询；管理员页仅 superadmin。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="ia-merge-ledger" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>合并流水：主要在抽屉里看</h3>
+        <p>“账务流水”页降级为全局审计/搜索（可选），日常从用户抽屉直接看流水。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="ia-one-admin" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>管理中心首页（导航卡片）</h3>
+        <p>进入管理中心先看到 3 张功能卡片；再进入具体页面。更“后台系统”感觉。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:14px;padding:14px;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04)">
+  <div style="font-weight:900">2) 抽屉结构（单选）</div>
+  <div class="options" style="margin-top:10px">
+    <div class="option" data-choice="drawer-tabs" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Tab：概览 / 账务 / 流水 / 权限</h3>
+        <p>信息清晰；流水可分页；权限 Tab 仅 superadmin 可见。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="drawer-sections" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>分区卡片：在一屏滚动完成</h3>
+        <p>更快；适合小屏；但当流水很多时会长。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="drawer-quick" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>顶部快操作 + 下方流水</h3>
+        <p>把“改 plan/调账/改角色”做成顶部快捷按钮；下面只放流水列表。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:14px;padding:14px;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04)">
+  <div style="font-weight:900">3) 交互增强（可多选）</div>
+  <p class="subtitle" style="margin:8px 0 0">这些是“用起来顺手”的关键点：减少弹窗、减少跳转、减少复制粘贴。</p>
+  <div class="options" data-multiselect style="margin-top:10px">
+    <div class="option" data-choice="ux-row-opens-drawer" onclick="toggleSelect(this)">
+      <div class="letter">1</div>
+      <div class="content">
+        <h3>点击行打开抽屉</h3>
+        <p>右侧抽屉固定宽度；Esc 关闭；列表滚动位置不丢。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="ux-inline-edit" onclick="toggleSelect(this)">
+      <div class="letter">2</div>
+      <div class="content">
+        <h3>Plan/Role 行内变更</h3>
+        <p>下拉选择后立即保存，右上角 toast 提示结果。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="ux-adjust-in-drawer" onclick="toggleSelect(this)">
+      <div class="letter">3</div>
+      <div class="content">
+        <h3>调账在抽屉完成（不弹 modal）</h3>
+        <p>一个 amount + reason 输入框，确认后流水即时追加。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="ux-copy-buttons" onclick="toggleSelect(this)">
+      <div class="letter">4</div>
+      <div class="content">
+        <h3>一键复制 userId / username</h3>
+        <p>减少手工复制；复制成功 toast；支持快捷键。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="ux-filters" onclick="toggleSelect(this)">
+      <div class="letter">5</div>
+      <div class="content">
+        <h3>筛选：plan / role / 余额区间</h3>
+        <p>运营常用；并支持“仅余额不足”快速筛选。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="ux-bulk" onclick="toggleSelect(this)">
+      <div class="letter">6</div>
+      <div class="content">
+        <h3>批量操作（勾选多用户）</h3>
+        <p>批量调账/批量设为 pro 等；适合后期发活动。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:14px;padding:14px;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04)">
+  <div style="font-weight:900">默认推荐组合</div>
+  <p class="subtitle" style="margin:8px 0 0">
+    IA 选 A 或 B；抽屉选 A（Tabs）；交互建议至少勾选 1/2/3/4。
+  </p>
+</div>
+

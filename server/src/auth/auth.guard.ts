@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 import { verifySession } from '../utils';
-import { DbService } from '../db/db.service';
+import { UsersRepo } from '../db/repositories/users.repo';
 
 export interface RequestWithUser extends Request {
   user: any;
@@ -14,7 +14,7 @@ export interface RequestWithUser extends Request {
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  constructor(private readonly dbService: DbService) {}
+  constructor(private readonly usersRepo: UsersRepo) {}
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<RequestWithUser>();
@@ -25,8 +25,7 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException('请先登录');
     }
 
-    const db = this.dbService.readDb();
-    const user = db.users.find((u) => u.id === userId);
+    const user = this.usersRepo.findById(userId);
 
     if (!user) {
       throw new UnauthorizedException('用户不存在');

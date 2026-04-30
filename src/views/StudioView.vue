@@ -26,6 +26,18 @@
         </router-link>
         
         <div style="flex: 1"></div>
+
+        <div v-if="isAdmin" class="nav-section">
+          <div class="nav-section-title">管理中心</div>
+          <router-link to="/studio/admin/users" class="nav-link">
+            <UsersIcon :size="18" />
+            用户管理
+          </router-link>
+          <router-link to="/studio/admin/ledger" class="nav-link">
+            <ReceiptIcon :size="18" />
+            账务流水
+          </router-link>
+        </div>
         
         <router-link to="/studio/settings" class="nav-link">
           <SettingsIcon :size="18" />
@@ -41,7 +53,14 @@
         
         <div class="flex items-center gap-4" v-if="authStore.user">
           <div class="flex items-center gap-3" style="font-size: 14px; font-weight: 600; color: var(--text)">
-            <span style="background: var(--gradient-subtle); color: var(--primary); padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.5px;">PRO</span>
+            <span
+              style="background: var(--gradient-subtle); color: var(--primary); padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.5px;"
+            >
+              {{ authStore.user.plan === 'pro' ? 'PRO' : 'FREE' }}
+            </span>
+            <span style="background: rgba(15, 23, 42, 0.04); color: var(--text); padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 800;">
+              余额 {{ authStore.user.creditBalance ?? 0 }}
+            </span>
             <div class="flex items-center gap-2">
               <div style="width: 32px; height: 32px; background: var(--gradient-primary); color: #fff; border-radius: 50%; display: grid; place-items: center; font-weight: 700; box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);">
                 {{ authStore.user.username.charAt(0).toUpperCase() }}
@@ -98,11 +117,11 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useImagesStore } from '../stores/images'
-import { AlertCircleIcon, ImageIcon, LoaderIcon, PenToolIcon, FolderIcon, LayoutTemplateIcon, SettingsIcon } from 'lucide-vue-next'
+import { AlertCircleIcon, ImageIcon, LoaderIcon, PenToolIcon, FolderIcon, LayoutTemplateIcon, SettingsIcon, UsersIcon, ReceiptIcon } from 'lucide-vue-next'
 import logoUrl from '../hi-image-logo.png'
 
 const router = useRouter()
@@ -115,12 +134,16 @@ const routeNames = {
   'studio-history': '灵感记录',
   'studio-history-detail': '灵感记录 / 详情',
   'studio-models': '灵感库',
-  'studio-settings': '偏好设置'
+  'studio-settings': '偏好设置',
+  'studio-admin-users': '管理中心 / 用户管理',
+  'studio-admin-ledger': '管理中心 / 账务流水'
 }
 
 const currentRouteName = computed(() => {
   return routeNames[route.name] || '工作台'
 })
+
+const isAdmin = computed(() => ['admin', 'superadmin'].includes(authStore.user?.role))
 
 const generationTitle = computed(() => {
   const status = imagesStore.activeJob?.status
@@ -142,6 +165,15 @@ function goToGeneration() {
   router.push(imagesStore.activeJob?.status === 'success' ? '/studio/history' : '/studio')
 }
 
+watch(
+  () => imagesStore.activeJob?.status,
+  async (status) => {
+    if (status === 'success') {
+      await authStore.fetchUser()
+    }
+  }
+)
+
 async function logout() {
   await authStore.logout()
   router.push('/auth')
@@ -149,6 +181,21 @@ async function logout() {
 </script>
 
 <style scoped>
+.nav-section {
+  padding: 12px 0;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  margin: 12px 0;
+}
+
+.nav-section-title {
+  padding: 0 14px 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
 .generation-bar {
   min-height: 58px;
   margin: 16px 40px 0;

@@ -1,6 +1,5 @@
 import * as crypto from 'crypto';
 import { config } from '../config';
-import { User } from '../db/db.service';
 
 export function signSession(userId: string): string {
   const payload = Buffer.from(JSON.stringify({ userId })).toString('base64url');
@@ -46,8 +45,16 @@ export function verifyPassword(password: string, stored: string): boolean {
   return crypto.timingSafeEqual(Buffer.from(actual), Buffer.from(hash));
 }
 
-export function publicUser(user: User | null | undefined) {
-  return user ? { id: user.id, username: user.username } : null;
+export function publicUser(user: any) {
+  return user
+    ? {
+        id: user.id,
+        username: user.username,
+        plan: user.plan,
+        role: user.role,
+        creditBalance: user.creditBalance,
+      }
+    : null;
 }
 
 export function cleanUsername(value: string | undefined | null): string {

@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import * as express from 'express';
 import * as path from 'path';
 import { config } from './config';
+import { ApiExceptionFilter } from './filters/api-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -11,6 +12,7 @@ async function bootstrap() {
   app.use(express.json({ limit: '10mb' }));
   app.use(cookieParser());
   app.enableCors();
+  app.useGlobalFilters(new ApiExceptionFilter());
   app.use(
     '/uploads',
     express.static(path.join(config.DATA_DIR, 'uploads'), {

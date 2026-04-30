@@ -1,5 +1,8 @@
 <template>
-  <router-view v-if="authStore.isInitialized" />
+  <div v-if="authStore.isInitialized">
+    <router-view />
+    <Toast />
+  </div>
   <div v-else class="loading-app">
     <div class="spinner"></div>
   </div>
@@ -7,6 +10,7 @@
 
 <script setup>
 import { useAuthStore } from './stores/auth'
+import { Toast } from './components/common'
 
 const authStore = useAuthStore()
 authStore.fetchUser()

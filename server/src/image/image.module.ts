@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ImageController } from './image.controller';
-import { DbService } from '../db/db.service';
+import { DbModule } from '../db/db.module';
 import { HiapiService } from '../hiapi/hiapi.service';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   controllers: [ImageController],
-  providers: [DbService, HiapiService],
+  imports: [DbModule, AuthModule],
+  providers: [HiapiService],
 })
 export class ImageModule {}

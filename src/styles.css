@@ -84,19 +84,40 @@ h1, h2, h3, h4, p {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  flex-shrink: 0;
   height: 48px;
   padding: 0 24px;
   border-radius: var(--radius-sm);
   font-size: 15px;
   font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
   transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   border: 1px solid transparent;
 }
 
+.btn-xs {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 6px;
+}
+
+.btn-sm {
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .btn-primary {
   background: var(--gradient-primary);
   color: #fff;
+  -webkit-text-fill-color: #fff;
   border: none;
   box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3);
 }
@@ -107,6 +128,8 @@ h1, h2, h3, h4, p {
 }
 .btn-primary:disabled {
   opacity: 0.7;
+  color: #fff !important;
+  -webkit-text-fill-color: #fff !important;
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
@@ -126,6 +149,11 @@ h1, h2, h3, h4, p {
 .btn-ghost:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.btn-danger {
+  color: var(--accent);
+  border-color: rgba(236, 72, 153, 0.18);
 }
 
 .btn:disabled {
@@ -152,6 +180,20 @@ h1, h2, h3, h4, p {
   color: var(--text);
   font-size: 15px;
   transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+}
+
+.input-sm {
+  height: 42px;
+  padding: 0 14px;
+  font-size: 14px;
+  border-radius: 12px;
+}
+
+.input-xs {
+  height: 36px;
+  padding: 0 12px;
+  font-size: 13px;
+  border-radius: 12px;
 }
 .input:focus {
   outline: none;
@@ -182,7 +224,6 @@ h1, h2, h3, h4, p {
 
 .label {
   display: block;
-  margin-bottom: 10px;
   font-size: 14px;
   font-weight: 600;
   color: var(--text);

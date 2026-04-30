@@ -5,10 +5,16 @@
         <h2 class="text-h2">灵感记录</h2>
         <p class="text-lead mt-2">每次生成都会保存到这里，方便回看提示词和继续优化方向。</p>
       </div>
-      <button class="btn btn-ghost" @click="fetchImages" :disabled="imagesStore.isLoading">
-        <RefreshCwIcon :size="18" />
-        刷新
-      </button>
+      <div class="flex items-center gap-2">
+        <button class="btn btn-ghost" @click="clearAll" :disabled="imagesStore.isLoading || !imagesStore.images.length">
+          <Trash2Icon :size="18" />
+          清空
+        </button>
+        <button class="btn btn-ghost" @click="fetchImages" :disabled="imagesStore.isLoading">
+          <RefreshCwIcon :size="18" />
+          刷新
+        </button>
+      </div>
     </div>
 
     <div v-if="imagesStore.isLoading" class="grid-history" aria-label="正在加载灵感记录">
@@ -72,6 +78,10 @@
               <DownloadIcon :size="15" />
               下载
             </button>
+            <button class="btn btn-ghost action-btn" type="button" @click.stop="removeOne(img)">
+              <Trash2Icon :size="15" />
+              删除
+            </button>
           </div>
         </div>
       </div>
@@ -81,7 +91,7 @@
 
 <script setup>
 import { onMounted, reactive } from 'vue'
-import { DownloadIcon, RefreshCwIcon, ImageOffIcon, Wand2Icon } from 'lucide-vue-next'
+import { DownloadIcon, RefreshCwIcon, ImageOffIcon, Wand2Icon, Trash2Icon } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { useImagesStore } from '../../stores/images'
 
@@ -95,6 +105,19 @@ onMounted(() => {
 
 function fetchImages() {
   imagesStore.fetchImages()
+}
+
+async function removeOne(image) {
+  if (!image?.id) return
+  const ok = window.confirm('确定删除这条记录吗？')
+  if (!ok) return
+  await imagesStore.deleteImage(image.id)
+}
+
+async function clearAll() {
+  const ok = window.confirm('确定清空全部灵感记录吗？该操作不可撤销。')
+  if (!ok) return
+  await imagesStore.clearImages()
 }
 
 function formatTime(val) {
@@ -298,8 +321,8 @@ async function downloadCover(image) {
 }
 
 .card-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 14px;
 }
@@ -308,6 +331,7 @@ async function downloadCover(image) {
   height: 36px;
   padding: 0 10px;
   border-radius: 10px;
+  flex: 1 1 96px;
   font-size: 13px;
 }
 
@@ -352,14 +376,20 @@ async function downloadCover(image) {
 }
 
 @keyframes shimmer {
-  from { background-position: 200% 0; }
-  to { background-position: -200% 0; }
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
 }
 
 .animate-spin {
   animation: spin 1s linear infinite;
 }
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

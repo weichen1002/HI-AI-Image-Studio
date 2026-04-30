@@ -9,8 +9,6 @@ import {
   HttpException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { DbService } from '../db/db.service';
-import * as crypto from 'crypto';
 import {
   signSession,
   verifySession,
@@ -19,10 +17,11 @@ import {
   publicUser,
   cleanUsername,
 } from '../utils';
+import { UsersRepo } from '../db/repositories/users.repo';
 
 @Controller('api')
 export class AuthController {
-  constructor(private readonly dbService: DbService) {}
+  constructor(private readonly usersRepo: UsersRepo) {}
 
   private setSession(res: Response, userId: string) {
     const token = signSession(userId);
@@ -43,8 +42,7 @@ export class AuthController {
     const userId = verifySession(token);
     if (!userId) return res.json({ user: null });
 
-    const db = this.dbService.readDb();
-    const user = db.users.find((u) => u.id === userId);
+    const user = this.usersRepo.findById(userId);
     return res.json({ user: publicUser(user) });
   }
 
@@ -60,22 +58,19 @@ export class AuthController {
       );
     }
 
-    const db = this.dbService.readDb();
-    if (
-      db.users.some((u) => u.username.toLowerCase() === username.toLowerCase())
-    ) {
+    const existing = this.usersRepo.findByUsername(username);
+    if (existing) {
       throw new HttpException('用户名已存在', HttpStatus.CONFLICT);
     }
 
-    const user = {
-      id: crypto.randomUUID(),
+    const user = this.usersRepo.create({
       username,
       passwordHash: hashPassword(password),
-      createdAt: new Date().toISOString(),
-    };
+      plan: 'free',
+      role: 'user',
+      creditBalance: 0,
+    });
 
-    db.users.push(user);
-    this.dbService.writeDb(db);
     this.setSession(res, user.id);
     return res.status(HttpStatus.CREATED).json({ user: publicUser(user) });
   }
@@ -84,10 +79,7 @@ export class AuthController {
   login(@Body() body: any, @Res() res: Response) {
     const username = cleanUsername(body.username);
     const password = String(body.password || '');
-    const db = this.dbService.readDb();
-    const user = db.users.find(
-      (u) => u.username.toLowerCase() === username.toLowerCase(),
-    );
+    const user = this.usersRepo.findByUsername(username);
 
     if (!user || !verifyPassword(password, user.passwordHash)) {
       throw new HttpException('用户名或密码不正确', HttpStatus.UNAUTHORIZED);

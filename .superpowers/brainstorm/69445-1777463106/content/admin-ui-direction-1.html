@@ -1,0 +1,93 @@
+<h2>管理中心 UI 优化方向</h2>
+<p class="subtitle">请选择你希望的整体交互与布局方向（先定信息架构与交互，再做视觉细化）。</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:14px;background:rgba(0,0,0,.18)">
+        <div style="display:flex;gap:10px;align-items:center;justify-content:space-between">
+          <div style="font-weight:800">用户管理</div>
+          <div style="opacity:.8;font-size:12px">搜索 · 筛选 · 批量</div>
+        </div>
+        <div style="margin-top:12px;display:grid;grid-template-columns: 1fr 340px;gap:12px">
+          <div style="height:180px;border-radius:12px;background:rgba(255,255,255,.06);padding:10px">
+            <div style="opacity:.75;font-size:12px">表格（紧凑）</div>
+            <div style="margin-top:10px;height:8px;border-radius:6px;background:rgba(255,255,255,.12)"></div>
+            <div style="margin-top:8px;height:8px;border-radius:6px;background:rgba(255,255,255,.10)"></div>
+            <div style="margin-top:8px;height:8px;border-radius:6px;background:rgba(255,255,255,.10)"></div>
+          </div>
+          <div style="height:180px;border-radius:12px;background:rgba(99,102,241,.12);padding:10px">
+            <div style="opacity:.85;font-size:12px">右侧详情抽屉</div>
+            <div style="margin-top:10px;height:8px;border-radius:6px;background:rgba(255,255,255,.14)"></div>
+            <div style="margin-top:8px;height:8px;border-radius:6px;background:rgba(255,255,255,.12)"></div>
+            <div style="margin-top:8px;height:34px;border-radius:10px;background:rgba(255,255,255,.10)"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A · 表格 + 详情抽屉（推荐）</h3>
+      <p>信息密度高，右侧抽屉承载“改 plan/调账/看流水/改角色”。适合运营高频操作。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:14px;background:rgba(0,0,0,.18)">
+        <div style="display:flex;gap:10px;align-items:center;justify-content:space-between">
+          <div style="font-weight:800">用户管理</div>
+          <div style="opacity:.8;font-size:12px">搜索栏（置顶）</div>
+        </div>
+        <div style="margin-top:12px;display:grid;grid-template-columns: 1fr;gap:10px">
+          <div style="height:52px;border-radius:12px;background:rgba(255,255,255,.06);padding:10px;display:flex;align-items:center;justify-content:space-between">
+            <div style="opacity:.9;font-size:12px">用户行（卡片化）</div>
+            <div style="width:80px;height:10px;border-radius:999px;background:rgba(99,102,241,.35)"></div>
+          </div>
+          <div style="height:52px;border-radius:12px;background:rgba(255,255,255,.06);padding:10px;display:flex;align-items:center;justify-content:space-between">
+            <div style="opacity:.9;font-size:12px">用户行（卡片化）</div>
+            <div style="width:80px;height:10px;border-radius:999px;background:rgba(255,255,255,.14)"></div>
+          </div>
+          <div style="height:52px;border-radius:12px;background:rgba(255,255,255,.06);padding:10px;display:flex;align-items:center;justify-content:space-between">
+            <div style="opacity:.9;font-size:12px">用户行（卡片化）</div>
+            <div style="width:80px;height:10px;border-radius:999px;background:rgba(255,255,255,.14)"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B · 卡片列表 + 行内操作</h3>
+      <p>更“产品化”，每行就是一个可操作单元；信息密度略低，但更易上手。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:14px;background:rgba(0,0,0,.18)">
+        <div style="font-weight:800">管理动作面板</div>
+        <div style="opacity:.8;font-size:12px;margin-top:6px">按任务拆：调账 / 升级套餐 / 管理员授权</div>
+        <div style="margin-top:12px;display:grid;grid-template-columns: 1fr 1fr;gap:10px">
+          <div style="height:90px;border-radius:12px;background:rgba(99,102,241,.12);padding:10px">
+            <div style="opacity:.85;font-size:12px">输入 userId</div>
+            <div style="margin-top:8px;height:34px;border-radius:10px;background:rgba(255,255,255,.10)"></div>
+          </div>
+          <div style="height:90px;border-radius:12px;background:rgba(236,72,153,.10);padding:10px">
+            <div style="opacity:.85;font-size:12px">选择动作</div>
+            <div style="margin-top:8px;height:34px;border-radius:10px;background:rgba(255,255,255,.10)"></div>
+          </div>
+          <div style="height:90px;border-radius:12px;background:rgba(255,255,255,.06);padding:10px"></div>
+          <div style="height:90px;border-radius:12px;background:rgba(255,255,255,.06);padding:10px"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C · 操作台（任务导向）</h3>
+      <p>更像“运营工具箱”，适合你的用户量不大但操作很明确的阶段；不以列表浏览为主。</p>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:14px;padding:14px;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04)">
+  <div style="font-weight:800">我建议</div>
+  <p class="subtitle" style="margin:8px 0 0">选 A：它最适合“用户多 + 高频运营动作 + 需要对账”的管理中心。确定方向后，我会再给你第二屏：表格密度、筛选区、抽屉内容结构与交互细节。</p>
+</div>
+
