@@ -13,7 +13,7 @@ import { AnnouncementsModule } from './announcements/announcements.module';
   imports: [
     ServeStaticModule.forRoot({
       rootPath: config.PUBLIC_DIR,
-      exclude: ['/api/(.*)'],
+      exclude: ['/api{/*path}'],
     }),
     DbModule,
     AuthModule,
