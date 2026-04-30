@@ -1,36 +1,38 @@
 <template>
   <div class="panel" style="max-width: 600px;">
-    <h2 class="text-h2 mb-4">偏好设置</h2>
-    <p class="text-lead mb-8">在这里管理您的账户和生成偏好。</p>
-
     <div class="mb-6">
       <label class="label">账户名称</label>
-      <input type="text" class="input" :value="authStore.user?.username" disabled style="background: var(--bg-subtle);" />
+      <Input :model-value="authStore.user?.username" disabled style="background: var(--bg-subtle);" />
     </div>
 
     <div class="mb-6">
       <label class="label">用户 ID</label>
-      <input type="text" class="input" :value="authStore.user?.id" disabled style="background: var(--bg-subtle);" />
+      <Input :model-value="authStore.user?.id" disabled style="background: var(--bg-subtle);" />
     </div>
 
     <div class="mb-6">
       <label class="label">默认图片比例</label>
-      <select class="input">
-        <option>1:1 (正方形)</option>
-        <option>16:9 (横向)</option>
-        <option>9:16 (竖向)</option>
-      </select>
+      <SelectMenu v-model="defaultRatio" :options="ratioOptions" placeholder="选择默认比例" />
       <p class="text-eyebrow mt-2" style="text-transform: none;">此设置将在未来的版本中生效</p>
     </div>
 
     <div class="flex justify-end mt-8">
-      <button class="btn btn-primary" disabled>保存设置</button>
+      <Button disabled>保存设置</Button>
     </div>
   </div>
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { useAuthStore } from '../../stores/auth'
+import { Button, Input, SelectMenu } from '../../components/common'
 
 const authStore = useAuthStore()
+
+const defaultRatio = ref('1:1')
+const ratioOptions = [
+  { label: '1:1 (正方形)', value: '1:1' },
+  { label: '16:9 (横向)', value: '16:9' },
+  { label: '9:16 (竖向)', value: '9:16' }
+]
 </script>

@@ -1,87 +1,81 @@
 <template>
   <TablePageLayout
-    title="用户管理"
-    subtitle="点击用户行打开右侧详情抽屉，完成改套餐 / 调账 / 查流水 / 权限操作。"
+    title=""
+    subtitle=""
     density="compact"
+    variant="plain"
   >
-    <template #actions>
-      <Button variant="ghost" size="sm" :disabled="loading" @click="load">刷新</Button>
-    </template>
-
-    <template #toolbar>
-      <div class="grid grid-cols-12 gap-3">
-        <div class="col-span-12 lg:col-span-6 flex items-center gap-3 flex-wrap">
-          <div class="flex-1 min-w-[240px]">
-            <Input v-model="q" size="sm" placeholder="搜索用户名" />
-          </div>
-          <Button size="sm" :disabled="loading" @click="load">搜索</Button>
-        </div>
-        <div class="col-span-12 lg:col-span-6 flex items-center justify-end">
-          <div class="stat">
-            <span class="stat-label">结果</span>
-            <span class="stat-value">{{ filteredUsers.length }}</span>
-          </div>
-        </div>
-
-        <div class="col-span-6 lg:col-span-2">
-          <SelectMenu v-model="planFilter" size="sm" :options="planOptions" placeholder="所有 plan" />
-        </div>
-        <div class="col-span-6 lg:col-span-2">
-          <SelectMenu v-model="roleFilter" size="sm" :options="roleOptions" placeholder="所有 role" />
-        </div>
-        <div class="col-span-6 lg:col-span-2">
-          <Input v-model="minBalance" size="sm" placeholder="余额≥" />
-        </div>
-        <div class="col-span-6 lg:col-span-2">
-          <Input v-model="maxBalance" size="sm" placeholder="余额≤" />
-        </div>
-        <div class="col-span-12 lg:col-span-4">
-          <Toggle v-model="lowBalanceOnly" size="sm" label="仅余额不足" />
-        </div>
-      </div>
-    </template>
-
-    <div v-if="errorMsg" class="error">{{ errorMsg }}</div>
-
-    <DataTable
-      :columns="columns"
-      :rows="filteredUsers"
-      :loading="loading"
-      :selected-key="selected?.id || ''"
-      clickable
-      @rowClick="openDrawer"
-    >
-      <template #cell-user="{ row }">
-        <div class="user-cell">
-          <div class="user-top">
-            <div class="user-name">{{ row.username }}</div>
-          </div>
-          <div class="user-sub">
-            <span class="mono">{{ row.id }}</span>
-          </div>
-        </div>
+    <AdminListLayout>
+      <template #filters>
+        <SearchInput v-model="q" placeholder="搜索用户名、ID..." @keydown.enter.prevent="search" />
+        <SelectMenu v-model="planFilter" size="sm" :options="planOptions" placeholder="全部 plan" class="sel" />
+        <SelectMenu v-model="roleFilter" size="sm" :options="roleOptions" placeholder="全部 role" class="sel" />
+        <Input v-model="minBalance" size="sm" placeholder="余额≥" class="num" />
+        <Input v-model="maxBalance" size="sm" placeholder="余额≤" class="num" />
+        <Toggle v-model="lowBalanceOnly" size="sm" label="仅余额不足" class="toggle" />
       </template>
-
-      <template #cell-plan="{ row }">
-        <span class="chip plan">{{ row.plan }}</span>
+      <template #filterActions>
+        <Button variant="ghost" size="sm" :disabled="loading" @click="load">
+          <template #icon><RefreshCcwIcon :size="16" aria-hidden="true" /></template>
+          刷新数据
+        </Button>
       </template>
+      <template #table>
+        <div v-if="errorMsg" class="error">{{ errorMsg }}</div>
 
-      <template #cell-role="{ row }">
-        <span class="chip" :class="row.role">{{ row.role }}</span>
-      </template>
+        <DataTable
+          variant="flat"
+          :columns="columns"
+          :rows="users"
+          :loading="loading"
+          :selected-key="selected?.id || ''"
+          clickable
+          @rowClick="openDrawer"
+        >
+          <template #cell-user="{ row }">
+            <div class="user-cell">
+              <div class="user-top">
+                <div class="user-name">{{ row.username }}</div>
+              </div>
+              <div class="user-sub">
+                <span class="mono">{{ row.id }}</span>
+              </div>
+            </div>
+          </template>
 
-      <template #cell-creditBalance="{ row }">
-        <span class="balance" :class="{ low: Number(row.creditBalance) <= 0 }">{{ row.creditBalance }}</span>
-      </template>
+          <template #cell-plan="{ row }">
+            <span class="chip plan">{{ row.plan }}</span>
+          </template>
 
-      <template #cell-createdAt="{ row }">
-        <span class="mono">{{ formatTime(row.createdAt) }}</span>
+          <template #cell-role="{ row }">
+            <span class="chip" :class="row.role">{{ row.role }}</span>
+          </template>
+
+          <template #cell-creditBalance="{ row }">
+            <span class="balance" :class="{ low: Number(row.creditBalance) <= 0 }">{{ row.creditBalance }}</span>
+          </template>
+
+          <template #cell-createdAt="{ row }">
+            <span class="mono">{{ formatTime(row.createdAt) }}</span>
+          </template>
+        </DataTable>
       </template>
-    </DataTable>
+      <template #footer>
+        <div class="foot-summary">共 {{ total }} 条</div>
+        <Pagination
+          variant="plain"
+          :show-summary="false"
+          :page="page"
+          :page-size="pageSize"
+          :total="total"
+          @update:page="handlePageChange"
+          @update:pageSize="handlePageSizeChange"
+        />
+      </template>
+    </AdminListLayout>
   </TablePageLayout>
 
-  <div v-if="drawerOpen" class="drawer-mask" @click.self="closeDrawer">
-    <div class="drawer" role="dialog" aria-modal="true">
+  <Drawer v-model:open="drawerOpen" size="lg">
       <div class="drawer-head">
         <div class="drawer-title">
           <div class="drawer-name">{{ selected?.username }}</div>
@@ -258,15 +252,15 @@
           </div>
         </div>
       </div>
-    </div>
-  </div>
+  </Drawer>
 </template>
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useAuthStore } from '../../../stores/auth'
-import { Button, DataTable, Input, SelectMenu, Toggle, toastError, toastSuccess } from '../../../components/common'
-import { TablePageLayout } from '../../../components/layout'
+import { RefreshCcwIcon } from 'lucide-vue-next'
+import { Button, DataTable, Drawer, Input, Pagination, SearchInput, SelectMenu, Toggle, toastError, toastSuccess } from '../../../components/common'
+import { AdminListLayout, TablePageLayout } from '../../../components/layout'
 import { apiFetch } from '../../../utils/api'
 
 const authStore = useAuthStore()
@@ -293,27 +287,18 @@ const columns = [
 
 const q = ref('')
 const users = ref([])
+const total = ref(0)
 const errorMsg = ref('')
 const loading = ref(false)
+
+const page = ref(1)
+const pageSize = ref(20)
 
 const planFilter = ref('')
 const roleFilter = ref('')
 const minBalance = ref('')
 const maxBalance = ref('')
 const lowBalanceOnly = ref(false)
-
-const filteredUsers = computed(() => {
-  const min = Number(minBalance.value)
-  const max = Number(maxBalance.value)
-  return (users.value || []).filter((u) => {
-    if (planFilter.value && u.plan !== planFilter.value) return false
-    if (roleFilter.value && u.role !== roleFilter.value) return false
-    if (String(minBalance.value).trim() !== '' && Number.isFinite(min) && Number(u.creditBalance) < min) return false
-    if (String(maxBalance.value).trim() !== '' && Number.isFinite(max) && Number(u.creditBalance) > max) return false
-    if (lowBalanceOnly.value && Number(u.creditBalance) > 0) return false
-    return true
-  })
-})
 
 async function api(url, options) {
   return apiFetch(url, options)
@@ -323,14 +308,70 @@ async function load() {
   errorMsg.value = ''
   loading.value = true
   try {
-    const data = await api(`/api/admin/users?search=${encodeURIComponent(q.value || '')}&limit=50`)
+    const params = new URLSearchParams()
+    params.set('search', String(q.value || ''))
+    params.set('page', String(page.value))
+    params.set('limit', String(pageSize.value))
+    if (planFilter.value) params.set('plan', String(planFilter.value))
+    if (roleFilter.value) params.set('role', String(roleFilter.value))
+    if (String(minBalance.value || '').trim() !== '') params.set('minBalance', String(minBalance.value))
+    if (String(maxBalance.value || '').trim() !== '') params.set('maxBalance', String(maxBalance.value))
+    if (lowBalanceOnly.value) params.set('lowBalanceOnly', '1')
+
+    const data = await api(`/api/admin/users?${params.toString()}`)
     users.value = data.users || []
+    total.value = Number(data.total || 0)
+
+    const totalPages = Math.max(1, Math.ceil((total.value || 0) / pageSize.value))
+    if (page.value > totalPages) {
+      page.value = totalPages
+      await load()
+    }
   } catch (e) {
     errorMsg.value = e.message || '加载失败'
   } finally {
     loading.value = false
   }
 }
+
+function search() {
+  page.value = 1
+  load()
+}
+
+function handlePageChange(next) {
+  page.value = next
+  load()
+}
+
+function handlePageSizeChange(next) {
+  pageSize.value = next
+  page.value = 1
+  load()
+}
+
+let filterTimer = null
+
+function scheduleFilterLoad() {
+  if (filterTimer) window.clearTimeout(filterTimer)
+  filterTimer = window.setTimeout(() => {
+    page.value = 1
+    load()
+  }, 400)
+}
+
+watch([planFilter, roleFilter, lowBalanceOnly], () => {
+  page.value = 1
+  load()
+})
+
+watch([q], () => {
+  scheduleFilterLoad()
+})
+
+watch([minBalance, maxBalance], () => {
+  scheduleFilterLoad()
+})
 
 async function copy(text) {
   const value = String(text || '').trim()
@@ -454,7 +495,7 @@ async function loadLedger() {
   if (!selected.value?.id) return
   ledgerLoading.value = true
   try {
-    const data = await api(`/api/admin/users/${encodeURIComponent(selected.value.id)}/credits/ledger?limit=100`)
+    const data = await api(`/api/admin/users/${encodeURIComponent(selected.value.id)}/credits/ledger?limit=100&page=1`)
     ledger.value = data.entries || []
   } catch (e) {
     ledger.value = []
@@ -487,28 +528,16 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <style scoped>
-.stat {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: 14px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  background: rgba(15, 23, 42, 0.03);
+.sel {
+  width: 200px;
 }
 
-.stat-label {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.num {
+  width: 120px;
 }
 
-.stat-value {
-  color: var(--text);
-  font-size: 16px;
-  font-weight: 900;
+.toggle {
+  min-width: 160px;
 }
 
 .error {
@@ -518,7 +547,13 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   background: rgba(236, 72, 153, 0.06);
   color: var(--accent);
   font-weight: 800;
-  margin-bottom: 14px;
+  margin: 12px 14px;
+}
+
+.foot-summary {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .user-cell {
@@ -587,29 +622,6 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 .balance.low {
   color: var(--accent);
-}
-
-.drawer-mask {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.35);
-  z-index: 120;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.drawer {
-  width: min(560px, 92vw);
-  height: 100%;
-  background:
-    radial-gradient(900px 340px at 10% 0%, rgba(99, 102, 241, 0.12), transparent 55%),
-    radial-gradient(820px 340px at 95% 10%, rgba(236, 72, 153, 0.10), transparent 55%),
-    rgba(255, 255, 255, 0.94);
-  border-left: 1px solid rgba(255, 255, 255, 0.75);
-  box-shadow: -24px 0 70px rgba(15, 23, 42, 0.20);
-  backdrop-filter: blur(18px);
-  display: flex;
-  flex-direction: column;
 }
 
 .drawer-head {
@@ -814,6 +826,11 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   display: flex;
   justify-content: flex-end;
   margin-top: 10px;
+}
+
+.edit-actions .btn,
+.actions .btn {
+  min-width: 140px;
 }
 
 .muted {

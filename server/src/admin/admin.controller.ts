@@ -14,12 +14,33 @@ import { AuthGuard } from '../auth/auth.guard';
 import type { RequestWithUser } from '../auth/auth.guard';
 import { UsersRepo, UserPlan, UserRole } from '../db/repositories/users.repo';
 import { CreditsRepo } from '../credits/credits.repo';
+import type { LedgerType } from '../credits/credits.repo';
 import { AdminRoleGuard, SuperAdminRoleGuard } from './role.guard';
 
 function normalizeLimit(value: string | undefined, max = 100, fallback = 50) {
   const limit = Number(value || fallback);
   if (!Number.isFinite(limit)) return fallback;
   return Math.max(1, Math.min(max, Math.floor(limit)));
+}
+
+function normalizePage(value: string | undefined, fallback = 1) {
+  const page = Number(value || fallback);
+  if (!Number.isFinite(page)) return fallback;
+  return Math.max(1, Math.floor(page));
+}
+
+function normalizeBoolean(value: string | undefined) {
+  const v = String(value || '').trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+}
+
+function normalizeOptionalNumber(value: string | undefined) {
+  if (value === undefined || value === null) return undefined;
+  const raw = String(value).trim();
+  if (!raw) return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return undefined;
+  return n;
 }
 
 @Controller('api/admin')
@@ -33,10 +54,41 @@ export class AdminController {
   @Get('users')
   listUsers(
     @Query('search') search?: string,
+    @Query('plan') plan?: string,
+    @Query('role') role?: string,
+    @Query('minBalance') minBalanceValue?: string,
+    @Query('maxBalance') maxBalanceValue?: string,
+    @Query('lowBalanceOnly') lowBalanceOnlyValue?: string,
+    @Query('page') pageValue?: string,
     @Query('limit') limitValue?: string,
   ) {
-    const limit = normalizeLimit(limitValue);
-    const users = this.usersRepo.search({ q: search, limit });
+    const limit = normalizeLimit(limitValue, 100, 20);
+    const page = normalizePage(pageValue, 1);
+    const offset = (page - 1) * limit;
+
+    const planValue =
+      plan === 'free' || plan === 'pro' ? (plan as UserPlan) : undefined;
+    const roleValue =
+      role === 'user' || role === 'admin' || role === 'superadmin'
+        ? (role as UserRole)
+        : undefined;
+
+    const minBalance = normalizeOptionalNumber(minBalanceValue);
+    const maxBalance = normalizeOptionalNumber(maxBalanceValue);
+    const lowBalanceOnly = normalizeBoolean(lowBalanceOnlyValue);
+
+    const result = this.usersRepo.listPaged({
+      q: search,
+      plan: planValue,
+      role: roleValue,
+      minBalance,
+      maxBalance,
+      lowBalanceOnly,
+      limit,
+      offset,
+    });
+
+    const users = result.users;
     return {
       users: users.map((u) => ({
         id: u.id,
@@ -46,6 +98,7 @@ export class AdminController {
         creditBalance: u.creditBalance,
         createdAt: u.createdAt,
       })),
+      total: result.total,
     };
   }
 
@@ -89,12 +142,31 @@ export class AdminController {
   }
 
   @Get('users/:id/credits/ledger')
-  getLedger(@Param('id') id: string, @Query('limit') limitValue?: string) {
+  getLedger(
+    @Param('id') id: string,
+    @Query('type') type?: string,
+    @Query('page') pageValue?: string,
+    @Query('limit') limitValue?: string,
+  ) {
     const user = this.usersRepo.findById(id);
     if (!user) throw new HttpException('用户不存在', HttpStatus.NOT_FOUND);
-    const limit = normalizeLimit(limitValue, 200, 50);
-    const entries = this.creditsRepo.listByUser({ userId: id, limit });
-    return { entries };
+    const limit = normalizeLimit(limitValue, 200, 20);
+    const page = normalizePage(pageValue, 1);
+    const offset = (page - 1) * limit;
+
+    const allowed = ['grant', 'charge', 'refund', 'adjust'];
+    const typeValue = type ? String(type) : '';
+    if (typeValue && !allowed.includes(typeValue)) {
+      throw new HttpException('type 不合法', HttpStatus.BAD_REQUEST);
+    }
+
+    const result = this.creditsRepo.listByUserPaged({
+      userId: id,
+      type: typeValue ? (typeValue as LedgerType) : undefined,
+      limit,
+      offset,
+    });
+    return { entries: result.entries, total: result.total };
   }
 
   @Post('users/:id/role')

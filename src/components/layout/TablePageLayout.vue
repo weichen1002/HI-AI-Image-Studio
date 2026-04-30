@@ -1,11 +1,11 @@
 <template>
-  <div class="panel shell" :class="{ compact: density === 'compact' }">
-    <div class="head">
-      <div class="copy">
-        <h2 :class="density === 'compact' ? 'title' : 'text-h2'">{{ title }}</h2>
+  <div :class="['shell', variant === 'panel' ? 'panel' : '', variant === 'plain' ? 'plain' : '', { compact: density === 'compact' }]">
+    <div v-if="title || subtitle || $slots.actions" class="head">
+      <div v-if="title || subtitle" class="copy">
+        <h2 v-if="title" :class="density === 'compact' ? 'title' : 'text-h2'">{{ title }}</h2>
         <p v-if="subtitle" :class="density === 'compact' ? 'subtitle' : 'text-lead mt-2'">{{ subtitle }}</p>
       </div>
-      <div class="actions">
+      <div class="actions" :class="{ 'actions-only': !title && !subtitle }">
         <slot name="actions" />
       </div>
     </div>
@@ -33,6 +33,10 @@ defineProps({
   density: {
     type: String,
     default: 'default'
+  },
+  variant: {
+    type: String,
+    default: 'panel'
   }
 })
 </script>
@@ -40,10 +44,23 @@ defineProps({
 <style scoped>
 .shell {
   padding: 28px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
 }
 
 .shell.compact {
   padding: 22px;
+}
+
+.shell.plain {
+  padding: 0;
+  flex: 1;
+}
+
+.shell.plain.compact {
+  padding: 0;
 }
 
 .title {
@@ -76,6 +93,10 @@ defineProps({
   gap: 10px;
 }
 
+.actions.actions-only {
+  margin-left: auto;
+}
+
 .toolbar {
   padding: 12px;
   border-radius: 16px;
@@ -91,6 +112,10 @@ defineProps({
 
 .content {
   min-width: 0;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 @media (max-width: 820px) {
@@ -100,6 +125,11 @@ defineProps({
 
   .shell.compact {
     padding: 18px;
+  }
+
+  .shell.plain,
+  .shell.plain.compact {
+    padding: 0;
   }
 }
 </style>

@@ -11,15 +11,14 @@ export class ApiError extends Error {
 }
 
 function extractMessage(data) {
-  const msg = data?.message ?? data?.error ?? ''
+  const msg = data?.msg ?? data?.message ?? data?.error ?? ''
   if (Array.isArray(msg)) return msg.filter(Boolean).join('；')
   return msg ? String(msg) : ''
 }
 
 function friendlyMessage(status, data) {
-  const code = data?.code ? String(data.code) : ''
-  if (status === 401) return '登录已过期，请重新登录'
-  if (status === 402 || code === 'INSUFFICIENT_CREDITS') return '余额不足，无法完成本次操作'
+  if (status === 401) return extractMessage(data) || '登录已过期，请重新登录'
+  if (status === 402) return '余额不足，无法完成本次操作'
   if (status >= 500) return '服务器开小差了，请稍后重试'
   return extractMessage(data) || `请求失败（${status}）`
 }
@@ -43,14 +42,43 @@ export async function apiFetch(url, init, opts) {
     const response = await fetch(url, init)
     const data = await parseResponseBody(response)
 
-    if (response.ok) return data
+    if (response.ok) {
+      if (
+        data &&
+        typeof data === 'object' &&
+        Object.prototype.hasOwnProperty.call(data, 'code') &&
+        Object.prototype.hasOwnProperty.call(data, 'data')
+      ) {
+        const code = Number(data.code)
+        if (code >= 200 && code < 300) return data.data
+        const message = extractMessage(data) || '请求失败'
+        throw new ApiError(message, { status: response.status, code: String(data.code || ''), data })
+      }
+      return data
+    }
 
     const message = friendlyMessage(response.status, data)
     const code = data?.code ? String(data.code) : ''
 
-    if (showToast) toastError(message)
-    if (response.status === 401 && redirectOn401 && window?.location?.pathname !== '/auth') {
-      window.location.href = '/auth'
+    if (showToast) {
+      if (response.status === 401 && redirectOn401 && window?.location?.pathname !== '/login') {
+        toastError({
+          message,
+          duration: 2600,
+          closable: true,
+          action: {
+            label: '去登录',
+            onClick: () => {
+              window.location.href = '/login'
+            }
+          }
+        })
+        setTimeout(() => {
+          if (window?.location?.pathname !== '/login') window.location.href = '/login'
+        }, 900)
+      } else {
+        toastError(message)
+      }
     }
 
     throw new ApiError(message, { status: response.status, code, data })
@@ -62,4 +90,3 @@ export async function apiFetch(url, init, opts) {
     throw new ApiError(message, { status: 0, code: 'NETWORK_ERROR', data: null })
   }
 }
-

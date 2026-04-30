@@ -1,19 +1,22 @@
 <template>
   <div>
-    <div class="flex justify-between items-center mb-8">
-      <div>
-        <h2 class="text-h2">灵感记录</h2>
-        <p class="text-lead mt-2">每次生成都会保存到这里，方便回看提示词和继续优化方向。</p>
+    <div class="history-toolbar">
+      <div class="history-stats">
+        <span v-if="imagesCount > 0" class="stat-pill">共 {{ imagesCount }} 条</span>
       </div>
-      <div class="flex items-center gap-2">
-        <button class="btn btn-ghost" @click="clearAll" :disabled="imagesStore.isLoading || !imagesStore.images.length">
-          <Trash2Icon :size="18" />
+      <div class="history-actions">
+        <Button variant="ghost" @click="clearAll" :disabled="imagesStore.isLoading || !imagesStore.images.length">
+          <template #icon>
+            <Trash2Icon :size="18" />
+          </template>
           清空
-        </button>
-        <button class="btn btn-ghost" @click="fetchImages" :disabled="imagesStore.isLoading">
-          <RefreshCwIcon :size="18" />
+        </Button>
+        <Button variant="ghost" @click="fetchImages" :disabled="imagesStore.isLoading">
+          <template #icon>
+            <RefreshCwIcon :size="18" />
+          </template>
           刷新
-        </button>
+        </Button>
       </div>
     </div>
 
@@ -31,14 +34,14 @@
       </div>
     </div>
 
-    <div v-else-if="!imagesStore.images.length" class="panel flex flex-col items-center justify-center text-center gap-4" style="height: 400px;">
+    <div v-else-if="!imagesCount" class="panel flex flex-col items-center justify-center text-center gap-4" style="height: 420px;">
       <ImageOffIcon :size="48" class="text-muted" />
       <div class="text-lead">暂无历史记录</div>
-      <router-link to="/studio" class="btn btn-primary">去创作</router-link>
+      <LinkButton to="/studio">去创作</LinkButton>
     </div>
 
     <div v-else class="grid-history">
-      <div v-for="img in imagesStore.images" :key="img.id" class="history-card" role="button" tabindex="0" @click="openDetail(img)" @keydown.enter.prevent="openDetail(img)">
+      <div v-for="img in sortedImages" :key="img.id" class="history-card" role="button" tabindex="0" @click="openDetail(img)" @keydown.enter.prevent="openDetail(img)">
         <div class="history-cover">
           <img v-if="coverUrl(img)" :src="coverUrl(img)" loading="lazy" />
           <div v-else class="fallback-cover">无图片</div>
@@ -48,40 +51,35 @@
             <button type="button" class="toggle-btn" :class="{ active: coverMode[img.id] === 'input' }" @click="setCoverMode(img, 'input')">参考</button>
           </div>
 
-          <button
-            v-if="coverUrl(img)"
-            class="cover-action"
-            type="button"
-            title="下载图片"
-            @click.stop="downloadCover(img)"
-          >
-            <DownloadIcon :size="16" />
-          </button>
+          <div class="cover-actions" @click.stop>
+            <button
+              v-if="coverUrl(img)"
+              class="cover-action"
+              type="button"
+              title="下载图片"
+              @click="downloadCover(img)"
+            >
+              <DownloadIcon :size="16" />
+            </button>
+            <button class="cover-action danger" type="button" title="删除" @click="removeOne(img)">
+              <Trash2Icon :size="16" />
+            </button>
+          </div>
         </div>
         <div class="history-body">
           <p class="prompt-text">{{ img.prompt }}</p>
           <div class="meta">
-            <span>{{ img.aspectRatio }}</span>
-            <span>{{ formatTime(img.createdAt) }}</span>
+            <span class="meta-pill">{{ img.mode === 'image' ? '图文生图' : '文生图' }}</span>
+            <span class="meta-pill">{{ img.aspectRatio }}</span>
+            <span class="meta-time">{{ formatTime(img.createdAt) }}</span>
           </div>
           <div class="card-actions">
-            <button class="btn btn-ghost action-btn" type="button" @click.stop="reusePrompt(img)">
-              <Wand2Icon :size="15" />
+            <Button class="action-btn" type="button" @click.stop="reusePrompt(img)">
+              <template #icon>
+                <Wand2Icon :size="15" />
+              </template>
               再次创作
-            </button>
-            <button
-              v-if="coverUrl(img)"
-              class="btn btn-ghost action-btn"
-              type="button"
-              @click.stop="downloadCover(img)"
-            >
-              <DownloadIcon :size="15" />
-              下载
-            </button>
-            <button class="btn btn-ghost action-btn" type="button" @click.stop="removeOne(img)">
-              <Trash2Icon :size="15" />
-              删除
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -90,14 +88,25 @@
 </template>
 
 <script setup>
-import { onMounted, reactive } from 'vue'
+import { computed, onMounted, reactive } from 'vue'
 import { DownloadIcon, RefreshCwIcon, ImageOffIcon, Wand2Icon, Trash2Icon } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { useImagesStore } from '../../stores/images'
+import { Button, LinkButton } from '../../components/common'
 
 const imagesStore = useImagesStore()
 const router = useRouter()
 const coverMode = reactive({})
+const imagesCount = computed(() => (imagesStore.images || []).length)
+const sortedImages = computed(() => {
+  const list = Array.isArray(imagesStore.images) ? imagesStore.images.slice() : []
+  list.sort((a, b) => {
+    const ta = new Date(a?.createdAt || 0).getTime()
+    const tb = new Date(b?.createdAt || 0).getTime()
+    return tb - ta
+  })
+  return list
+})
 
 onMounted(() => {
   fetchImages()
@@ -185,31 +194,73 @@ async function downloadCover(image) {
 </script>
 
 <style scoped>
+.history-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.history-stats {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stat-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.62);
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--muted);
+}
+
+.history-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .grid-history {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
 }
 
 .history-card {
-  background: var(--bg-card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: calc(var(--radius-md) + 6px);
   overflow: hidden;
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s, background 0.2s;
   min-width: 0;
+  backdrop-filter: blur(18px);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.06);
 }
 
 .history-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-hover);
+  transform: translateY(-3px);
+  border-color: rgba(99, 102, 241, 0.18);
+  box-shadow: 0 18px 46px rgba(99, 102, 241, 0.12);
+}
+
+.history-card:focus-visible {
+  outline: 2px solid rgba(99, 102, 241, 0.6);
+  outline-offset: 2px;
 }
 
 .history-cover {
   width: 100%;
-  aspect-ratio: 1;
+  aspect-ratio: 4 / 3;
   background: var(--bg-subtle);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
   overflow: hidden;
   position: relative;
 }
@@ -218,6 +269,12 @@ async function downloadCover(image) {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transform: scale(1.01);
+  transition: transform 0.25s ease;
+}
+
+.history-card:hover .history-cover img {
+  transform: scale(1.05);
 }
 
 .cover-toggle {
@@ -252,9 +309,6 @@ async function downloadCover(image) {
 }
 
 .cover-action {
-  position: absolute;
-  top: 12px;
-  right: 12px;
   width: 36px;
   height: 36px;
   display: grid;
@@ -270,6 +324,14 @@ async function downloadCover(image) {
   backdrop-filter: blur(12px);
 }
 
+.cover-actions {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  gap: 8px;
+}
+
 .history-card:hover .cover-action,
 .cover-action:focus-visible {
   opacity: 1;
@@ -277,6 +339,14 @@ async function downloadCover(image) {
 }
 
 .cover-action:hover {
+  background: #ffffff;
+}
+
+.cover-action.danger {
+  color: var(--accent);
+}
+
+.cover-action.danger:hover {
   background: #ffffff;
 }
 
@@ -296,43 +366,58 @@ async function downloadCover(image) {
 }
 
 .prompt-text {
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.55;
   color: var(--text);
   margin-bottom: 12px;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  min-height: 63px;
+  min-height: 62px;
 }
 
 .meta {
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
+  align-items: center;
+  gap: 8px;
   margin-top: auto;
-  font-size: 12px;
-  color: var(--muted);
 }
 
-.meta span {
-  min-width: 0;
+.meta-pill {
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  font-weight: 900;
+  color: rgba(15, 23, 42, 0.72);
+}
+
+.meta-time {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
 }
 
 .card-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 14px;
+  margin-top: 12px;
 }
 
 .action-btn {
   height: 36px;
-  padding: 0 10px;
+  width: 100%;
   border-radius: 10px;
-  flex: 1 1 96px;
   font-size: 13px;
+}
+
+@media (max-width: 520px) {
+  .grid-history {
+    grid-template-columns: 1fr;
+  }
 }
 
 .skeleton-card {

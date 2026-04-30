@@ -1,0 +1,40 @@
+name: Sync Inspiration Templates
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Sync templates
+        run: node scripts/sync-inspiration-templates.mjs
+
+      - name: Build
+        run: npm run build
+
+      - name: Create PR
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: 'chore: sync inspiration templates'
+          title: 'chore: sync inspiration templates'
+          body: 'Automated sync from YouMind-OpenLab/awesome-gpt-image-2 (README_zh.md)'
+          branch: chore/sync-inspiration-templates
+          delete-branch: true
+

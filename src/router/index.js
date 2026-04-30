@@ -8,8 +8,8 @@ const routes = [
     component: () => import('../views/LandingView.vue')
   },
   {
-    path: '/auth',
-    name: 'auth',
+    path: '/login',
+    name: 'login',
     component: () => import('../views/AuthView.vue'),
     meta: { guestOnly: true }
   },
@@ -45,9 +45,25 @@ const routes = [
         component: () => import('../views/studio/SettingsView.vue')
       },
       {
+        path: 'profile',
+        name: 'studio-profile',
+        component: () => import('../views/studio/ProfileView.vue')
+      },
+      {
+        path: 'announcements',
+        name: 'studio-announcements',
+        component: () => import('../views/studio/AnnouncementsView.vue')
+      },
+      {
         path: 'admin/users',
         name: 'studio-admin-users',
         component: () => import('../views/studio/admin/AdminUsersView.vue'),
+        meta: { requiresRole: ['admin', 'superadmin'] }
+      },
+      {
+        path: 'admin/announcements',
+        name: 'studio-admin-announcements',
+        component: () => import('../views/studio/admin/AdminAnnouncementsView.vue'),
         meta: { requiresRole: ['admin', 'superadmin'] }
       },
       {
@@ -80,13 +96,13 @@ router.beforeEach(async (to, from, next) => {
   }
 
   if (to.meta.requiresAuth && !isAuthenticated) {
-    next({ name: 'auth' })
+    next({ name: 'login' })
   } else if (to.meta.guestOnly && isAuthenticated) {
     next({ name: 'studio-create' })
   } else if (to.meta.requiresRole) {
     const allowed = Array.isArray(to.meta.requiresRole) ? to.meta.requiresRole : []
     if (!isAuthenticated) {
-      next({ name: 'auth' })
+      next({ name: 'login' })
       return
     }
     if (!allowed.includes(role)) {

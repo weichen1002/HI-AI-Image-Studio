@@ -14,11 +14,11 @@
         </div>
         <nav class="flex gap-4">
           <template v-if="!isAuthenticated">
-            <router-link to="/auth" class="btn btn-ghost">登录</router-link>
-            <router-link to="/auth" class="btn btn-primary">开始创作</router-link>
+            <LinkButton to="/login" variant="ghost">登录</LinkButton>
+            <LinkButton to="/login">开始创作</LinkButton>
           </template>
           <template v-else>
-            <router-link to="/studio" class="btn btn-primary">进入工作台</router-link>
+            <LinkButton to="/studio">进入工作台</LinkButton>
           </template>
         </nav>
       </div>
@@ -46,13 +46,13 @@
           </p>
           
           <div class="flex items-center justify-center gap-4 action-buttons">
-            <router-link :to="isAuthenticated ? '/studio' : '/auth'" class="btn btn-primary btn-lg">
+            <LinkButton :to="isAuthenticated ? '/studio' : '/login'" class="btn-lg">
               免费开始创作
               <ArrowRightIcon :size="18" class="ml-2" />
-            </router-link>
-            <router-link to="/studio/models" class="btn btn-ghost btn-lg bg-white">
+            </LinkButton>
+            <LinkButton to="/studio/models" variant="ghost" class="btn-lg bg-white">
               浏览灵感库
-            </router-link>
+            </LinkButton>
           </div>
         </div>
 
@@ -141,6 +141,7 @@
 import { computed } from 'vue'
 import { SparklesIcon, ImageIcon, ArrowRightIcon, ZapIcon, LayoutIcon, LibraryIcon } from 'lucide-vue-next'
 import { useAuthStore } from '../stores/auth'
+import { LinkButton } from '../components/common'
 import logoUrl from '../hi-image-logo.png'
 
 const authStore = useAuthStore()

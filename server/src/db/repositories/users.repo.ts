@@ -46,22 +46,62 @@ export class UsersRepo {
     return toUser(row);
   }
 
-  search(params: { q?: string; limit: number }) {
+  listPaged(params: {
+    q?: string;
+    plan?: UserPlan;
+    role?: UserRole;
+    minBalance?: number;
+    maxBalance?: number;
+    lowBalanceOnly?: boolean;
+    limit: number;
+    offset: number;
+  }) {
     const q = String(params.q || '').trim();
     const limit = Math.max(1, Math.min(100, Math.floor(params.limit)));
-    if (!q) {
-      const rows = this.sqlite.connection
-        .prepare('SELECT * FROM users ORDER BY created_at DESC LIMIT ?')
-        .all(limit);
-      return rows.map(toUser).filter(Boolean) as UserRow[];
+    const offset = Math.max(0, Math.floor(params.offset));
+
+    const where: string[] = [];
+    const values: any[] = [];
+
+    if (q) {
+      where.push('lower(username) LIKE ?');
+      values.push(`%${q.toLowerCase()}%`);
     }
-    const like = `%${q.toLowerCase()}%`;
+    if (params.plan) {
+      where.push('plan = ?');
+      values.push(params.plan);
+    }
+    if (params.role) {
+      where.push('role = ?');
+      values.push(params.role);
+    }
+    if (Number.isFinite(params.minBalance as number)) {
+      where.push('credit_balance >= ?');
+      values.push(Number(params.minBalance));
+    }
+    if (Number.isFinite(params.maxBalance as number)) {
+      where.push('credit_balance <= ?');
+      values.push(Number(params.maxBalance));
+    }
+    if (params.lowBalanceOnly) {
+      where.push('credit_balance <= 0');
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    const totalRow = this.sqlite.connection
+      .prepare(`SELECT COUNT(1) AS c FROM users ${whereSql}`)
+      .get(...values) as any;
+    const total = Number(totalRow?.c || 0);
+
     const rows = this.sqlite.connection
       .prepare(
-        'SELECT * FROM users WHERE lower(username) LIKE ? ORDER BY created_at DESC LIMIT ?',
+        `SELECT * FROM users ${whereSql} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
       )
-      .all(like, limit);
-    return rows.map(toUser).filter(Boolean) as UserRow[];
+      .all(...values, limit, offset);
+    const users = rows.map(toUser).filter(Boolean) as UserRow[];
+
+    return { users, total };
   }
 
   create(params: {

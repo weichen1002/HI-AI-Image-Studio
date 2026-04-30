@@ -65,23 +65,6 @@
 
       <!-- Right side form area -->
       <div class="auth-right auth-form-panel">
-        <div class="auth-tabs flex" role="tablist">
-          <button
-            role="tab"
-            :aria-selected="mode === 'login'"
-            class="tab-btn flex-1"
-            :class="{ 'active': mode === 'login' }"
-            @click="mode = 'login'"
-          >登录</button>
-          <button
-            role="tab"
-            :aria-selected="mode === 'register'"
-            class="tab-btn flex-1"
-            :class="{ 'active': mode === 'register' }"
-            @click="mode = 'register'"
-          >注册</button>
-        </div>
-
         <div class="auth-title-block">
           <h2 class="text-h3 mb-3" style="font-size: 28px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px;">
             {{ mode === 'login' ? '欢迎回来 👋' : '创建账户 ✨' }}
@@ -96,8 +79,19 @@
             <label for="username" class="label" style="font-size: 13px; font-weight: 700; color: #334155;">邮箱 / 用户名</label>
             <div class="input-wrapper">
               <MailIcon class="input-icon" :size="18" aria-hidden="true" />
-              <input id="username" name="username" autocomplete="username" spellcheck="false" v-model.trim="form.username" class="input with-icon custom-input" required maxlength="32" placeholder="admin" />
+              <Input
+                id="username"
+                name="username"
+                autocomplete="username"
+                spellcheck="false"
+                v-model="form.username"
+                class="with-icon custom-input"
+                required
+                maxlength="32"
+                placeholder="请输入邮箱或用户名"
+              />
             </div>
+            <div v-if="fieldErrors.username" class="field-error">{{ fieldErrors.username }}</div>
           </div>
           <div class="auth-field">
             <label for="password" class="label flex justify-between" style="font-size: 13px; font-weight: 700; color: #334155;">
@@ -105,12 +99,48 @@
             </label>
             <div class="input-wrapper">
               <LockIcon class="input-icon" :size="18" aria-hidden="true" />
-              <input id="password" name="password" autocomplete="current-password" v-model="form.password" :type="showPassword ? 'text' : 'password'" class="input with-icon custom-input" required minlength="6" placeholder="••••••" />
+              <Input
+                id="password"
+                name="password"
+                autocomplete="current-password"
+                v-model="form.password"
+                :type="showPassword ? 'text' : 'password'"
+                class="with-icon custom-input"
+                required
+                minlength="6"
+                placeholder="请输入密码"
+              />
               <button type="button" class="eye-btn" @click="showPassword = !showPassword" :aria-label="showPassword ? '隐藏密码' : '显示密码'">
                 <EyeIcon v-if="!showPassword" :size="18" aria-hidden="true" />
                 <EyeOffIcon v-else :size="18" aria-hidden="true" />
               </button>
             </div>
+            <div v-if="fieldErrors.password" class="field-error">{{ fieldErrors.password }}</div>
+          </div>
+
+          <div class="auth-field" v-if="mode === 'register'">
+            <label for="captcha" class="label" style="font-size: 13px; font-weight: 700; color: #334155;">验证码</label>
+            <div class="captcha-row">
+              <div class="input-wrapper captcha-input">
+                <ShieldIcon class="input-icon" :size="18" aria-hidden="true" />
+                <Input
+                  id="captcha"
+                  name="captcha"
+                  autocomplete="off"
+                  spellcheck="false"
+                  v-model="form.captcha"
+                  class="with-icon custom-input"
+                  required
+                  maxlength="8"
+                  placeholder="请输入验证码"
+                />
+              </div>
+              <button type="button" class="captcha-image" :disabled="loading" aria-label="刷新验证码" @click="refreshCaptcha">
+                <img v-if="captchaSrc" class="captcha-img" :src="captchaSrc" alt="验证码" />
+                <span v-else>刷新</span>
+              </button>
+            </div>
+            <div v-if="fieldErrors.captcha" class="field-error">{{ fieldErrors.captcha }}</div>
           </div>
 
           <div class="auth-options flex justify-between items-center" style="font-size: 13px;" v-if="mode === 'login'">
@@ -120,10 +150,10 @@
             <button type="button" class="btn-link text-primary hover-underline" style="font-weight: 600;">忘记密码?</button>
           </div>
 
-          <button class="btn btn-primary submit-btn" type="submit" :disabled="loading">
+          <Button class="submit-btn" type="submit" :disabled="loading">
             <span v-if="loading" class="spinner" aria-hidden="true"></span>
             {{ loading ? '处理中...' : (mode === 'login' ? '登 录' : '注 册') }}
-          </button>
+          </Button>
           
           <div class="divider auth-divider">
             <span>或通过以下方式</span>
@@ -144,11 +174,6 @@
               {{ mode === 'login' ? '立即注册' : '立即登录' }}
             </button>
           </div>
-
-          <div v-if="errorMsg" aria-live="polite" class="error-container mt-4 p-3 rounded-lg flex items-center justify-center gap-2">
-            <AlertCircleIcon :size="16" class="text-accent" aria-hidden="true" />
-            <span class="error-text m-0">{{ errorMsg }}</span>
-          </div>
         </form>
       </div>
 
@@ -161,10 +186,12 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { ArrowLeftIcon, AlertCircleIcon, ZapIcon, LayoutIcon, ShieldIcon, MailIcon, LockIcon, EyeIcon, EyeOffIcon, SparklesIcon, LibraryIcon } from 'lucide-vue-next'
+import { Button, Input, toastError } from '../components/common'
+import { apiFetch } from '../utils/api'
 import logoUrl from '../hi-image-logo.png'
 
 const router = useRouter()
@@ -172,26 +199,88 @@ const authStore = useAuthStore()
 
 const mode = ref('login')
 const loading = ref(false)
-const errorMsg = ref('')
 const showPassword = ref(false)
+const captchaId = ref('')
+const captchaSvg = ref('')
+const captchaSrc = computed(() => {
+  if (!captchaSvg.value) return ''
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(captchaSvg.value)}`
+})
+const fieldErrors = reactive({
+  username: '',
+  password: '',
+  captcha: ''
+})
 
 const form = reactive({
   username: '',
-  password: ''
+  password: '',
+  captcha: ''
 })
 
+async function refreshCaptcha() {
+  try {
+    const data = await apiFetch('/api/captcha', undefined, { toast: false, redirectOn401: false })
+    captchaId.value = String(data?.captchaId || '')
+    captchaSvg.value = String(data?.svg || '')
+    form.captcha = ''
+    fieldErrors.captcha = ''
+  } catch (e) {
+    captchaId.value = ''
+    captchaSvg.value = ''
+    toastError(e.message || '获取验证码失败')
+  }
+}
+
+watch(mode, async (next) => {
+  fieldErrors.username = ''
+  fieldErrors.password = ''
+  fieldErrors.captcha = ''
+
+  if (next === 'register') {
+    await refreshCaptcha()
+  } else {
+    captchaId.value = ''
+    captchaSvg.value = ''
+    form.captcha = ''
+  }
+})
+
+function validateForm() {
+  fieldErrors.username = ''
+  fieldErrors.password = ''
+  fieldErrors.captcha = ''
+  const username = String(form.username || '').trim()
+  const password = String(form.password || '')
+
+  if (!username) fieldErrors.username = '请输入邮箱或用户名'
+  if (!password) fieldErrors.password = '请输入密码'
+  if (!fieldErrors.password && password.length < 6) fieldErrors.password = '密码至少 6 位'
+
+  if (mode.value === 'register') {
+    const captcha = String(form.captcha || '').trim()
+    if (!captcha) fieldErrors.captcha = '请输入验证码'
+    if (!fieldErrors.captcha && !captchaId.value) fieldErrors.captcha = '验证码已失效，请刷新'
+  }
+
+  return !fieldErrors.username && !fieldErrors.password && !fieldErrors.captcha
+}
+
 async function submitAuth() {
-  errorMsg.value = ''
+  if (!validateForm()) return
   loading.value = true
   try {
     if (mode.value === 'login') {
       await authStore.login(form.username, form.password)
     } else {
-      await authStore.register(form.username, form.password)
+      await authStore.register(form.username, form.password, captchaId.value, form.captcha)
     }
     router.push('/studio')
   } catch (e) {
-    errorMsg.value = e.message || '操作失败'
+    toastError(e.message || '操作失败')
+    if (mode.value === 'register' && String(e.message || '').includes('验证码')) {
+      await refreshCaptcha()
+    }
   } finally {
     loading.value = false
   }
@@ -209,7 +298,8 @@ async function submitAuth() {
 }
 
 .auth-container {
-  min-height: 600px;
+  height: min(640px, calc(100vh - 48px));
+  overflow: hidden;
 }
 
 .auth-left {
@@ -218,6 +308,7 @@ async function submitAuth() {
 
 .auth-right {
   padding: 52px 44px;
+  overflow-y: auto;
 }
 .custom-input:focus {
   background: #ffffff !important;
@@ -279,41 +370,16 @@ async function submitAuth() {
   transform: rotate(45deg);
 }
 
-.auth-tabs {
-  border-bottom: 1px solid #e2e8f0;
-  padding-bottom: 0;
-  flex-shrink: 0;
-}
-
-.tab-btn {
-  border: none;
-  background: transparent;
-  padding: 12px 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #94a3b8;
-  cursor: pointer;
-  transition: color 0.2s ease;
-  position: relative;
-}
-
-.tab-btn.active {
-  color: var(--primary);
-}
-
-.tab-btn.active::after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  width: 100%;
-  height: 2px;
-  background: var(--primary);
-}
-
 .error-container {
   background: rgba(236, 72, 153, 0.1);
   border: 1px solid rgba(236, 72, 153, 0.2);
+}
+
+.field-error {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
 }
 
 .auth-form-panel {
@@ -385,6 +451,42 @@ async function submitAuth() {
   display: flex;
   align-items: center;
   min-height: 52px;
+}
+
+.captcha-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.captcha-input {
+  flex: 1;
+}
+
+.captcha-image {
+  width: 120px;
+  height: 52px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.captcha-image:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.captcha-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .abstract-visual {
   position: absolute;
@@ -615,10 +717,6 @@ async function submitAuth() {
     padding: 34px 28px;
   }
 
-  .auth-tabs {
-    margin-bottom: 26px;
-  }
-
   .social-login {
     gap: 12px;
   }
@@ -630,17 +728,13 @@ async function submitAuth() {
   }
 
   .auth-container {
-    min-height: 100vh;
+    height: 100vh;
     border-radius: 0;
     border: 0;
   }
 
   .auth-right {
     padding: 28px 20px;
-  }
-
-  .auth-tabs {
-    margin-bottom: 24px;
   }
 }
 </style>

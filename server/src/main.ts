@@ -5,6 +5,7 @@ import * as express from 'express';
 import * as path from 'path';
 import { config } from './config';
 import { ApiExceptionFilter } from './filters/api-exception.filter';
+import { ApiResponseInterceptor } from './interceptors/api-response.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -13,6 +14,7 @@ async function bootstrap() {
   app.use(cookieParser());
   app.enableCors();
   app.useGlobalFilters(new ApiExceptionFilter());
+  app.useGlobalInterceptors(new ApiResponseInterceptor());
   app.use(
     '/uploads',
     express.static(path.join(config.DATA_DIR, 'uploads'), {

@@ -2,36 +2,39 @@
   <div class="detail-shell">
     <div class="detail-hero">
       <div class="hero-left">
-        <button class="btn btn-ghost hero-back" @click="goBack">
-          <ArrowLeftIcon :size="16" />
+        <Button variant="ghost" class="hero-back" @click="goBack">
+          <template #icon>
+            <ArrowLeftIcon :size="16" />
+          </template>
           返回
-        </button>
+        </Button>
 
-        <div class="hero-title">
-          <div class="title-row">
-            <h2 class="text-h2">记录详情</h2>
-            <div class="chips" v-if="image">
-              <span class="chip chip-primary">{{ image.mode === 'image' ? '图文生图' : '文生图' }}</span>
-              <span class="chip">{{ image.aspectRatio }}</span>
-            </div>
-          </div>
-          <p class="hero-subtitle">查看结果图与参考图，并可一键复现输入继续优化。</p>
+        <div class="chips" v-if="image">
+          <span class="chip chip-primary">{{ image.mode === 'image' ? '图文生图' : '文生图' }}</span>
+          <span class="chip">{{ image.aspectRatio }}</span>
+          <span class="chip chip-muted">{{ formatTime(image.createdAt) }}</span>
         </div>
       </div>
 
       <div class="hero-actions">
-        <button class="btn btn-primary hero-action" @click="reuse">
-          <Wand2Icon :size="16" />
+        <Button class="hero-action" @click="reuse">
+          <template #icon>
+            <Wand2Icon :size="16" />
+          </template>
           再次创作
-        </button>
-        <button v-if="activeUrl" class="btn btn-ghost hero-action" @click="downloadActive">
-          <DownloadIcon :size="16" />
+        </Button>
+        <Button v-if="activeUrl" variant="ghost" class="hero-action" @click="downloadActive">
+          <template #icon>
+            <DownloadIcon :size="16" />
+          </template>
           下载{{ tabLabel }}
-        </button>
-        <button v-if="image" class="btn btn-ghost hero-action" @click="remove">
-          <Trash2Icon :size="16" />
+        </Button>
+        <Button v-if="image" variant="ghost" class="hero-action" @click="remove">
+          <template #icon>
+            <Trash2Icon :size="16" />
+          </template>
           删除
-        </button>
+        </Button>
       </div>
     </div>
 
@@ -58,7 +61,7 @@
         </div>
 
         <div class="preview-stage">
-          <div class="preview-frame" :style="{ aspectRatio: previewAspect }">
+          <div class="preview-frame" :class="{ result: tab === 'result' }" :style="{ aspectRatio: previewAspect }">
             <img v-if="activeUrl" :src="activeUrl" :alt="tabLabel" />
             <div v-else class="fallback-cover">无图片</div>
           </div>
@@ -69,6 +72,14 @@
         <div class="meta-card">
           <div class="meta-head">
             <div class="meta-title">提示词</div>
+            <div class="meta-actions">
+              <Button variant="ghost" size="xs" @click="copyPrompt">
+                <template #icon>
+                  <CopyIcon :size="14" />
+                </template>
+                复制
+              </Button>
+            </div>
           </div>
           <div class="prompt-box">{{ image.prompt }}</div>
         </div>
@@ -101,8 +112,9 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeftIcon, DownloadIcon, Wand2Icon, Trash2Icon } from 'lucide-vue-next'
+import { ArrowLeftIcon, CopyIcon, DownloadIcon, Wand2Icon, Trash2Icon } from 'lucide-vue-next'
 import { useImagesStore } from '../../stores/images'
+import { Button, toastError, toastSuccess } from '../../components/common'
 
 const route = useRoute()
 const router = useRouter()
@@ -205,16 +217,22 @@ function formatTime(val) {
     month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
   }).format(new Date(val))
 }
+
+async function copyPrompt() {
+  const text = String(image.value?.prompt || '').trim()
+  if (!text) return
+  try {
+    await navigator.clipboard.writeText(text)
+    toastSuccess('已复制提示词')
+  } catch {
+    toastError('复制失败')
+  }
+}
 </script>
 
 <style scoped>
 .detail-shell {
-  background: var(--bg-card);
-  border: 1px solid rgba(99, 102, 241, 0.12);
-  border-radius: var(--radius-lg);
-  padding: 26px;
-  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.06);
-  backdrop-filter: blur(18px);
+  padding: 0;
 }
 
 .detail-hero {
@@ -222,20 +240,21 @@ function formatTime(val) {
   align-items: flex-start;
   justify-content: space-between;
   gap: 18px;
-  padding: 18px 18px 16px;
+  padding: 16px 18px 14px;
   border-radius: calc(var(--radius-md) + 8px);
   background:
     radial-gradient(1200px 400px at 10% 0%, rgba(99, 102, 241, 0.16), transparent 55%),
     radial-gradient(900px 360px at 95% 10%, rgba(236, 72, 153, 0.14), transparent 55%),
     rgba(255,255,255,0.55);
   border: 1px solid rgba(255,255,255,0.7);
-  box-shadow: 0 12px 30px rgba(99, 102, 241, 0.08);
+  box-shadow: 0 14px 44px rgba(99, 102, 241, 0.10);
+  backdrop-filter: blur(18px);
 }
 
 .hero-left {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
 }
 
@@ -246,21 +265,11 @@ function formatTime(val) {
   flex: 0 0 auto;
 }
 
-.hero-title {
-  min-width: 0;
-}
-
-.title-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
 .chips {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .chip {
@@ -269,8 +278,8 @@ function formatTime(val) {
   display: inline-flex;
   align-items: center;
   border-radius: 999px;
-  font-size: 12px;
-  font-weight: 800;
+  font-size: 11px;
+  font-weight: 900;
   color: rgba(15, 23, 42, 0.72);
   background: rgba(255,255,255,0.72);
   border: 1px solid rgba(15, 23, 42, 0.08);
@@ -283,11 +292,8 @@ function formatTime(val) {
   background: var(--gradient-subtle);
 }
 
-.hero-subtitle {
-  margin-top: 8px;
+.chip-muted {
   color: var(--muted);
-  font-size: 14px;
-  line-height: 1.6;
 }
 
 .hero-actions {
@@ -406,7 +412,7 @@ function formatTime(val) {
 
 .preview-stage {
   width: 100%;
-  padding: 16px;
+  padding: 12px;
   background:
     radial-gradient(900px 360px at 25% 0%, rgba(99, 102, 241, 0.10), transparent 55%),
     radial-gradient(800px 340px at 90% 20%, rgba(236, 72, 153, 0.08), transparent 55%),
@@ -415,7 +421,7 @@ function formatTime(val) {
 
 .preview-frame {
   width: 100%;
-  max-width: 980px;
+  max-width: 900px;
   margin: 0 auto;
   border-radius: 18px;
   border: 1px solid rgba(15, 23, 42, 0.08);
@@ -427,11 +433,17 @@ function formatTime(val) {
   box-shadow: 0 18px 50px rgba(15, 23, 42, 0.10);
 }
 
+.preview-frame.result {
+  height: min(62svh, 680px);
+  width: auto;
+  max-width: 100%;
+}
+
 .preview-frame img {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  padding: 10px;
+  padding: 8px;
 }
 
 .fallback-cover {
@@ -462,9 +474,15 @@ function formatTime(val) {
   margin-bottom: 10px;
 }
 
+.meta-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .meta-title {
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 900;
   color: var(--muted);
 }
 
@@ -474,8 +492,8 @@ function formatTime(val) {
   background: rgba(99, 102, 241, 0.03);
   padding: 12px 12px;
   color: var(--text);
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.65;
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 240px;
@@ -523,6 +541,11 @@ function formatTime(val) {
   }
   .detail-hero {
     flex-direction: column;
+  }
+
+  .preview-frame.result {
+    width: 100%;
+    height: auto;
   }
 }
 </style>

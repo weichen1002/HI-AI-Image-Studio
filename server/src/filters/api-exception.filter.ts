@@ -21,29 +21,23 @@ export class ApiExceptionFilter implements ExceptionFilter {
       const raw = exception.getResponse();
       payload =
         typeof raw === 'string'
-          ? { message: raw }
+          ? { msg: raw }
           : raw && typeof raw === 'object'
             ? raw
             : {};
     } else if (exception && typeof exception === 'object') {
-      payload = { message: (exception as any).message };
+      payload = { msg: (exception as any).message };
     }
 
-    const message =
-      String(
-        payload?.message ||
-          payload?.error ||
-          (status >= 500 ? '服务器开小差了，请稍后重试' : '请求失败'),
-      ) || '请求失败';
-
-    const code = payload?.code ? String(payload.code) : undefined;
+    const msgRaw = payload?.msg ?? payload?.message ?? payload?.error ?? '';
+    const msg = Array.isArray(msgRaw)
+      ? msgRaw.filter(Boolean).join('；')
+      : String(msgRaw || '');
 
     res.status(status).json({
-      statusCode: status,
-      code,
-      message,
-      path: String(req?.url || ''),
-      timestamp: new Date().toISOString(),
+      code: status,
+      msg: msg || (status >= 500 ? '服务器开小差了，请稍后重试' : '请求失败'),
+      data: null,
     });
   }
 }

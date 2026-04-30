@@ -94,6 +94,40 @@ export class CreditsRepo {
     return rows.map(toEntry).filter(Boolean) as CreditLedgerEntry[];
   }
 
+  listByUserPaged(params: {
+    userId: string;
+    type?: LedgerType;
+    limit: number;
+    offset: number;
+  }) {
+    const limit = Math.max(1, Math.min(200, Math.floor(params.limit)));
+    const offset = Math.max(0, Math.floor(params.offset));
+
+    const where: string[] = ['user_id = ?'];
+    const values: any[] = [params.userId];
+
+    if (params.type) {
+      where.push('type = ?');
+      values.push(params.type);
+    }
+
+    const whereSql = `WHERE ${where.join(' AND ')}`;
+
+    const totalRow = this.sqlite.connection
+      .prepare(`SELECT COUNT(1) AS c FROM credit_ledgers ${whereSql}`)
+      .get(...values) as any;
+    const total = Number(totalRow?.c || 0);
+
+    const rows = this.sqlite.connection
+      .prepare(
+        `SELECT * FROM credit_ledgers ${whereSql} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+      )
+      .all(...values, limit, offset);
+    const entries = rows.map(toEntry).filter(Boolean) as CreditLedgerEntry[];
+
+    return { entries, total };
+  }
+
   private chargeOrThrow(params: {
     userId: string;
     cost: number;
@@ -113,7 +147,7 @@ export class CreditsRepo {
 
     if (balance < cost) {
       throw new HttpException(
-        { code: 'INSUFFICIENT_CREDITS', message: '余额不足' },
+        { msg: '余额不足' },
         HttpStatus.PAYMENT_REQUIRED,
       );
     }

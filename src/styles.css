@@ -15,6 +15,17 @@
   --text: #0f172a;
   --muted: #64748b;
   --line: #e2e8f0;
+
+  --bg-mesh:
+    radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(236, 72, 153, 0.07) 0px, transparent 55%),
+    radial-gradient(at 50% 100%, rgba(14, 165, 233, 0.05) 0px, transparent 55%);
+
+  --bg-admin:
+    radial-gradient(860px 390px at 16% -10%, rgba(99, 102, 241, 0.13), transparent 58%),
+    radial-gradient(820px 350px at 92% 0%, rgba(14, 165, 233, 0.11), transparent 60%),
+    radial-gradient(840px 420px at 50% 118%, rgba(99, 102, 241, 0.09), transparent 60%),
+    radial-gradient(720px 330px at 78% 42%, rgba(236, 72, 153, 0.05), transparent 68%);
   
   /* Vibrant AI colors */
   --primary: #6366f1; /* Indigo */
@@ -44,8 +55,7 @@ body {
   background: var(--bg);
   /* Add a subtle vibrant background mesh/glow */
   background-image: 
-    radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 50%),
-    radial-gradient(at 100% 0%, rgba(236, 72, 153, 0.08) 0px, transparent 50%);
+    var(--bg-mesh);
   background-attachment: fixed;
   color: var(--text);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -112,6 +122,22 @@ h1, h2, h3, h4, p {
   border-radius: 12px;
   font-size: 14px;
   font-weight: 700;
+}
+
+.btn-pill {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.btn-chip {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .btn-primary {
@@ -323,6 +349,7 @@ h1, h2, h3, h4, p {
   box-shadow: -10px 0 30px rgba(0,0,0,0.03);
 }
 
+
 @media (max-width: 900px) {
   .auth-container {
     flex-direction: column;
@@ -379,10 +406,12 @@ h1, h2, h3, h4, p {
   color: var(--text);
 }
 
-.nav-link.router-link-active {
-  background: #ffffff;
+.nav-link.router-link-active,
+.nav-link.router-link-exact-active {
+  background: var(--gradient-subtle);
   color: var(--primary);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.10);
 }
 
 .main-content {
@@ -392,25 +421,32 @@ h1, h2, h3, h4, p {
   overflow: hidden;
 }
 
+.main-content.admin-bg {
+  background-image: var(--bg-admin);
+  background-attachment: fixed;
+}
+
 .topbar {
-  height: 72px;
-  border-bottom: 1px solid rgba(0,0,0,0.05);
+  height: auto;
+  min-height: 78px;
+  border-bottom: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 40px;
-  background: rgba(255, 255, 255, 0.6);
-  backdrop-filter: blur(20px);
+  padding: 22px 40px 18px;
+  background: rgba(255, 255, 255, 0);
+  backdrop-filter: none;
   z-index: 10;
 }
 
 .scroll-area {
   flex: 1;
   overflow-y: auto;
-  padding: 40px;
+  padding: 0px 40px 20px 39px;
   display: flex;
   flex-direction: column;
   scroll-behavior: smooth;
+  min-height: 0;
 }
 
 .scroll-area::-webkit-scrollbar {

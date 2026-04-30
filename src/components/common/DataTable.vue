@@ -2,7 +2,7 @@
   <div class="wrap">
     <div v-if="loading" class="state">加载中...</div>
     <div v-else-if="!rows?.length" class="state">{{ emptyText }}</div>
-    <div v-else class="table-wrap">
+    <div v-else class="table-wrap" :class="{ flat: variant === 'flat' }">
       <table class="table">
         <colgroup>
           <col v-for="c in columns" :key="c.key" :style="{ width: c.width || 'auto' }" />
@@ -70,6 +70,10 @@ const props = defineProps({
   emptyText: {
     type: String,
     default: '暂无数据'
+  },
+  variant: {
+    type: String,
+    default: 'card'
   }
 })
 
@@ -105,6 +109,12 @@ function onRowClick(row) {
   background: rgba(255,255,255,0.86);
 }
 
+.table-wrap.flat {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;
@@ -123,7 +133,7 @@ function onRowClick(row) {
 }
 
 .table th {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--muted);
   font-weight: 800;
   letter-spacing: 0.10em;

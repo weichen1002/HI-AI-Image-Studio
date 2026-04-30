@@ -1,7 +1,7 @@
 <template>
   <div class="creator-grid">
     <!-- Left Panel: Prompt -->
-    <div class="panel flex flex-col gap-6">
+    <div class="panel flex flex-col gap-4">
       <div class="flex justify-between items-center">
         <h2 class="text-h3 flex items-center gap-2">
           <div class="icon-wrapper">
@@ -14,7 +14,7 @@
 
       <ModeSwitch v-model="mode" />
 
-      <form @submit.prevent="submitGenerate" class="flex flex-col gap-6">
+      <form @submit.prevent="submitGenerate" class="flex flex-col gap-4">
         <div>
           <label class="label">灵感库</label>
           <div class="flex gap-2 flex-wrap mb-4">
@@ -43,18 +43,26 @@
               maxlength="4000"
               placeholder="例如：生成一张适合小红书封面的咖啡新品海报，温暖自然光，产品在画面中心，文字区域干净..."
             ></textarea>
-            <div class="textarea-footer">
-              <span>{{ form.prompt.length }} / 4000</span>
-              <button
+          </div>
+          <div class="prompt-toolbar">
+            <span class="prompt-count">{{ form.prompt.length }} / 4000</span>
+            <div class="prompt-actions">
+              <Button
+                variant="ghost"
+                class="btn-chip"
                 type="button"
-                class="btn btn-ghost"
-                style="height: 30px; padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 800;"
                 :disabled="loading || isEnhancing || !form.prompt"
                 @click="enhancePrompt"
               >
                 {{ isEnhancing ? '润色中...' : 'AI 润色' }}
-              </button>
-              <button type="button" class="btn btn-ghost btn-icon" @click="form.prompt = ''" v-if="form.prompt" title="清空">
+              </Button>
+              <button
+                v-if="form.prompt"
+                type="button"
+                class="btn btn-ghost btn-icon"
+                title="清空"
+                @click="form.prompt = ''"
+              >
                 <Trash2Icon :size="14" />
               </button>
             </div>
@@ -80,7 +88,7 @@
 
         <div>
           <label class="label">输出格式</label>
-          <input class="input disabled-input" value="PNG / URL" disabled />
+          <Input class="disabled-input" model-value="PNG / URL" disabled />
         </div>
 
         <button type="submit" class="btn btn-primary generate-btn" :disabled="loading || !form.prompt">
@@ -95,16 +103,24 @@
     </div>
 
     <!-- Right Panel: Preview -->
-    <div class="panel flex flex-col h-full" style="padding: 32px; min-height: 540px;">
+    <div class="panel flex flex-col h-full" style="padding: 24px;">
       <div class="flex justify-between items-center mb-4 px-2">
         <div>
           <h2 class="text-h3">生成预览</h2>
           <p class="text-eyebrow mt-1" style="color: var(--muted); letter-spacing: 0; text-transform: none;">{{ form.aspectRatio }} · {{ statusText }}</p>
         </div>
-        <button class="btn btn-ghost" style="height: 36px; padding: 0 16px;" @click="clearPreview" :disabled="!previewUrl && !loading">
-          <RefreshCcwIcon :size="16" />
+        <Button
+          variant="ghost"
+          class="btn-pill"
+          style="border-radius: 12px;"
+          @click="clearPreview"
+          :disabled="!previewUrl && !loading"
+        >
+          <template #icon>
+            <RefreshCcwIcon :size="16" />
+          </template>
           重置
-        </button>
+        </Button>
       </div>
 
       <div class="preview-container">
@@ -137,6 +153,7 @@ import { useImagesStore } from '../../stores/images'
 import { useAuthStore } from '../../stores/auth'
 import ModeSwitch from '../../components/ModeSwitch.vue'
 import ImageUpload from '../../components/ImageUpload.vue'
+import { Button, Input } from '../../components/common'
 import { apiFetch } from '../../utils/api'
 
 const imagesStore = useImagesStore()
@@ -318,29 +335,36 @@ async function enhancePrompt() {
 .textarea {
   background: transparent;
   border: 1px solid var(--line);
-  padding-bottom: 48px;
   border-radius: var(--radius-sm);
-  max-height: 300px;
+  max-height: 240px;
 }
 .textarea:focus {
   background: #ffffff;
   border-color: var(--primary);
   box-shadow: var(--shadow-glow);
 }
-.textarea-footer {
-  position: absolute;
-  bottom: 8px;
-  right: 12px;
-  left: 12px;
+
+.prompt-toolbar {
+  margin-top: 10px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  font-size: 12px;
-  color: var(--muted);
-  pointer-events: none;
+  justify-content: space-between;
+  gap: 12px;
 }
+
+.prompt-count {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.prompt-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .btn-icon {
-  pointer-events: auto;
   height: 28px;
   width: 28px;
   padding: 0;
@@ -361,7 +385,7 @@ async function enhancePrompt() {
   background: #ffffff;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  height: 72px;
+  height: 60px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -409,11 +433,11 @@ async function enhancePrompt() {
 }
 
 .generate-btn {
-  height: 60px;
+  height: 52px;
   font-size: 16px;
   position: relative;
   overflow: hidden;
-  margin-top: 12px;
+  margin-top: 8px;
   border-radius: 14px;
 }
 .glow-effect {
@@ -439,10 +463,10 @@ async function enhancePrompt() {
   justify-content: center;
   background: #ffffff;
   border-radius: var(--radius-md);
-  padding: 24px;
+  padding: 18px;
   border: 1px solid rgba(0,0,0,0.05);
   box-shadow: inset 0 2px 10px rgba(0,0,0,0.02);
-  min-height: clamp(320px, 52vh, 620px);
+  min-height: clamp(240px, 38vh, 520px);
 }
 
 .preview-box {
@@ -568,7 +592,7 @@ async function enhancePrompt() {
   }
 
   .generate-btn {
-    height: 56px;
+    height: 52px;
   }
 }
 

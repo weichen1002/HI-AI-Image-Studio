@@ -27,11 +27,11 @@ export const useAuthStore = defineStore('auth', () => {
     return data
   }
 
-  async function register(username, password) {
+  async function register(username, password, captchaId, captcha) {
     const data = await apiFetch('/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify({ username, password, captchaId, captcha })
     }, { toast: false, redirectOn401: false })
     user.value = data?.user || null
     return data

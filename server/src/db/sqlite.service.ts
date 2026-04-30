@@ -94,6 +94,31 @@ export class SqliteService implements OnModuleInit {
         created_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_ledgers_user_created ON credit_ledgers(user_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS announcements (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        content_md TEXT NOT NULL,
+        status TEXT NOT NULL,
+        notify_mode TEXT NOT NULL,
+        repeat_mode TEXT NOT NULL,
+        start_at TEXT,
+        end_at TEXT,
+        created_by TEXT NOT NULL,
+        updated_by TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_announcements_status_created ON announcements(status, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_announcements_status_time ON announcements(status, start_at, end_at);
+
+      CREATE TABLE IF NOT EXISTS announcement_reads (
+        announcement_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        read_at TEXT NOT NULL,
+        PRIMARY KEY (announcement_id, user_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_announcement_reads_user ON announcement_reads(user_id, read_at DESC);
     `);
 
     const hasV1 = this.db
@@ -105,6 +130,17 @@ export class SqliteService implements OnModuleInit {
           'INSERT INTO schema_migrations(version, applied_at) VALUES(?, ?)',
         )
         .run(1, isoNow());
+    }
+
+    const hasV2 = this.db
+      .prepare('SELECT 1 FROM schema_migrations WHERE version = 2')
+      .get();
+    if (!hasV2) {
+      this.db
+        .prepare(
+          'INSERT INTO schema_migrations(version, applied_at) VALUES(?, ?)',
+        )
+        .run(2, isoNow());
     }
   }
 

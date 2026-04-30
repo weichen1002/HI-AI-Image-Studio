@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "server": "npm run start:dev --prefix server",
+    "sync:inspiration": "node scripts/sync-inspiration-templates.mjs",
     "build": "vite build && npm run build --prefix server",
     "preview": "vite preview",
     "start": "npm run start:prod --prefix server"
