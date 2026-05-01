@@ -148,32 +148,38 @@
       <div
         v-if="imagesStore.activeJob"
         class="generation-bar"
-        :class="'generation-bar-' + imagesStore.activeJob.status"
+        :class="[{ 'generation-bar-collapsed': !jobPanelExpanded }, 'generation-bar-' + imagesStore.activeJob.status]"
       >
-        <div class="generation-info">
+        <button type="button" class="generation-capsule" @click="toggleJobPanel">
           <LoaderIcon v-if="imagesStore.activeJob.status === 'running'" class="animate-spin" :size="16" />
           <ImageIcon v-else-if="imagesStore.activeJob.status === 'success'" :size="16" />
           <AlertCircleIcon v-else :size="16" />
-          <div class="generation-copy">
-            <strong>{{ generationTitle }}</strong>
-            <span>{{ generationSubtitle }}</span>
+          <span class="generation-capsule-text">{{ generationCapsuleText }}</span>
+          <ChevronDownIcon :size="16" class="generation-capsule-chevron" :class="{ open: jobPanelExpanded }" />
+        </button>
+        <div v-if="jobPanelExpanded" class="generation-details">
+          <div class="generation-info">
+            <div class="generation-copy">
+              <strong>{{ generationTitle }}</strong>
+              <span>{{ generationSubtitle }}</span>
+            </div>
           </div>
-        </div>
-        <div class="generation-actions">
-          <Button variant="ghost" class="generation-btn" type="button" @click="goToGeneration">查看</Button>
-          <Button
-            v-if="imagesStore.activeJob.status !== 'running'"
-            variant="ghost"
-            class="generation-btn"
-            type="button"
-            @click="imagesStore.clearJob()"
-          >
-            关闭
-          </Button>
+          <div class="generation-actions">
+            <Button variant="ghost" class="generation-btn" type="button" @click="goToGeneration">查看</Button>
+            <Button
+              v-if="imagesStore.activeJob.status !== 'running'"
+              variant="ghost"
+              class="generation-btn"
+              type="button"
+              @click="imagesStore.clearJob()"
+            >
+              关闭
+            </Button>
+          </div>
         </div>
       </div>
 
-      <div class="scroll-area">
+      <div class="scroll-area" :class="{ 'scroll-area-studio-create': isCreateRoute, 'scroll-area-has-generation': hasActiveJob && !isCreateRoute }">
         <div class="page-shell">
           <router-view />
         </div>
@@ -269,6 +275,17 @@ const autoRunning = ref(false)
 
 const unreadCount = computed(() => announcementsStore.unreadCount || 0)
 const recentAnnouncements = computed(() => (announcementsStore.active || []).slice(0, 6))
+const isCreateRoute = computed(() => route.name === 'studio-create')
+const hasActiveJob = computed(() => Boolean(imagesStore.activeJob))
+const jobPanelExpanded = ref(false)
+
+const generationCapsuleText = computed(() => {
+  const status = imagesStore.activeJob?.status
+  if (status === 'running') return '生成中...'
+  if (status === 'success') return '已完成'
+  if (status === 'error') return '生成失败'
+  return '生成状态'
+})
 
 function formatTime(val) {
   if (!val) return ''
@@ -367,12 +384,24 @@ function goToGeneration() {
   router.push(imagesStore.activeJob?.status === 'success' ? '/studio/history' : '/studio')
 }
 
+function toggleJobPanel() {
+  jobPanelExpanded.value = !jobPanelExpanded.value
+}
+
 watch(
   () => imagesStore.activeJob?.status,
   async (status) => {
     if (status === 'success') {
       await authStore.fetchUser()
     }
+  }
+)
+
+watch(
+  () => imagesStore.activeJob,
+  (job) => {
+    if (!job) return
+    jobPanelExpanded.value = false
   }
 )
 
@@ -650,18 +679,72 @@ async function logoutFromMenu() {
 }
 
 .generation-bar {
-  min-height: 58px;
-  margin: 16px 40px 0;
-  padding: 10px 14px;
+  min-height: 44px;
+  position: fixed;
+  left: 50%;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  width: min(920px, calc(100vw - 80px));
+  margin: 0;
+  padding: 8px 10px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  flex-direction: column;
+  gap: 10px;
   border: 1px solid rgba(99, 102, 241, 0.18);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.72);
   box-shadow: 0 8px 24px rgba(99, 102, 241, 0.08);
   backdrop-filter: blur(18px);
+  z-index: 30;
+}
+
+.generation-bar-collapsed {
+  width: auto;
+  max-width: calc(100vw - 80px);
+  border-radius: 999px;
+  gap: 0;
+}
+
+.generation-capsule {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 8px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.generation-capsule-text {
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.generation-capsule-chevron {
+  color: var(--muted);
+  transition: transform 0.2s;
+}
+
+.generation-capsule-chevron.open {
+  transform: rotate(180deg);
+}
+
+.generation-details {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 2px 6px 4px;
 }
 
 .generation-info,
@@ -927,9 +1010,18 @@ async function logoutFromMenu() {
 
 @media (max-width: 760px) {
   .generation-bar {
-    margin: 12px 20px 0;
-    align-items: flex-start;
-    flex-direction: column;
+    left: 20px;
+    right: 20px;
+    width: auto;
+    transform: none;
+  }
+
+  .generation-bar.generation-bar-collapsed {
+    left: 50%;
+    right: auto;
+    width: auto;
+    max-width: calc(100vw - 40px);
+    transform: translateX(-50%);
   }
 
   .generation-actions {

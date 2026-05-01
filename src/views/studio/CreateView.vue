@@ -1,7 +1,7 @@
 <template>
   <div class="creator-grid">
     <!-- Left Panel: Prompt -->
-    <div class="panel flex flex-col gap-4">
+    <div class="panel flex flex-col gap-4 creator-left">
       <div class="flex justify-between items-center">
         <h2 class="text-h3 flex items-center gap-2">
           <div class="icon-wrapper">
@@ -103,27 +103,18 @@
     </div>
 
     <!-- Right Panel: Preview -->
-    <div class="panel flex flex-col h-full" style="padding: 24px;">
-      <div class="flex justify-between items-center mb-4 px-2">
-        <div>
-          <h2 class="text-h3">生成预览</h2>
-          <p class="text-eyebrow mt-1" style="color: var(--muted); letter-spacing: 0; text-transform: none;">{{ form.aspectRatio }} · {{ statusText }}</p>
-        </div>
-        <Button
-          variant="ghost"
-          class="btn-pill"
-          style="border-radius: 12px;"
+    <div class="panel flex flex-col h-full creator-right creator-preview-panel" style="padding: 18px;">
+      <div class="preview-container">
+        <button
+          type="button"
+          class="btn btn-ghost btn-icon preview-reset"
+          aria-label="重置预览"
+          title="重置"
           @click="clearPreview"
           :disabled="!previewUrl && !loading"
         >
-          <template #icon>
-            <RefreshCcwIcon :size="16" />
-          </template>
-          重置
-        </Button>
-      </div>
-
-      <div class="preview-container">
+          <RefreshCcwIcon :size="14" />
+        </button>
         <div class="preview-box" :style="{ aspectRatio: getRatioValue(form.aspectRatio) }">
           <img v-if="previewUrl" :src="previewUrl" alt="生成预览" />
           <div v-else-if="loading" class="loading-state">
@@ -461,18 +452,26 @@ async function enhancePrompt() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #ffffff;
+  position: relative;
+  background: transparent;
   border-radius: var(--radius-md);
-  padding: 18px;
-  border: 1px solid rgba(0,0,0,0.05);
-  box-shadow: inset 0 2px 10px rgba(0,0,0,0.02);
-  min-height: clamp(240px, 38vh, 520px);
+  padding: 0;
+  border: none;
+  box-shadow: none;
+  min-height: 0;
+}
+
+.preview-reset {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
 }
 
 .preview-box {
   width: 100%;
   max-height: 100%;
-  max-width: min(100%, 760px);
+  max-width: 100%;
   background: transparent;
   border: none;
   display: flex;
@@ -485,7 +484,7 @@ async function enhancePrompt() {
   height: 100%;
   object-fit: contain;
   border-radius: var(--radius-sm);
-  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.10);
   animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
@@ -501,16 +500,15 @@ async function enhancePrompt() {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  border: 2px dashed var(--line);
+  border: 1px dashed rgba(15, 23, 42, 0.14);
   border-radius: var(--radius-md);
-  background: var(--bg-subtle);
+  background: transparent;
   transition: all 0.3s;
   min-height: 280px;
 }
 
 .loading-state {
   border-color: rgba(99, 102, 241, 0.3);
-  background: var(--gradient-subtle);
   border-style: solid;
 }
 
@@ -588,7 +586,7 @@ async function enhancePrompt() {
 
   .preview-container {
     min-height: 300px;
-    padding: 16px;
+    padding: 0;
   }
 
   .generate-btn {

@@ -132,7 +132,7 @@ async function main() {
   const blocks = extractBlocks(section)
   const templates = blocks.map(toTemplate).filter(Boolean).slice(0, limit)
 
-  const outDir = path.join(process.cwd(), 'src', 'data')
+  const outDir = path.join(process.cwd(), 'public', 'data')
   const outFile = path.join(outDir, 'inspiration-templates.json')
   await fs.mkdir(outDir, { recursive: true })
   await fs.writeFile(outFile, JSON.stringify(templates, null, 2) + '\n', 'utf8')

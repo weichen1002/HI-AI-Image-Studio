@@ -31,23 +31,23 @@
             <div class="badge-glow"></div>
             <div class="badge-content">
               <SparklesIcon :size="14" class="badge-icon" />
-              <span>Professional Design Power v2.0</span>
+              <span>AI 商业图片生成工作台</span>
             </div>
           </div>
           
           <h1 class="text-h2 mb-6 hero-title" style="white-space: normal; line-height: 1.3;">
-            把一句想法
+            Hi AI Image Studio
             <br/>
-            变成可以直接使用的商业图片
+            把想法变成可发布的商业图片
           </h1>
           
           <p class="text-lead mb-10 hero-subtitle">
-            面向内容创作者、电商卖家和个人品牌，快速生成海报、封面、商品图与灵感视觉，让设计生产更高效。
+            面向内容创作者、电商卖家和个人品牌，快速生成海报、封面、商品图与灵感视觉，提示词、作品与灵感模板统一管理。
           </p>
           
           <div class="flex items-center justify-center gap-4 action-buttons">
             <LinkButton :to="isAuthenticated ? '/studio' : '/login'" class="btn-lg">
-              免费开始创作
+              开始生成图片
               <ArrowRightIcon :size="18" class="ml-2 hero-cta-icon" />
             </LinkButton>
             <LinkButton to="/studio/models" variant="ghost" class="btn-lg bg-white">
@@ -83,7 +83,6 @@
                   </div>
                   <div class="mock-panel mock-right">
                     <div class="mock-image-placeholder">
-                      <!-- Render an actual example image to make it look better instead of just shimmer -->
                       <div class="example-image-layer"></div>
                       <div class="shimmer"></div>
                     </div>
@@ -100,18 +99,18 @@
         <div class="feature-grid">
           <div class="feature-card">
             <div class="feature-icon"><ZapIcon :size="28" /></div>
-            <h3 class="text-h3 mb-3">极速出图</h3>
-            <p class="text-muted">基于最新的 gpt-image-2 模型，仅需几秒即可将您的文字转化为高清晰度商业图像。</p>
+            <h3 class="text-h3 mb-3">快速生成</h3>
+            <p class="text-muted">输入提示词或上传参考图，直接生成适合投放、发布和复用的高清图片。</p>
           </div>
           <div class="feature-card">
             <div class="feature-icon"><LayoutIcon :size="28" /></div>
-            <h3 class="text-h3 mb-3">多比例适配</h3>
-            <p class="text-muted">支持 1:1, 16:9, 9:16 等多种主流比例，完美适配小红书、抖音、公众号等各类平台。</p>
+            <h3 class="text-h3 mb-3">多平台尺寸</h3>
+            <p class="text-muted">支持 1:1、16:9、9:16 等常用比例，适配小红书、抖音、公众号和电商场景。</p>
           </div>
           <div class="feature-card">
             <div class="feature-icon"><LibraryIcon :size="28" /></div>
-            <h3 class="text-h3 mb-3">灵感管理</h3>
-            <p class="text-muted">自动保存每一次生成的作品与提示词，建立您专属的个人灵感记录库，随时回溯。</p>
+            <h3 class="text-h3 mb-3">作品可追溯</h3>
+            <p class="text-muted">自动保存生成记录、提示词和参数，方便复用成功方案，持续沉淀灵感库。</p>
           </div>
         </div>
       </section>
@@ -139,7 +138,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { SparklesIcon, ImageIcon, ArrowRightIcon, ZapIcon, LayoutIcon, LibraryIcon } from 'lucide-vue-next'
+import { SparklesIcon, ArrowRightIcon, ZapIcon, LayoutIcon, LibraryIcon } from 'lucide-vue-next'
 import { useAuthStore } from '../stores/auth'
 import { LinkButton } from '../components/common'
 import logoUrl from '../hi-image-logo.png'
@@ -410,11 +409,14 @@ main {
 .example-image-layer {
   position: absolute;
   inset: 0;
-  background-image: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1000&auto=format&fit=crop');
+  background:
+    radial-gradient(circle at 22% 24%, rgba(255,255,255,0.95) 0 8%, transparent 9%),
+    radial-gradient(circle at 78% 30%, rgba(255,255,255,0.82) 0 7%, transparent 8%),
+    linear-gradient(135deg, rgba(99,102,241,0.92), rgba(236,72,153,0.72) 45%, rgba(14,165,233,0.82)),
+    repeating-linear-gradient(45deg, rgba(255,255,255,0.14) 0 2px, transparent 2px 18px);
   background-size: cover;
   background-position: center;
   opacity: 0.8;
-  mix-blend-mode: overlay;
 }
 .shimmer {
   position: absolute;

@@ -13,7 +13,9 @@
       </Button>
     </div>
     
-    <div class="grid-templates">
+    <div v-if="loading" class="templates-state">灵感模板加载中...</div>
+    <div v-else-if="loadError" class="templates-state error">{{ loadError }}</div>
+    <div v-else class="grid-templates">
       <div v-for="tpl in filteredTemplates" :key="tpl.id || tpl.title" class="template-card flex flex-col h-full">
         <div class="tpl-cover flex flex-col p-4 relative">
           <img v-if="tpl.coverImage" :src="tpl.coverImage" alt="cover" class="tpl-cover-img" />
@@ -48,28 +50,45 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Button } from '../../components/common'
-import templatesData from '../../data/inspiration-templates.json'
 
 const router = useRouter()
 
 const activeCategory = ref("全部")
+const loading = ref(true)
+const loadError = ref("")
+const templates = ref([])
 
-const templates = Array.isArray(templatesData) ? templatesData : []
+onMounted(loadTemplates)
+
+async function loadTemplates() {
+  loading.value = true
+  loadError.value = ""
+  try {
+    const res = await fetch(`${import.meta.env.BASE_URL}data/inspiration-templates.json`)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json()
+    templates.value = Array.isArray(data) ? data : []
+  } catch {
+    loadError.value = "灵感模板暂时无法加载，请稍后重试。"
+  } finally {
+    loading.value = false
+  }
+}
 
 const categories = computed(() => {
   const set = new Set()
-  for (const item of templates) {
+  for (const item of templates.value) {
     if (item?.category) set.add(String(item.category))
   }
   return ["全部", ...Array.from(set)]
 })
 
 const filteredTemplates = computed(() => {
-  if (activeCategory.value === "全部") return templates
-  return templates.filter(t => t.category === activeCategory.value)
+  if (activeCategory.value === "全部") return templates.value
+  return templates.value.filter(t => t.category === activeCategory.value)
 })
 
 function useTemplate(tpl) {
@@ -87,6 +106,21 @@ function useTemplate(tpl) {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 24px;
+}
+
+.templates-state {
+  display: grid;
+  min-height: 220px;
+  place-items: center;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-md);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.templates-state.error {
+  color: var(--accent);
 }
 
 .template-card {

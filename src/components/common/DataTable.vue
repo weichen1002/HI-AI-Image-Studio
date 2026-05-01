@@ -20,7 +20,10 @@
             :key="rowKeyValue(r)"
             class="row"
             :class="{ clickable, selected: selectedKey && selectedKey === rowKeyValue(r) }"
-            @click="onRowClick(r)"
+            :tabindex="clickable ? 0 : undefined"
+            @click="onRowClick($event, r)"
+            @keydown.enter.prevent="onRowClick($event, r)"
+            @keydown.space.prevent="onRowClick($event, r)"
           >
             <td
               v-for="c in columns"
@@ -82,8 +85,10 @@ function rowKeyValue(row) {
   return String(row?.[props.rowKey] ?? '')
 }
 
-function onRowClick(row) {
+function onRowClick(e, row) {
   if (!props.clickable) return
+  const target = e?.target
+  if (target?.closest?.('button, a, input, textarea, select, [role="button"], [role="link"], .btn')) return
   emit('rowClick', row)
 }
 </script>
@@ -94,25 +99,34 @@ function onRowClick(row) {
 }
 
 .state {
-  padding: 12px 14px;
-  border-radius: 14px;
+  min-height: 140px;
+  padding: 18px 18px;
+  border-radius: 18px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(18px);
   color: var(--muted);
-  font-weight: 700;
+  font-weight: 850;
+  display: grid;
+  place-items: center;
 }
 
 .table-wrap {
   overflow: auto;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 16px;
-  background: rgba(255,255,255,0.86);
+  border-radius: 18px;
+  background: rgba(255,255,255,0.72);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 14px 44px rgba(15, 23, 42, 0.06);
+  scroll-behavior: smooth;
 }
 
 .table-wrap.flat {
   border: none;
   border-radius: 0;
   background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .table {
@@ -135,22 +149,31 @@ function onRowClick(row) {
 .table th {
   font-size: 13px;
   color: var(--muted);
-  font-weight: 800;
+  font-weight: 900;
   letter-spacing: 0.10em;
   text-transform: uppercase;
   background: rgba(15, 23, 42, 0.02);
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 .row.clickable {
   cursor: pointer;
+  transition: background 0.16s ease, box-shadow 0.16s ease;
 }
 
 .row.clickable:hover {
-  background: rgba(15, 23, 42, 0.02);
+  background: rgba(99, 102, 241, 0.045);
 }
 
 .row.selected {
-  background: rgba(99, 102, 241, 0.06);
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.row:focus-visible {
+  outline: 2px solid rgba(99, 102, 241, 0.55);
+  outline-offset: -2px;
 }
 
 .nowrap {
@@ -159,5 +182,19 @@ function onRowClick(row) {
 
 .ellipsis {
   text-overflow: ellipsis;
+}
+
+.table-wrap::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+
+.table-wrap::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.14);
+  border-radius: 999px;
+}
+
+.table-wrap::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 23, 42, 0.22);
 }
 </style>

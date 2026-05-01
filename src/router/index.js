@@ -81,7 +81,7 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach(async (to, from, next) => {
+router.beforeEach(async (to) => {
   const authStore = useAuthStore()
   if (!authStore.isInitialized) {
     await authStore.fetchUser()
@@ -92,27 +92,29 @@ router.beforeEach(async (to, from, next) => {
   
   // If route explicitly overrides parent's requiresAuth to false
   if (to.meta.requiresAuth === false) {
-    return next()
+    return true
   }
 
   if (to.meta.requiresAuth && !isAuthenticated) {
-    next({ name: 'login' })
-  } else if (to.meta.guestOnly && isAuthenticated) {
-    next({ name: 'studio-create' })
-  } else if (to.meta.requiresRole) {
+    return { name: 'login' }
+  }
+
+  if (to.meta.guestOnly && isAuthenticated) {
+    return { name: 'studio-create' }
+  }
+
+  if (to.meta.requiresRole) {
     const allowed = Array.isArray(to.meta.requiresRole) ? to.meta.requiresRole : []
     if (!isAuthenticated) {
-      next({ name: 'login' })
-      return
+      return { name: 'login' }
     }
     if (!allowed.includes(role)) {
-      next({ name: 'studio-create' })
-      return
+      return { name: 'studio-create' }
     }
-    next()
-  } else {
-    next()
+    return true
   }
+
+  return true
 })
 
 export default router

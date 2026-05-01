@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -58,7 +57,7 @@ body {
     var(--bg-mesh);
   background-attachment: fixed;
   color: var(--text);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -449,6 +448,10 @@ h1, h2, h3, h4, p {
   min-height: 0;
 }
 
+.scroll-area.scroll-area-has-generation {
+  padding-bottom: 120px;
+}
+
 .scroll-area::-webkit-scrollbar {
   width: 8px;
 }
@@ -464,6 +467,32 @@ h1, h2, h3, h4, p {
 
 .scroll-area::-webkit-scrollbar-thumb:hover {
   background: rgba(15, 23, 42, 0.2);
+}
+
+@media (min-width: 901px) {
+  .scroll-area.scroll-area-studio-create {
+    overflow-y: hidden;
+  }
+
+  .scroll-area.scroll-area-studio-create .creator-grid {
+    height: 100%;
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .scroll-area.scroll-area-studio-create .creator-left {
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  .scroll-area.scroll-area-studio-create .creator-right {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .scroll-area.scroll-area-studio-create .creator-right .preview-container {
+    min-height: 0;
+  }
 }
 
 /* Create View Grid */
@@ -547,6 +576,10 @@ h1, h2, h3, h4, p {
   .scroll-area {
     overflow: visible;
     padding: 20px;
+  }
+
+  .scroll-area.scroll-area-has-generation {
+    padding-bottom: 120px;
   }
 
   .panel {
