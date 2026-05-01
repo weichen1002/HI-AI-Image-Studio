@@ -176,13 +176,32 @@ export class HiapiService {
     return parseHiapiResponse(response);
   }
 
-  async enhancePrompt(input: string) {
+  async enhancePrompt(input: string, direction: string = 'ecommerce') {
     if (!config.HIAPI_TEXT_MODEL) {
       throw new HttpException(
         '请先在 .env 中配置 HIAPI_TEXT_MODEL',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+
+    const systemPrompt =
+      {
+        ecommerce:
+          '你是提示词工程师。把用户的描述润色成适合 gpt-image-2 的高质量中文提示词，用于电商主图/商品展示：突出核心卖点与质感（材质/工艺/细节/场景），主体清晰、背景干净，光影高级，构图利于转化；明确“不要文字/水印/Logo”，并建议可留白区域但不要生成文字。输出仅包含最终提示词，不要加解释，不要加编号，不要用代码块。',
+        xiaohongshu:
+          '你是提示词工程师。把用户的描述润色成适合 gpt-image-2 的高质量中文提示词，用于小红书封面：清新、有氛围感，强调生活方式与情绪价值；构图要有明显留白与版式感（留出可放标题/卖点的区域，但不要生成文字）；明确“不要文字/水印/Logo”。输出仅包含最终提示词，不要加解释，不要加编号，不要用代码块。',
+        poster:
+          '你是提示词工程师。把用户的描述润色成适合 gpt-image-2 的高质量中文提示词，用于海报排版：强调强主题与清晰层次、干净背景、明确主视觉区域与大块留白（用于后期放文案但不要生成文字），构图更设计感（网格、对称或黄金分割任选其一并写清）。明确“不要文字/水印/Logo”。输出仅包含最终提示词，不要加解释，不要加编号，不要用代码块。',
+        wallpaper:
+          '你是提示词工程师。把用户的描述润色成适合 gpt-image-2 的高质量中文提示词，用于手机壁纸/头像：画面干净耐看、主体适合裁切，背景简洁有层次，高分辨率细节；明确“不要文字/水印/Logo”。输出仅包含最终提示词，不要加解释，不要加编号，不要用代码块。',
+        concise:
+          '你是提示词工程师。把用户的描述润色成适合 gpt-image-2 的高质量中文提示词。要求更简洁，信息密度高，避免冗余。输出仅包含最终提示词，不要加解释，不要加编号，不要用代码块。',
+        commercial:
+          '你是提示词工程师。把用户的简短描述润色成适合 gpt-image-2 的高质量中文提示词。风格更商业、更有转化导向（更清晰卖点、更高级、更有质感）。输出仅包含最终提示词，不要加解释，不要加编号，不要用代码块。',
+        english:
+          'You are a prompt engineer. Rewrite the user input into a high-quality English prompt that can be used directly for gpt-image-2. Output ONLY the final prompt. No explanations, no numbering, no code blocks.',
+      }[direction] ||
+      '你是提示词工程师。把用户的简短描述润色成 gpt-image-2 可直接使用的高质量中文提示词。输出仅包含最终提示词，不要加解释，不要加编号，不要用代码块。';
 
     const controller = new AbortController();
     const timeout = setTimeout(
@@ -205,8 +224,7 @@ export class HiapiService {
           messages: [
             {
               role: 'system',
-              content:
-                '你是提示词工程师。把用户的简短描述润色成 gpt-image-2 可直接使用的高质量中文提示词。输出仅包含最终提示词，不要加解释，不要加编号，不要用代码块。',
+              content: systemPrompt,
             },
             {
               role: 'user',

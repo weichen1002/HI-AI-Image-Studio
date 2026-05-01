@@ -62,6 +62,28 @@ export class CreditsRepo {
     });
   }
 
+  refundInTx(params: {
+    userId: string;
+    amount: number;
+    reason: string;
+    refType?: string;
+    refId?: string;
+  }) {
+    return this.refundOrThrow(params);
+  }
+
+  refund(params: {
+    userId: string;
+    amount: number;
+    reason: string;
+    refType?: string;
+    refId?: string;
+  }) {
+    return this.sqlite.transaction(() => {
+      return this.refundOrThrow(params);
+    });
+  }
+
   adjustInTx(params: {
     userId: string;
     amount: number;
@@ -140,28 +162,73 @@ export class CreditsRepo {
       return { balance: this.getBalance(params.userId), entry: null };
     }
 
-    const row = this.sqlite.connection
-      .prepare('SELECT credit_balance AS b FROM users WHERE id = ?')
-      .get(params.userId);
-    const balance = Number(row?.b || 0);
-
-    if (balance < cost) {
+    const result = this.sqlite.connection
+      .prepare(
+        'UPDATE users SET credit_balance = credit_balance - ? WHERE id = ? AND credit_balance >= ?',
+      )
+      .run(cost, params.userId, cost);
+    if (result.changes !== 1) {
       throw new HttpException(
         { msg: '余额不足' },
         HttpStatus.PAYMENT_REQUIRED,
       );
     }
 
-    const next = balance - cost;
-    this.sqlite.connection
-      .prepare('UPDATE users SET credit_balance = ? WHERE id = ?')
-      .run(next, params.userId);
+    const next = this.getBalance(params.userId);
 
     const entry: CreditLedgerEntry = {
       id: crypto.randomUUID(),
       userId: params.userId,
       amount: -cost,
       type: 'charge',
+      reason: params.reason,
+      refType: params.refType || null,
+      refId: params.refId || null,
+      createdAt: new Date().toISOString(),
+    };
+
+    this.sqlite.connection
+      .prepare(
+        `INSERT INTO credit_ledgers(id, user_id, amount, type, reason, ref_type, ref_id, created_at)
+         VALUES(@id, @user_id, @amount, @type, @reason, @ref_type, @ref_id, @created_at)`,
+      )
+      .run({
+        id: entry.id,
+        user_id: entry.userId,
+        amount: entry.amount,
+        type: entry.type,
+        reason: entry.reason,
+        ref_type: entry.refType,
+        ref_id: entry.refId,
+        created_at: entry.createdAt,
+      });
+
+    return { balance: next, entry };
+  }
+
+  private refundOrThrow(params: {
+    userId: string;
+    amount: number;
+    reason: string;
+    refType?: string;
+    refId?: string;
+  }) {
+    const amount = Math.max(0, Math.floor(params.amount));
+    if (amount === 0) {
+      return { balance: this.getBalance(params.userId), entry: null };
+    }
+
+    this.sqlite.connection
+      .prepare('UPDATE users SET credit_balance = credit_balance + ? WHERE id = ?')
+      .run(amount, params.userId);
+
+    const next = this.getBalance(params.userId);
+
+    const entry: CreditLedgerEntry = {
+      id: crypto.randomUUID(),
+      userId: params.userId,
+      amount,
+      type: 'refund',
       reason: params.reason,
       refType: params.refType || null,
       refId: params.refId || null,

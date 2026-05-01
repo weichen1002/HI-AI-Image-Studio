@@ -2,12 +2,40 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { apiFetch } from '../utils/api'
 import { toastSuccess } from '../components/common'
+import { useAuthStore } from './auth'
 
 export const useImagesStore = defineStore('images', () => {
   const images = ref([])
   const isLoading = ref(false)
   const activeJob = ref(null)
   const isGenerating = computed(() => activeJob.value?.status === 'running')
+
+  function costFor(plan, action) {
+    const normalizedPlan = plan === 'pro' ? 'pro' : 'free'
+    const table = {
+      free: { text_to_image: 2, image_to_image: 3 },
+      pro: { text_to_image: 1, image_to_image: 2 }
+    }
+    return table[normalizedPlan]?.[action] ?? 0
+  }
+
+  async function ensureEnoughCredits(action) {
+    const authStore = useAuthStore()
+    const user = authStore.user
+    if (!user) return
+
+    const cost = costFor(user.plan, action)
+    const balance = Number(user.creditBalance ?? 0)
+    if (balance >= cost) return
+
+    await authStore.fetchUser()
+    const refreshed = authStore.user
+    const refreshedBalance = Number(refreshed?.creditBalance ?? 0)
+    const refreshedCost = costFor(refreshed?.plan, action)
+    if (refreshedBalance >= refreshedCost) return
+
+    throw new Error('余额不足')
+  }
 
   function toListImage(image) {
     return {
@@ -43,6 +71,8 @@ export const useImagesStore = defineStore('images', () => {
     if (isGenerating.value) {
       throw new Error('已有图片正在生成，请等待当前任务完成')
     }
+
+    await ensureEnoughCredits('text_to_image')
 
     activeJob.value = {
       id: Date.now(),
@@ -89,6 +119,8 @@ export const useImagesStore = defineStore('images', () => {
     if (!file) {
       throw new Error('请先上传参考图')
     }
+
+    await ensureEnoughCredits('image_to_image')
 
     activeJob.value = {
       id: Date.now(),

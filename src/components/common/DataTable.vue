@@ -1,7 +1,7 @@
 <template>
   <div class="wrap">
-    <div v-if="loading" class="state">加载中...</div>
-    <div v-else-if="!rows?.length" class="state">{{ emptyText }}</div>
+    <div v-if="loading" class="state" :class="{ flat: variant === 'flat' }">加载中...</div>
+    <div v-else-if="!rows?.length" class="state" :class="{ flat: variant === 'flat' }">{{ emptyText }}</div>
     <div v-else class="table-wrap" :class="{ flat: variant === 'flat' }">
       <table class="table">
         <colgroup>
@@ -111,6 +111,15 @@ function onRowClick(e, row) {
   place-items: center;
 }
 
+.state.flat {
+  padding: 18px 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
 .table-wrap {
   overflow: auto;
   border: 1px solid rgba(15, 23, 42, 0.08);
@@ -122,6 +131,7 @@ function onRowClick(e, row) {
 }
 
 .table-wrap.flat {
+  overflow: visible;
   border: none;
   border-radius: 0;
   background: transparent;
@@ -138,7 +148,7 @@ function onRowClick(e, row) {
 
 .table th,
 .table td {
-  padding: 10px 14px;
+  padding: 12px 16px;
   border-bottom: 1px solid rgba(15, 23, 42, 0.06);
   font-size: 13px;
   color: var(--text);
@@ -147,15 +157,24 @@ function onRowClick(e, row) {
 }
 
 .table th {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--muted);
   font-weight: 900;
-  letter-spacing: 0.10em;
-  text-transform: uppercase;
+  letter-spacing: 0.06em;
   background: rgba(15, 23, 42, 0.02);
   position: sticky;
   top: 0;
   z-index: 2;
+}
+
+.table-wrap.flat .table th {
+  background: transparent;
+}
+
+.table-wrap.flat .table th,
+.table-wrap.flat .table td {
+  padding-left: 14px;
+  padding-right: 14px;
 }
 
 .row.clickable {
@@ -185,8 +204,8 @@ function onRowClick(e, row) {
 }
 
 .table-wrap::-webkit-scrollbar {
-  height: 10px;
-  width: 10px;
+  height: 8px;
+  width: 8px;
 }
 
 .table-wrap::-webkit-scrollbar-thumb {

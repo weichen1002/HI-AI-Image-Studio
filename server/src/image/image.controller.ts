@@ -168,32 +168,51 @@ export class ImageController {
     const prompt = normalizePrompt(body.prompt);
     const aspectRatio = normalizeAspectRatio(body.aspectRatio);
 
+    const cost = costFor(
+      req.user.plan === 'pro' ? 'pro' : 'free',
+      'text_to_image',
+    );
+    const userId = req.user.id;
+    const refId = crypto.randomUUID();
+    let charged = false;
+
     try {
+      this.creditsRepo.charge({
+        userId,
+        cost,
+        reason: 'text_to_image',
+        refType: 'image_job',
+        refId,
+      });
+      charged = cost > 0;
+
       const result = await this.hiapiService.generateImage(prompt, aspectRatio);
-      const cost = costFor(
-        req.user.plan === 'pro' ? 'pro' : 'free',
-        'text_to_image',
-      );
       const image = this.sqlite.transaction(() => {
         const created = this.imagesRepo.create({
-          userId: req.user.id,
+          userId,
           mode: 'text',
           prompt,
           aspectRatio,
           content: result.content,
           imageUrls: result.imageUrls,
         });
-        this.creditsRepo.chargeInTx({
-          userId: req.user.id,
-          cost,
-          reason: 'text_to_image',
-          refType: 'image',
-          refId: created.id,
-        });
         return created;
       });
       return { image };
     } catch (error: any) {
+      if (charged) {
+        try {
+          this.creditsRepo.refund({
+            userId,
+            amount: cost,
+            reason: 'text_to_image_refund',
+            refType: 'image_job',
+            refId,
+          });
+        } catch (refundError) {
+          console.error(refundError);
+        }
+      }
       console.error(error);
       const status = error.getStatus
         ? error.getStatus()
@@ -205,7 +224,7 @@ export class ImageController {
   @Post('from-image')
   @UseInterceptors(
     FileInterceptor('image', {
-      limits: { fileSize: 10 * 1024 * 1024 },
+      limits: { fileSize: config.UPLOAD_MAX_FILE_SIZE },
       fileFilter: (req, file, cb) => {
         cb(null, true);
       },
@@ -239,7 +258,24 @@ export class ImageController {
     const filePath = path.join(uploadDir(), fileName);
     const inputUrl = `/uploads/${fileName}`;
 
+    const cost = costFor(
+      req.user.plan === 'pro' ? 'pro' : 'free',
+      'image_to_image',
+    );
+    const userId = req.user.id;
+    const refId = crypto.randomUUID();
+    let charged = false;
+
     try {
+      this.creditsRepo.charge({
+        userId,
+        cost,
+        reason: 'image_to_image',
+        refType: 'image_job',
+        refId,
+      });
+      charged = cost > 0;
+
       await fsp.writeFile(filePath, file.buffer);
 
       const result = await this.hiapiService.editImageFromFile({
@@ -251,7 +287,7 @@ export class ImageController {
       });
 
       const image = {
-        userId: req.user.id,
+        userId,
         mode: 'image' as const,
         prompt,
         aspectRatio,
@@ -259,19 +295,8 @@ export class ImageController {
         imageUrls: result.imageUrls,
         inputImageUrls: [inputUrl],
       };
-      const cost = costFor(
-        req.user.plan === 'pro' ? 'pro' : 'free',
-        'image_to_image',
-      );
       const saved = this.sqlite.transaction(() => {
         const created = this.imagesRepo.create(image);
-        this.creditsRepo.chargeInTx({
-          userId: req.user.id,
-          cost,
-          reason: 'image_to_image',
-          refType: 'image',
-          refId: created.id,
-        });
         return created;
       });
       return { image: saved };
@@ -280,6 +305,19 @@ export class ImageController {
         await fsp.unlink(filePath);
       } catch {
         void 0;
+      }
+      if (charged) {
+        try {
+          this.creditsRepo.refund({
+            userId,
+            amount: cost,
+            reason: 'image_to_image_refund',
+            refType: 'image_job',
+            refId,
+          });
+        } catch (refundError) {
+          console.error(refundError);
+        }
       }
       console.error(error);
       const status = error.getStatus

@@ -5,6 +5,7 @@ import {
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
+import { config } from '../config';
 
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {
@@ -26,7 +27,23 @@ export class ApiExceptionFilter implements ExceptionFilter {
             ? raw
             : {};
     } else if (exception && typeof exception === 'object') {
+      const code = (exception as any).code;
+      const type = (exception as any).type;
+      const exceptionStatus =
+        Number((exception as any).statusCode) || Number((exception as any).status);
+      if (code === 'LIMIT_FILE_SIZE' || type === 'entity.too.large') {
+        status = HttpStatus.PAYLOAD_TOO_LARGE;
+        const maxMb = Math.max(
+          1,
+          Math.floor(Number(config.UPLOAD_MAX_FILE_SIZE || 0) / (1024 * 1024)),
+        );
+        payload = { msg: `上传内容过大，请控制在 ${maxMb}MB 以内` };
+      } else if (exceptionStatus) {
+        status = exceptionStatus;
+        payload = { msg: (exception as any).message };
+      } else {
       payload = { msg: (exception as any).message };
+      }
     }
 
     const msgRaw = payload?.msg ?? payload?.message ?? payload?.error ?? '';

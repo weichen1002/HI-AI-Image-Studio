@@ -10,7 +10,8 @@ import { ApiResponseInterceptor } from './interceptors/api-response.interceptor'
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  app.use(express.json({ limit: '10mb' }));
+  app.use(express.json({ limit: config.BODY_LIMIT }));
+  app.use(express.urlencoded({ limit: config.BODY_LIMIT, extended: true }));
   app.use(cookieParser());
   app.enableCors();
   app.useGlobalFilters(new ApiExceptionFilter());

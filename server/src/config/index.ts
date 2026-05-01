@@ -46,6 +46,10 @@ export const config = {
   SQLITE_FILE: resolvePath(process.env.SQLITE_FILE || SQLITE_FILE),
   PORT: Number(process.env.PORT || 3000),
   HOST: process.env.HOST || '0.0.0.0',
+  BODY_LIMIT: process.env.BODY_LIMIT || '25mb',
+  UPLOAD_MAX_FILE_SIZE: Number(
+    process.env.UPLOAD_MAX_FILE_SIZE || 25 * 1024 * 1024,
+  ),
   SESSION_SECRET:
     process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
   ADMIN_TOKEN: process.env.ADMIN_TOKEN || '',

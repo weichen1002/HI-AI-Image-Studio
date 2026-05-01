@@ -25,6 +25,28 @@ function normalizePrompt(value: any) {
   return prompt;
 }
 
+function normalizeDirection(value: any) {
+  const v = String(value || '').trim();
+  const normalized =
+    {
+      commercial: 'ecommerce',
+      concise: 'concise',
+    }[v] || v;
+  const allowed = [
+    'ecommerce',
+    'xiaohongshu',
+    'poster',
+    'wallpaper',
+    'english',
+    'concise',
+  ];
+  if (!normalized) return 'ecommerce';
+  if (!allowed.includes(normalized)) {
+    throw new HttpException('不支持的润色方向', HttpStatus.BAD_REQUEST);
+  }
+  return normalized;
+}
+
 @Controller('api/prompts')
 @UseGuards(AuthGuard)
 export class PromptsController {
@@ -36,21 +58,42 @@ export class PromptsController {
   @Post('enhance')
   async enhance(@Req() req: RequestWithUser, @Body() body: any) {
     const prompt = normalizePrompt(body?.prompt);
-    const enhanced = await this.hiapiService.enhancePrompt(prompt);
-
+    const direction = normalizeDirection(body?.direction);
     const cost = costFor(
       req.user.plan === 'pro' ? 'pro' : 'free',
       'prompt_enhance',
     );
     const refId = crypto.randomUUID();
-    this.creditsRepo.charge({
-      userId: req.user.id,
-      cost,
-      reason: 'prompt_enhance',
-      refType: 'prompt',
-      refId,
-    });
+    const userId = req.user.id;
+    let charged = false;
 
-    return { prompt: enhanced };
+    try {
+      this.creditsRepo.charge({
+        userId,
+        cost,
+        reason: 'prompt_enhance',
+        refType: 'prompt',
+        refId,
+      });
+      charged = cost > 0;
+
+      const enhanced = await this.hiapiService.enhancePrompt(prompt, direction);
+      return { prompt: enhanced };
+    } catch (error) {
+      if (charged) {
+        try {
+          this.creditsRepo.refund({
+            userId,
+            amount: cost,
+            reason: 'prompt_enhance_refund',
+            refType: 'prompt',
+            refId,
+          });
+        } catch (refundError) {
+          console.error(refundError);
+        }
+      }
+      throw error;
+    }
   }
 }
