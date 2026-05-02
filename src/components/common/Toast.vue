@@ -41,7 +41,7 @@ function runAction(t) {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  z-index: 100000020;
+  z-index: 100000040;
 }
 
 .toast {

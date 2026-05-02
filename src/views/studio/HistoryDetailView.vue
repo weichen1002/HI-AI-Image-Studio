@@ -10,7 +10,7 @@
         </Button>
 
         <div class="chips" v-if="image">
-          <span class="chip chip-primary">{{ image.mode === 'image' ? '图文生图' : '文生图' }}</span>
+          <span class="chip chip-primary">{{ modeLabel }}</span>
           <span class="chip">{{ image.aspectRatio }}</span>
           <span class="chip chip-muted">{{ formatTime(image.createdAt) }}</span>
         </div>
@@ -22,6 +22,18 @@
             <Wand2Icon :size="16" />
           </template>
           再次创作
+        </Button>
+        <Button v-if="image?.imageUrls?.[0]" variant="ghost" class="hero-action" @click="openEditor('inpaint')">
+          <template #icon>
+            <Wand2Icon :size="16" />
+          </template>
+          局部重绘
+        </Button>
+        <Button v-if="image?.imageUrls?.[0]" variant="ghost" class="hero-action" @click="openEditor('outpaint')">
+          <template #icon>
+            <ExpandIcon :size="16" />
+          </template>
+          扩图
         </Button>
         <Button v-if="activeUrl" variant="ghost" class="hero-action" @click="downloadActive">
           <template #icon>
@@ -65,6 +77,18 @@
             <img v-if="activeUrl" :src="activeUrl" :alt="tabLabel" />
             <div v-else class="fallback-cover">无图片</div>
           </div>
+          <div v-if="currentGallery.length > 1" class="thumb-strip">
+            <button
+              v-for="(url, index) in currentGallery"
+              :key="`${tab}-${url}-${index}`"
+              type="button"
+              class="thumb-item"
+              :class="{ active: currentIndex === index }"
+              @click="currentIndex = index"
+            >
+              <img :src="url" :alt="`${tabLabel} ${index + 1}`" />
+            </button>
+          </div>
         </div>
       </section>
 
@@ -88,7 +112,7 @@
           <div class="kv-grid">
             <div class="kv">
               <div class="kv-label">模式</div>
-              <div class="kv-value">{{ image.mode === 'image' ? '图文生图' : '文生图' }}</div>
+              <div class="kv-value">{{ modeLabel }}</div>
             </div>
             <div class="kv">
               <div class="kv-label">比例</div>
@@ -99,22 +123,52 @@
               <div class="kv-value">{{ formatTime(image.createdAt) }}</div>
             </div>
             <div class="kv">
+              <div class="kv-label">操作</div>
+              <div class="kv-value">{{ operationLabel }}</div>
+            </div>
+            <div class="kv">
               <div class="kv-label">ID</div>
               <div class="kv-value mono">{{ image.id }}</div>
             </div>
           </div>
         </div>
+
+        <div v-if="image.sourceImageId" class="meta-card">
+          <div class="meta-head">
+            <div class="meta-title">编辑链路</div>
+          </div>
+          <div class="source-box">
+            <div class="source-line">
+              <span class="source-label">来源图片</span>
+              <button type="button" class="source-link" @click="openSourceImage">
+                查看来源图
+              </button>
+            </div>
+            <div class="source-id mono">{{ image.sourceImageId }}</div>
+          </div>
+        </div>
       </aside>
     </div>
   </div>
+
+  <ImageEditModal
+    v-model:open="editorOpen"
+    :source-url="image?.imageUrls?.[0] || ''"
+    :source-image-id="image?.id || ''"
+    :source-prompt="image?.prompt || ''"
+    :aspect-ratio="image?.aspectRatio || '1:1'"
+    :initial-mode="editorInitialMode"
+    @completed="handleEditorCompleted"
+  />
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeftIcon, CopyIcon, DownloadIcon, Wand2Icon, Trash2Icon } from 'lucide-vue-next'
+import { ArrowLeftIcon, CopyIcon, DownloadIcon, ExpandIcon, Wand2Icon, Trash2Icon } from 'lucide-vue-next'
 import { useImagesStore } from '../../stores/images'
 import { Button, toastError, toastSuccess } from '../../components/common'
+import ImageEditModal from '../../components/studio/ImageEditModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -124,13 +178,20 @@ const loading = ref(true)
 const errorMsg = ref('')
 const image = ref(null)
 const tab = ref('result')
+const currentIndex = ref(0)
+const editorOpen = ref(false)
+const editorInitialMode = ref('inpaint')
 
 const hasInput = computed(() => !!image.value?.inputImageUrls?.[0])
 const tabLabel = computed(() => (tab.value === 'input' ? '参考图' : '结果图'))
+const currentGallery = computed(() => {
+  if (!image.value) return []
+  return tab.value === 'input'
+    ? (image.value.inputImageUrls || []).filter(Boolean)
+    : (image.value.imageUrls || []).filter(Boolean)
+})
 const activeUrl = computed(() => {
-  if (!image.value) return ''
-  if (tab.value === 'input') return image.value.inputImageUrls?.[0] || ''
-  return image.value.imageUrls?.[0] || ''
+  return currentGallery.value[currentIndex.value] || ''
 })
 
 const previewAspect = computed(() => {
@@ -142,12 +203,31 @@ const previewAspect = computed(() => {
   return '1 / 1'
 })
 
+const modeLabel = computed(() => {
+  if (image.value?.mode === 'dialogue' || image.value?.mode === 'continuous') return '对话创作'
+  if (image.value?.mode === 'tools') return '图片工具'
+  if (image.value?.mode === 'image') return '图生图'
+  return '文生图'
+})
+
+const operationLabel = computed(() => {
+  const op = image.value?.operationType || (image.value?.mode === 'image' ? 'image_to_image' : 'generate')
+  if (op === 'inpaint') return '局部重绘'
+  if (op === 'outpaint') return '扩图'
+  if (op === 'cutout') return '抠图'
+  if (op === 'dialogue') return '对话创作'
+  if (op === 'continuous') return '对话创作'
+  if (op === 'image_to_image') return '图生图'
+  return '生成'
+})
+
 onMounted(async () => {
   loading.value = true
   errorMsg.value = ''
   try {
     const data = await imagesStore.fetchImage(route.params.id)
-    image.value = data
+    image.value = data?.image || null
+    currentIndex.value = 0
     tab.value = hasInput.value ? 'result' : 'result'
   } catch (e) {
     errorMsg.value = e.message || '加载失败'
@@ -162,11 +242,38 @@ function goBack() {
 
 function reuse() {
   if (!image.value) return
+  if (image.value.mode === 'dialogue' || image.value.mode === 'continuous') {
+    router.push({ path: '/studio', query: { mode: 'dialogue', imageId: image.value.id } })
+    return
+  }
+  if (image.value.mode === 'tools') {
+    router.push({ path: '/studio', query: { mode: 'tools' } })
+    return
+  }
   if (image.value.mode === 'image' && image.value.inputImageUrls?.[0]) {
     router.push({ path: '/studio', query: { mode: 'image', prompt: image.value.prompt, input: encodeURIComponent(image.value.inputImageUrls[0]) } })
     return
   }
   router.push({ path: '/studio', query: { prompt: image.value.prompt } })
+}
+
+function resetGalleryIndex() {
+  currentIndex.value = 0
+}
+
+function openEditor(nextMode) {
+  editorInitialMode.value = nextMode
+  editorOpen.value = true
+}
+
+function handleEditorCompleted(nextImage) {
+  if (!nextImage?.id) return
+  router.push({ path: `/studio/history/${nextImage.id}` })
+}
+
+function openSourceImage() {
+  if (!image.value?.sourceImageId) return
+  router.push({ path: `/studio/history/${image.value.sourceImageId}` })
 }
 
 async function remove() {
@@ -176,6 +283,10 @@ async function remove() {
   await imagesStore.deleteImage(image.value.id)
   router.push('/studio/history')
 }
+
+watch(tab, () => {
+  resetGalleryIndex()
+})
 
 function downloadName() {
   const date = new Date(image.value?.createdAt || Date.now()).toISOString().slice(0, 10)
@@ -334,6 +445,41 @@ async function copyPrompt() {
   background: rgba(236, 72, 153, 0.06);
 }
 
+.source-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.source-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.source-label {
+  font-size: 13px;
+  font-weight: 850;
+  color: var(--muted);
+}
+
+.source-link {
+  border: none;
+  background: transparent;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  padding: 0;
+}
+
+.source-id {
+  font-size: 12px;
+  color: var(--text);
+  word-break: break-all;
+}
+
 .detail-grid {
   display: grid;
   grid-template-columns: 1.5fr 1fr;
@@ -455,6 +601,33 @@ async function copyPrompt() {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.thumb-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 10px;
+}
+
+.thumb-item {
+  padding: 0;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.thumb-item.active {
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow: 0 10px 26px rgba(99, 102, 241, 0.12);
+}
+
+.thumb-item img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  display: block;
 }
 
 .meta-card {

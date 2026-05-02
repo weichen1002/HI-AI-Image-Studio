@@ -3,10 +3,31 @@ import { SqliteService } from './sqlite.service';
 import { UsersRepo } from './repositories/users.repo';
 import { ImagesRepo } from './repositories/images.repo';
 import { AnnouncementsRepo } from './repositories/announcements.repo';
+import { RedeemCodesRepo } from './repositories/redeem-codes.repo';
+import { SystemSettingsRepo } from './repositories/system-settings.repo';
+import { DialogueRepo } from './repositories/dialogue.repo';
 import { CreditsRepo } from '../credits/credits.repo';
 
 @Module({
-  providers: [SqliteService, UsersRepo, ImagesRepo, AnnouncementsRepo, CreditsRepo],
-  exports: [SqliteService, UsersRepo, ImagesRepo, AnnouncementsRepo, CreditsRepo],
+  providers: [
+    SqliteService,
+    UsersRepo,
+    ImagesRepo,
+    AnnouncementsRepo,
+    RedeemCodesRepo,
+    SystemSettingsRepo,
+    DialogueRepo,
+    CreditsRepo,
+  ],
+  exports: [
+    SqliteService,
+    UsersRepo,
+    ImagesRepo,
+    AnnouncementsRepo,
+    RedeemCodesRepo,
+    SystemSettingsRepo,
+    DialogueRepo,
+    CreditsRepo,
+  ],
 })
 export class DbModule {}

@@ -7,7 +7,7 @@
           <div class="brand-icon">
             <img :src="logoUrl" alt="Hi AI Image Studio logo" width="20" height="20" loading="eager" fetchpriority="high" />
           </div>
-          <span>Hi AI Image Studio</span>
+          <span>{{ siteSettings.siteName }}</span>
         </router-link>
       </div>
 
@@ -29,6 +29,10 @@
 
         <div v-if="isAdmin" class="nav-section">
           <div class="nav-section-title">管理中心</div>
+          <router-link to="/studio/admin/settings" class="nav-link">
+            <SlidersHorizontalIcon :size="18" />
+            系统设置
+          </router-link>
           <router-link to="/studio/admin/users" class="nav-link">
             <UsersIcon :size="18" />
             用户管理
@@ -40,6 +44,10 @@
           <router-link to="/studio/admin/announcements" class="nav-link">
             <BellIcon :size="18" />
             公告中心
+          </router-link>
+          <router-link to="/studio/admin/redeem-codes" class="nav-link">
+            <GiftIcon :size="18" />
+            兑换码
           </router-link>
         </div>
         
@@ -62,6 +70,10 @@
           <div class="topbar-meta">
             <span class="meta-tag plan">{{ authStore.user.plan === 'pro' ? 'PRO' : 'FREE' }}</span>
             <span class="meta-tag balance">余额 {{ authStore.user.creditBalance ?? 0 }}</span>
+            <button class="redeem-entry" type="button" @click="openRedeemModal">
+              <GiftIcon :size="14" />
+              <span>兑换码</span>
+            </button>
           </div>
           <Popover v-model:open="noticeOpen" placement="bottom-end">
             <template #trigger>
@@ -129,7 +141,7 @@
                 </button>
                 <button type="button" class="user-menu-item" @click="copySupport">
                   <HeadphonesIcon :size="16" />
-                  <span>联系客服：QQ 3756934376</span>
+                  <span>联系客服：{{ siteSettings.supportContact }}</span>
                 </button>
                 <div class="user-menu-divider"></div>
                 <button type="button" class="user-menu-item danger" @click="logoutFromMenu">
@@ -210,6 +222,28 @@
       </div>
     </template>
   </Modal>
+
+  <Modal v-model:open="redeemOpen" title="兑换余额" size="sm">
+    <div class="redeem-form">
+      <div class="redeem-help">输入兑换码后会立即到账，活动码同一账号只能成功兑换一次。</div>
+      <Input
+        v-model="redeemCode"
+        maxlength="32"
+        autocomplete="off"
+        spellcheck="false"
+        placeholder="请输入兑换码"
+        @keydown.enter.prevent="submitRedeem"
+      />
+    </div>
+    <template #footer>
+      <div class="announcement-actions">
+        <Button variant="ghost" size="sm" :disabled="redeemLoading" @click="redeemOpen = false">取消</Button>
+        <Button size="sm" :disabled="redeemLoading" @click="submitRedeem">
+          {{ redeemLoading ? '兑换中...' : '立即兑换' }}
+        </Button>
+      </div>
+    </template>
+  </Modal>
 </template>
 
 <script setup>
@@ -217,16 +251,20 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useImagesStore } from '../stores/images'
-import { AlertCircleIcon, BellIcon, ChevronDownIcon, HeadphonesIcon, ImageIcon, LoaderIcon, LogOutIcon, PenToolIcon, FolderIcon, LayoutTemplateIcon, SettingsIcon, UserIcon, UsersIcon, ReceiptIcon } from 'lucide-vue-next'
-import { Button, LinkButton, Modal, Popover, toastError, toastSuccess } from '../components/common'
+import { useSiteStore } from '../stores/site'
+import { AlertCircleIcon, BellIcon, ChevronDownIcon, GiftIcon, HeadphonesIcon, ImageIcon, LoaderIcon, LogOutIcon, PenToolIcon, FolderIcon, LayoutTemplateIcon, SettingsIcon, SlidersHorizontalIcon, UserIcon, UsersIcon, ReceiptIcon } from 'lucide-vue-next'
+import { Button, Input, LinkButton, Modal, Popover, toastError, toastSuccess } from '../components/common'
 import logoUrl from '../hi-image-logo.png'
 import { useAnnouncementsStore } from '../stores/announcements'
+import { apiFetch } from '../utils/api'
 
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const imagesStore = useImagesStore()
 const announcementsStore = useAnnouncementsStore()
+const siteStore = useSiteStore()
+const siteSettings = computed(() => siteStore.settings)
 
 const isAdminRoute = computed(() => String(route.path || '').startsWith('/studio/admin'))
 
@@ -238,9 +276,11 @@ const routeNames = {
   'studio-profile': '个人资料',
   'studio-settings': '偏好设置',
   'studio-announcements': '公告中心',
+  'studio-admin-settings': '管理中心 / 系统设置',
   'studio-admin-users': '管理中心 / 用户管理',
   'studio-admin-ledger': '管理中心 / 账务流水',
-  'studio-admin-announcements': '管理中心 / 公告中心'
+  'studio-admin-announcements': '管理中心 / 公告中心',
+  'studio-admin-redeem-codes': '管理中心 / 兑换码'
 }
 
 const routeDescs = {
@@ -251,9 +291,11 @@ const routeDescs = {
   'studio-profile': '查看你的账户信息与权限状态。',
   'studio-settings': '管理账户与生成偏好（后续将逐步补全）。',
   'studio-announcements': '查看平台公告与更新说明。',
+  'studio-admin-settings': '统一管理注册赠送余额、积分规则与后续系统级配置。',
   'studio-admin-users': '管理用户套餐、余额与权限。',
   'studio-admin-ledger': '查看充值、扣费等账务流水记录。',
-  'studio-admin-announcements': '创建/发布公告，支持全站可见与自动弹窗（读过不弹 / 每次必读）。'
+  'studio-admin-announcements': '创建/发布公告，支持全站可见与自动弹窗（读过不弹 / 每次必读）。',
+  'studio-admin-redeem-codes': '创建和管理单次码、活动码。'
 }
 
 const currentRouteName = computed(() => {
@@ -272,6 +314,9 @@ const announcementOpen = ref(false)
 const activeAnnouncement = ref(null)
 const autoQueue = ref([])
 const autoRunning = ref(false)
+const redeemOpen = ref(false)
+const redeemLoading = ref(false)
+const redeemCode = ref('')
 
 const unreadCount = computed(() => announcementsStore.unreadCount || 0)
 const recentAnnouncements = computed(() => (announcementsStore.active || []).slice(0, 6))
@@ -414,6 +459,7 @@ watch(
 )
 
 onMounted(async () => {
+  await siteStore.fetchSettings()
   if (authStore.user?.id) await startAutoQueue()
 })
 
@@ -422,17 +468,48 @@ async function logout() {
   router.push('/login')
 }
 
+function openRedeemModal() {
+  redeemCode.value = ''
+  redeemOpen.value = true
+}
+
+async function submitRedeem() {
+  const code = String(redeemCode.value || '').trim()
+  if (!code) {
+    toastError('请输入兑换码')
+    return
+  }
+  try {
+    redeemLoading.value = true
+    const data = await apiFetch('/api/redeem-codes/claim', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code })
+    })
+    if (authStore.user) {
+      authStore.user.creditBalance = Number(data?.balance || authStore.user.creditBalance || 0)
+    }
+    redeemOpen.value = false
+    redeemCode.value = ''
+    toastSuccess(`兑换成功，已到账 ${data?.amount || 0} 余额`)
+  } catch (e) {
+    toastError(e.message || '兑换失败')
+  } finally {
+    redeemLoading.value = false
+  }
+}
+
 function goProfile() {
   userMenuOpen.value = false
   router.push('/studio/profile')
 }
 
 async function copySupport() {
-  const text = '3756934376'
+  const text = String(siteSettings.value.supportContact || '')
   userMenuOpen.value = false
   try {
     await navigator.clipboard.writeText(text)
-    toastSuccess('已复制 QQ 号')
+    toastSuccess('已复制联系方式')
   } catch {
     toastError('复制失败')
   }
@@ -512,6 +589,25 @@ async function logoutFromMenu() {
   color: var(--text);
 }
 
+.redeem-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(99, 102, 241, 0.16);
+  background: rgba(99, 102, 241, 0.08);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.redeem-entry:hover {
+  background: rgba(99, 102, 241, 0.12);
+}
+
 .meta-tag {
   display: inline-flex;
   align-items: center;
@@ -588,22 +684,22 @@ async function logoutFromMenu() {
 }
 
 .user-menu {
-  width: min(320px, 82vw);
+  width: min(240px, 80vw);
 }
 
 .user-menu-head {
-  padding: 14px 14px 12px;
+  padding: 10px 10px 8px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   border-bottom: 1px solid rgba(15, 23, 42, 0.06);
   background: rgba(255, 255, 255, 0.7);
 }
 
 .user-menu-avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
   display: grid;
   place-items: center;
   background: var(--gradient-primary);
@@ -617,7 +713,7 @@ async function logoutFromMenu() {
 }
 
 .user-menu-name {
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 950;
   color: var(--text);
   line-height: 1.2;
@@ -627,33 +723,33 @@ async function logoutFromMenu() {
 }
 
 .user-menu-sub {
-  margin-top: 4px;
-  font-size: 12px;
+  margin-top: 2px;
+  font-size: 10px;
   font-weight: 900;
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
 }
 
 .user-menu-list {
-  padding: 8px;
+  padding: 4px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .user-menu-item {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 10px;
-  border-radius: 12px;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 8px;
   border: 1px solid transparent;
   background: transparent;
   cursor: pointer;
   color: var(--text);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
   text-align: left;
 }
@@ -665,7 +761,7 @@ async function logoutFromMenu() {
 
 .user-menu-divider {
   height: 1px;
-  margin: 6px 6px;
+  margin: 5px 6px;
   background: rgba(15, 23, 42, 0.08);
 }
 
@@ -676,6 +772,18 @@ async function logoutFromMenu() {
 .user-menu-item.danger:hover {
   background: rgba(236, 72, 153, 0.08);
   border-color: rgba(236, 72, 153, 0.18);
+}
+
+.redeem-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.redeem-help {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
 }
 
 .generation-bar {

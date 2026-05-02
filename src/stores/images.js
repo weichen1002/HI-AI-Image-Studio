@@ -3,12 +3,33 @@ import { computed, ref } from 'vue'
 import { apiFetch } from '../utils/api'
 import { toastSuccess } from '../components/common'
 import { useAuthStore } from './auth'
+import { compressImage } from '../utils/imageCompressor'
 
 export const useImagesStore = defineStore('images', () => {
   const images = ref([])
   const isLoading = ref(false)
   const activeJob = ref(null)
   const isGenerating = computed(() => activeJob.value?.status === 'running')
+
+  function normalizeSourceImageUrl(sourceImageUrl, sourceImageId) {
+    const normalizedUrl = String(sourceImageUrl || '').trim()
+    if (!normalizedUrl || sourceImageId) return ''
+
+    // `data:` / `blob:` URL 往往非常长，而且后端无法长期复用，直接回退到上传后的文件地址更稳妥。
+    if (normalizedUrl.startsWith('data:') || normalizedUrl.startsWith('blob:')) {
+      return ''
+    }
+
+    try {
+      const parsed = new URL(normalizedUrl, window.location.origin)
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return ''
+      }
+      return parsed.toString()
+    } catch {
+      return ''
+    }
+  }
 
   function costFor(plan, action) {
     const normalizedPlan = plan === 'pro' ? 'pro' : 'free'
@@ -41,12 +62,13 @@ export const useImagesStore = defineStore('images', () => {
     return {
       ...image,
       imageUrls: (image.imageUrls || [])
-        .filter(Boolean)
-        .slice(0, 1),
+        .filter(Boolean),
       inputImageUrls: (image.inputImageUrls || [])
-        .filter(Boolean)
-        .slice(0, 1),
-      mode: image.mode || 'text'
+        .filter(Boolean),
+      mode: image.mode || 'text',
+      operationType: image.operationType || (image.mode === 'image' ? 'image_to_image' : 'generate'),
+      sourceImageId: image.sourceImageId || '',
+      continuationChainId: image.continuationChainId || ''
     }
   }
 
@@ -64,10 +86,25 @@ export const useImagesStore = defineStore('images', () => {
 
   async function fetchImage(id) {
     const data = await apiFetch(`/api/images/${id}`)
-    return data?.image
+    return {
+      image: data?.image ? toListImage(data.image) : null,
+      dialogueMessages: Array.isArray(data?.dialogueMessages) ? data.dialogueMessages : []
+    }
   }
 
-  async function generate(prompt, aspectRatio) {
+  async function fetchDialogueHistory({ chainId = '', imageId = '', limit = 5 } = {}) {
+    const search = new URLSearchParams()
+    if (chainId) search.set('chainId', chainId)
+    if (imageId) search.set('imageId', imageId)
+    search.set('limit', String(limit))
+    const data = await apiFetch(`/api/images/dialogue/history?${search.toString()}`)
+    return {
+      chainId: data?.chainId || '',
+      messages: Array.isArray(data?.messages) ? data.messages : []
+    }
+  }
+
+  async function generate(prompt, aspectRatio, options = {}) {
     if (isGenerating.value) {
       throw new Error('已有图片正在生成，请等待当前任务完成')
     }
@@ -89,7 +126,17 @@ export const useImagesStore = defineStore('images', () => {
       const data = await apiFetch('/api/images', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, aspectRatio })
+        body: JSON.stringify({
+          prompt,
+          aspectRatio,
+          mode: options.mode || 'text',
+          qualityTier: options.qualityTier || '1k',
+          count: options.count || 1,
+          outputFormat: options.outputFormat || 'png',
+          outputCompression: options.outputCompression ?? 100,
+          background: options.background || 'auto',
+          moderation: options.moderation || 'auto'
+        })
       })
 
       images.value.unshift(toListImage(data.image))
@@ -111,12 +158,15 @@ export const useImagesStore = defineStore('images', () => {
     }
   }
 
-  async function generateFromImage(file, prompt, aspectRatio) {
+  async function generateFromImages(files, prompt, aspectRatio, options = {}) {
     if (isGenerating.value) {
       throw new Error('已有图片正在生成，请等待当前任务完成')
     }
 
-    if (!file) {
+    const validFiles = Array.isArray(files)
+      ? files.filter((file) => file instanceof File)
+      : []
+    if (!validFiles.length) {
       throw new Error('请先上传参考图')
     }
 
@@ -135,9 +185,18 @@ export const useImagesStore = defineStore('images', () => {
 
     try {
       const form = new FormData()
-      form.append('image', file)
+      validFiles.forEach((file) => {
+        form.append('images', file)
+      })
       form.append('prompt', prompt)
       form.append('aspectRatio', aspectRatio)
+      form.append('mode', options.mode || 'image')
+      form.append('qualityTier', options.qualityTier || '1k')
+      form.append('count', String(options.count || 1))
+      form.append('outputFormat', options.outputFormat || 'png')
+      form.append('outputCompression', String(options.outputCompression ?? 100))
+      form.append('background', options.background || 'auto')
+      form.append('moderation', options.moderation || 'auto')
 
       const data = await apiFetch('/api/images/from-image', {
         method: 'POST',
@@ -163,6 +222,129 @@ export const useImagesStore = defineStore('images', () => {
     }
   }
 
+  async function continueDialogue({ prompt, aspectRatio, chainId = '', sourceImageId = '', imageFile = null, qualityTier = '1k', background = 'auto' } = {}) {
+    if (isGenerating.value) {
+      throw new Error('已有图片正在生成，请等待当前任务完成')
+    }
+
+    if (!String(prompt || '').trim()) {
+      throw new Error('请输入这轮对话要求')
+    }
+
+    const usesImageContext = Boolean(chainId || sourceImageId || imageFile instanceof File)
+    await ensureEnoughCredits(usesImageContext ? 'image_to_image' : 'text_to_image')
+
+    activeJob.value = {
+      id: Date.now(),
+      mode: 'dialogue',
+      status: 'running',
+      prompt,
+      aspectRatio,
+      image: null,
+      error: '',
+      startedAt: new Date().toISOString()
+    }
+
+    try {
+      const form = new FormData()
+      form.append('prompt', String(prompt).trim())
+      form.append('aspectRatio', aspectRatio)
+      form.append('qualityTier', qualityTier)
+      form.append('background', background)
+      if (chainId) form.append('chainId', chainId)
+      if (sourceImageId) form.append('sourceImageId', sourceImageId)
+      if (imageFile instanceof File) form.append('image', imageFile)
+
+      const data = await apiFetch('/api/images/dialogue', {
+        method: 'POST',
+        body: form
+      })
+
+      const image = toListImage(data.image)
+      images.value.unshift(image)
+      activeJob.value = {
+        ...activeJob.value,
+        status: 'success',
+        image,
+        completedAt: new Date().toISOString()
+      }
+      return {
+        image,
+        chainId: data?.chainId || image.continuationChainId || '',
+        messages: Array.isArray(data?.messages) ? data.messages : []
+      }
+    } catch (error) {
+      activeJob.value = {
+        ...activeJob.value,
+        status: 'error',
+        error: error.message || '对话创作失败',
+        completedAt: new Date().toISOString()
+      }
+      throw error
+    }
+  }
+
+  async function editImage({ imageFile, maskFile, prompt, aspectRatio, operationType, sourceImageId, sourceImageUrl }) {
+    if (isGenerating.value) {
+      throw new Error('已有图片正在生成，请等待当前任务完成')
+    }
+
+    if (!imageFile) {
+      throw new Error('缺少待编辑图片')
+    }
+
+    await ensureEnoughCredits('image_to_image')
+
+    activeJob.value = {
+      id: Date.now(),
+      mode: operationType === 'cutout' ? 'tools' : 'image',
+      operationType,
+      status: 'running',
+      prompt,
+      aspectRatio,
+      image: null,
+      error: '',
+      startedAt: new Date().toISOString()
+    }
+
+    try {
+      const compressedImageFile = await compressImage(imageFile, 1);
+      const compressedMaskFile = maskFile ? await compressImage(maskFile, 1) : null;
+      const normalizedSourceImageUrl = normalizeSourceImageUrl(sourceImageUrl, sourceImageId)
+      
+      const form = new FormData()
+      form.append('image', compressedImageFile)
+      if (compressedMaskFile) form.append('mask', compressedMaskFile)
+      form.append('prompt', prompt)
+      form.append('aspectRatio', aspectRatio)
+      form.append('operationType', operationType)
+      if (sourceImageId) form.append('sourceImageId', sourceImageId)
+      if (normalizedSourceImageUrl) form.append('sourceImageUrl', normalizedSourceImageUrl)
+
+      const data = await apiFetch('/api/images/edit', {
+        method: 'POST',
+        body: form
+      })
+
+      images.value.unshift(toListImage(data.image))
+      activeJob.value = {
+        ...activeJob.value,
+        status: 'success',
+        image: data.image,
+        completedAt: new Date().toISOString()
+      }
+      return data.image
+    } catch (error) {
+      activeJob.value = {
+        ...activeJob.value,
+        status: 'error',
+        error: error.message || '编辑失败',
+        completedAt: new Date().toISOString()
+      }
+      throw error
+    }
+  }
+
   function clearJob() {
     if (!isGenerating.value) activeJob.value = null
   }
@@ -180,5 +362,5 @@ export const useImagesStore = defineStore('images', () => {
     toastSuccess('已清空')
   }
 
-  return { images, isLoading, activeJob, isGenerating, fetchImages, fetchImage, generate, generateFromImage, clearJob, deleteImage, clearImages }
+  return { images, isLoading, activeJob, isGenerating, fetchImages, fetchImage, fetchDialogueHistory, generate, generateFromImages, continueDialogue, editImage, clearJob, deleteImage, clearImages }
 })

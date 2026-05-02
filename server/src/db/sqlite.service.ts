@@ -74,14 +74,33 @@ export class SqliteService implements OnModuleInit {
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
         mode TEXT NOT NULL,
+        operation_type TEXT NOT NULL DEFAULT 'generate',
         prompt TEXT NOT NULL,
         aspect_ratio TEXT NOT NULL,
         content TEXT NOT NULL,
         image_urls TEXT NOT NULL,
         input_image_urls TEXT,
+        source_image_id TEXT,
+        continuation_chain_id TEXT,
         created_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_images_user_created ON images(user_id, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS dialogue_messages (
+        id TEXT PRIMARY KEY,
+        chain_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        image_id TEXT NOT NULL,
+        parent_image_id TEXT,
+        response_id TEXT,
+        previous_response_id TEXT,
+        input_image_urls_json TEXT,
+        output_items_json TEXT,
+        prompt TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_dialogue_chain_created ON dialogue_messages(chain_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_dialogue_user_created ON dialogue_messages(user_id, created_at DESC);
 
       CREATE TABLE IF NOT EXISTS credit_ledgers (
         id TEXT PRIMARY KEY,
@@ -112,6 +131,45 @@ export class SqliteService implements OnModuleInit {
       CREATE INDEX IF NOT EXISTS idx_announcements_status_created ON announcements(status, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_announcements_status_time ON announcements(status, start_at, end_at);
 
+      CREATE TABLE IF NOT EXISTS system_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS redeem_codes (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        code_hash TEXT NOT NULL UNIQUE,
+        code_mask TEXT NOT NULL,
+        code_ciphertext TEXT,
+        type TEXT NOT NULL,
+        credits_amount INTEGER NOT NULL,
+        total_limit INTEGER NOT NULL,
+        redeemed_count INTEGER NOT NULL DEFAULT 0,
+        expires_at TEXT,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_by TEXT NOT NULL,
+        updated_by TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_redeem_codes_created ON redeem_codes(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_redeem_codes_type ON redeem_codes(type, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS redeem_code_claims (
+        id TEXT PRIMARY KEY,
+        code_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        credits_amount INTEGER NOT NULL,
+        claimed_at TEXT NOT NULL,
+        ledger_entry_id TEXT,
+        UNIQUE(code_id, user_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_redeem_claims_user_time ON redeem_code_claims(user_id, claimed_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_redeem_claims_code_time ON redeem_code_claims(code_id, claimed_at DESC);
+
       CREATE TABLE IF NOT EXISTS announcement_reads (
         announcement_id TEXT NOT NULL,
         user_id TEXT NOT NULL,
@@ -141,6 +199,128 @@ export class SqliteService implements OnModuleInit {
           'INSERT INTO schema_migrations(version, applied_at) VALUES(?, ?)',
         )
         .run(2, isoNow());
+    }
+
+    const hasV3 = this.db
+      .prepare('SELECT 1 FROM schema_migrations WHERE version = 3')
+      .get();
+    if (!hasV3) {
+      this.db
+        .prepare(
+          'INSERT INTO schema_migrations(version, applied_at) VALUES(?, ?)',
+        )
+        .run(3, isoNow());
+    }
+
+    const redeemCodeColumns = this.db
+      .prepare(`PRAGMA table_info(redeem_codes)`)
+      .all() as Array<{ name: string }>;
+    if (!redeemCodeColumns.some((column) => column.name === 'code_ciphertext')) {
+      this.db.prepare('ALTER TABLE redeem_codes ADD COLUMN code_ciphertext TEXT').run();
+    }
+
+    const hasV4 = this.db
+      .prepare('SELECT 1 FROM schema_migrations WHERE version = 4')
+      .get();
+    if (!hasV4) {
+      this.db
+        .prepare(
+          'INSERT INTO schema_migrations(version, applied_at) VALUES(?, ?)',
+        )
+        .run(4, isoNow());
+    }
+
+    const imageColumns = this.db
+      .prepare(`PRAGMA table_info(images)`)
+      .all() as Array<{ name: string }>;
+    if (!imageColumns.some((column) => column.name === 'operation_type')) {
+      this.db
+        .prepare(
+          `ALTER TABLE images ADD COLUMN operation_type TEXT NOT NULL DEFAULT 'generate'`,
+        )
+        .run();
+      this.db
+        .prepare(
+          `UPDATE images SET operation_type = CASE WHEN mode = 'image' THEN 'image_to_image' ELSE 'generate' END WHERE operation_type IS NULL OR operation_type = ''`,
+        )
+        .run();
+    }
+    if (!imageColumns.some((column) => column.name === 'source_image_id')) {
+      this.db.prepare('ALTER TABLE images ADD COLUMN source_image_id TEXT').run();
+    }
+    if (
+      !imageColumns.some((column) => column.name === 'continuation_chain_id')
+    ) {
+      this.db
+        .prepare('ALTER TABLE images ADD COLUMN continuation_chain_id TEXT')
+        .run();
+    }
+
+    const hasV5 = this.db
+      .prepare('SELECT 1 FROM schema_migrations WHERE version = 5')
+      .get();
+    if (!hasV5) {
+      this.db
+        .prepare(
+          'INSERT INTO schema_migrations(version, applied_at) VALUES(?, ?)',
+        )
+        .run(5, isoNow());
+    }
+
+    const hasV6 = this.db
+      .prepare('SELECT 1 FROM schema_migrations WHERE version = 6')
+      .get();
+    if (!hasV6) {
+      this.db
+        .prepare(
+          'INSERT INTO schema_migrations(version, applied_at) VALUES(?, ?)',
+        )
+        .run(6, isoNow());
+    }
+
+    const dialogueColumns = this.db
+      .prepare(`PRAGMA table_info(dialogue_messages)`)
+      .all() as Array<{ name: string }>;
+    if (!dialogueColumns.some((column) => column.name === 'response_id')) {
+      this.db
+        .prepare('ALTER TABLE dialogue_messages ADD COLUMN response_id TEXT')
+        .run();
+    }
+    if (
+      !dialogueColumns.some((column) => column.name === 'previous_response_id')
+    ) {
+      this.db
+        .prepare(
+          'ALTER TABLE dialogue_messages ADD COLUMN previous_response_id TEXT',
+        )
+        .run();
+    }
+    if (
+      !dialogueColumns.some((column) => column.name === 'input_image_urls_json')
+    ) {
+      this.db
+        .prepare(
+          'ALTER TABLE dialogue_messages ADD COLUMN input_image_urls_json TEXT',
+        )
+        .run();
+    }
+    if (!dialogueColumns.some((column) => column.name === 'output_items_json')) {
+      this.db
+        .prepare(
+          'ALTER TABLE dialogue_messages ADD COLUMN output_items_json TEXT',
+        )
+        .run();
+    }
+
+    const hasV7 = this.db
+      .prepare('SELECT 1 FROM schema_migrations WHERE version = 7')
+      .get();
+    if (!hasV7) {
+      this.db
+        .prepare(
+          'INSERT INTO schema_migrations(version, applied_at) VALUES(?, ?)',
+        )
+        .run(7, isoNow());
     }
   }
 
@@ -184,8 +364,8 @@ export class SqliteService implements OnModuleInit {
       }
 
       const insertImage = this.db.prepare(
-        `INSERT INTO images(id, user_id, mode, prompt, aspect_ratio, content, image_urls, input_image_urls, created_at)
-         VALUES(@id, @user_id, @mode, @prompt, @aspect_ratio, @content, @image_urls, @input_image_urls, @created_at)`,
+        `INSERT INTO images(id, user_id, mode, operation_type, prompt, aspect_ratio, content, image_urls, input_image_urls, source_image_id, continuation_chain_id, created_at)
+         VALUES(@id, @user_id, @mode, @operation_type, @prompt, @aspect_ratio, @content, @image_urls, @input_image_urls, @source_image_id, @continuation_chain_id, @created_at)`,
       );
       for (const im of images) {
         const mode = String(im.mode || 'text');
@@ -197,12 +377,17 @@ export class SqliteService implements OnModuleInit {
           id: String(im.id),
           user_id: String(im.userId || im.user_id),
           mode,
+          operation_type: mode === 'image' ? 'image_to_image' : 'generate',
           prompt: String(im.prompt || ''),
           aspect_ratio: String(im.aspectRatio || im.aspect_ratio || '1:1'),
           content: String(im.content || ''),
           image_urls: JSON.stringify(imageUrls),
           input_image_urls: inputImageUrls.length
             ? JSON.stringify(inputImageUrls)
+            : null,
+          source_image_id: im.sourceImageId ? String(im.sourceImageId) : null,
+          continuation_chain_id: im.continuationChainId
+            ? String(im.continuationChainId)
             : null,
           created_at: String(im.createdAt || im.created_at || isoNow()),
         });

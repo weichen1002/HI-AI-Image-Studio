@@ -2,17 +2,27 @@ import { Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { SqliteService } from '../sqlite.service';
 
-export type ImageMode = 'text' | 'image';
+export type ImageMode = 'text' | 'image' | 'dialogue' | 'continuous' | 'tools';
+export type ImageOperationType =
+  | 'generate'
+  | 'image_to_image'
+  | 'inpaint'
+  | 'outpaint'
+  | 'continuous'
+  | 'cutout';
 
 export type ImageEntity = {
   id: string;
   userId: string;
   mode: ImageMode;
+  operationType: ImageOperationType;
   prompt: string;
   aspectRatio: string;
   content: string;
   imageUrls: string[];
   inputImageUrls?: string[];
+  sourceImageId?: string;
+  continuationChainId?: string;
   createdAt: string;
 };
 
@@ -37,11 +47,18 @@ function toImage(row: any): ImageEntity | null {
     id: String(row.id),
     userId: String(row.user_id),
     mode: (row.mode || 'text') as ImageMode,
+    operationType: String(
+      row.operation_type || (row.mode === 'image' ? 'image_to_image' : 'generate'),
+    ) as ImageOperationType,
     prompt: String(row.prompt || ''),
     aspectRatio: String(row.aspect_ratio || '1:1'),
     content: String(row.content || ''),
     imageUrls: Array.isArray(imageUrls) ? imageUrls : [],
     inputImageUrls: Array.isArray(inputImageUrls) ? inputImageUrls : [],
+    sourceImageId: row.source_image_id ? String(row.source_image_id) : '',
+    continuationChainId: row.continuation_chain_id
+      ? String(row.continuation_chain_id)
+      : '',
     createdAt: String(row.created_at || ''),
   };
 }
@@ -106,33 +123,42 @@ export class ImagesRepo {
   create(params: {
     userId: string;
     mode: ImageMode;
+    operationType?: ImageOperationType;
     prompt: string;
     aspectRatio: string;
     content: string;
     imageUrls: string[];
     inputImageUrls?: string[];
+    sourceImageId?: string;
+    continuationChainId?: string;
   }) {
     const image: ImageEntity = {
       id: crypto.randomUUID(),
       userId: params.userId,
       mode: params.mode,
+      operationType:
+        params.operationType ||
+        (params.mode === 'image' ? 'image_to_image' : 'generate'),
       prompt: params.prompt,
       aspectRatio: params.aspectRatio,
       content: params.content,
       imageUrls: params.imageUrls,
       inputImageUrls: params.inputImageUrls || [],
+      sourceImageId: params.sourceImageId || '',
+      continuationChainId: params.continuationChainId || '',
       createdAt: new Date().toISOString(),
     };
 
     this.sqlite.connection
       .prepare(
-        `INSERT INTO images(id, user_id, mode, prompt, aspect_ratio, content, image_urls, input_image_urls, created_at)
-         VALUES(@id, @user_id, @mode, @prompt, @aspect_ratio, @content, @image_urls, @input_image_urls, @created_at)`,
+        `INSERT INTO images(id, user_id, mode, operation_type, prompt, aspect_ratio, content, image_urls, input_image_urls, source_image_id, continuation_chain_id, created_at)
+         VALUES(@id, @user_id, @mode, @operation_type, @prompt, @aspect_ratio, @content, @image_urls, @input_image_urls, @source_image_id, @continuation_chain_id, @created_at)`,
       )
       .run({
         id: image.id,
         user_id: image.userId,
         mode: image.mode,
+        operation_type: image.operationType,
         prompt: image.prompt,
         aspect_ratio: image.aspectRatio,
         content: image.content,
@@ -140,6 +166,8 @@ export class ImagesRepo {
         input_image_urls: (image.inputImageUrls || []).length
           ? JSON.stringify(image.inputImageUrls || [])
           : null,
+        source_image_id: image.sourceImageId || null,
+        continuation_chain_id: image.continuationChainId || null,
         created_at: image.createdAt,
       });
 

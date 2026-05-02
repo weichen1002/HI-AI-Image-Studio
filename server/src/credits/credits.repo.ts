@@ -84,6 +84,28 @@ export class CreditsRepo {
     });
   }
 
+  grantInTx(params: {
+    userId: string;
+    amount: number;
+    reason: string;
+    refType?: string;
+    refId?: string;
+  }) {
+    return this.grantOrThrow(params);
+  }
+
+  grant(params: {
+    userId: string;
+    amount: number;
+    reason: string;
+    refType?: string;
+    refId?: string;
+  }) {
+    return this.sqlite.transaction(() => {
+      return this.grantOrThrow(params);
+    });
+  }
+
   adjustInTx(params: {
     userId: string;
     amount: number;
@@ -229,6 +251,54 @@ export class CreditsRepo {
       userId: params.userId,
       amount,
       type: 'refund',
+      reason: params.reason,
+      refType: params.refType || null,
+      refId: params.refId || null,
+      createdAt: new Date().toISOString(),
+    };
+
+    this.sqlite.connection
+      .prepare(
+        `INSERT INTO credit_ledgers(id, user_id, amount, type, reason, ref_type, ref_id, created_at)
+         VALUES(@id, @user_id, @amount, @type, @reason, @ref_type, @ref_id, @created_at)`,
+      )
+      .run({
+        id: entry.id,
+        user_id: entry.userId,
+        amount: entry.amount,
+        type: entry.type,
+        reason: entry.reason,
+        ref_type: entry.refType,
+        ref_id: entry.refId,
+        created_at: entry.createdAt,
+      });
+
+    return { balance: next, entry };
+  }
+
+  private grantOrThrow(params: {
+    userId: string;
+    amount: number;
+    reason: string;
+    refType?: string;
+    refId?: string;
+  }) {
+    const amount = Math.max(0, Math.floor(params.amount));
+    if (amount === 0) {
+      return { balance: this.getBalance(params.userId), entry: null };
+    }
+
+    this.sqlite.connection
+      .prepare('UPDATE users SET credit_balance = credit_balance + ? WHERE id = ?')
+      .run(amount, params.userId);
+
+    const next = this.getBalance(params.userId);
+
+    const entry: CreditLedgerEntry = {
+      id: crypto.randomUUID(),
+      userId: params.userId,
+      amount,
+      type: 'grant',
       reason: params.reason,
       refType: params.refType || null,
       refId: params.refId || null,

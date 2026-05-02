@@ -19,11 +19,21 @@ import {
   publicUser,
   cleanUsername,
 } from '../utils';
+import { CreditsRepo } from '../credits/credits.repo';
+import { RedeemCodesRepo } from '../db/repositories/redeem-codes.repo';
 import { UsersRepo } from '../db/repositories/users.repo';
+import { SystemSettingsRepo } from '../db/repositories/system-settings.repo';
+import { SqliteService } from '../db/sqlite.service';
 
 @Controller('api')
 export class AuthController {
-  constructor(private readonly usersRepo: UsersRepo) {}
+  constructor(
+    private readonly usersRepo: UsersRepo,
+    private readonly creditsRepo: CreditsRepo,
+    private readonly redeemCodesRepo: RedeemCodesRepo,
+    private readonly settingsRepo: SystemSettingsRepo,
+    private readonly sqlite: SqliteService,
+  ) {}
 
   private readonly captchaTtlMs = 2 * 60 * 1000;
   private readonly captchas = new Map<string, { answer: string; expiresAt: number }>();
@@ -87,8 +97,21 @@ export class AuthController {
     return { user: publicUser(user) };
   }
 
+  @Get('settings/public')
+  getPublicSettings() {
+    return this.settingsRepo.getPublicSiteSettings();
+  }
+
   @Post('register')
   register(@Body() body: any, @Res({ passthrough: true }) res: Response) {
+    const generalSettings = this.settingsRepo.getGeneralSettings();
+    if (!generalSettings.allowRegistration) {
+      throw new HttpException(
+        { msg: '当前已关闭新用户注册，如需开通请联系客服' },
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
     const captchaId = String(body.captchaId || '');
     const captcha = String(body.captcha || '');
     if (!captchaId || !captcha || !this.verifyCaptcha(captchaId, captcha)) {
@@ -100,6 +123,7 @@ export class AuthController {
 
     const username = cleanUsername(body.username);
     const password = String(body.password || '');
+    const redeemCode = String(body.redeemCode || '');
 
     if (!username || password.length < 6) {
       throw new HttpException(
@@ -116,17 +140,77 @@ export class AuthController {
       );
     }
 
-    const user = this.usersRepo.create({
-      username,
-      passwordHash: hashPassword(password),
-      plan: 'free',
-      role: 'user',
-      creditBalance: 0,
+    const rules = this.settingsRepo.getSignupBonusRules();
+    const signupBonus = rules.enabled ? Number(rules.bySource.username || 0) : 0;
+
+    const user = this.sqlite.transaction(() => {
+      const created = this.usersRepo.create({
+        username,
+        passwordHash: hashPassword(password),
+        plan: 'free',
+        role: 'user',
+        creditBalance: 0,
+      });
+
+      if (signupBonus > 0) {
+        // 注册赠送走独立流水，方便后续在后台追踪与审计。
+        this.creditsRepo.grantInTx({
+          userId: created.id,
+          amount: signupBonus,
+          reason: 'signup_bonus',
+          refType: 'system',
+          refId: 'username',
+        });
+      }
+
+      return this.usersRepo.findById(created.id) || created;
     });
 
-    this.setSession(res, user.id);
+    let redeemCodeResult = {
+      attempted: false,
+      success: false,
+      amount: 0,
+      message: '',
+    };
+
+    if (redeemCode.trim()) {
+      redeemCodeResult.attempted = true;
+      try {
+        const result = this.redeemCodesRepo.claim({
+          userId: user.id,
+          code: redeemCode,
+        });
+        redeemCodeResult = {
+          attempted: true,
+          success: true,
+          amount: result.amount,
+          message: '',
+        };
+      } catch (error: any) {
+        const responsePayload =
+          error instanceof HttpException ? error.getResponse() : null;
+        const responseMessage =
+          responsePayload && typeof responsePayload === 'object'
+            ? (responsePayload as { msg?: string }).msg
+            : '';
+        const message =
+          error instanceof HttpException
+            ? String(responseMessage || error.message || '兑换失败')
+            : '兑换失败';
+        redeemCodeResult = {
+          attempted: true,
+          success: false,
+          amount: 0,
+          message,
+        };
+      }
+    }
+
+    const finalUser = this.usersRepo.findById(user.id) || user;
+
+    this.setSession(res, finalUser.id);
     res.status(HttpStatus.CREATED);
-    return { user: publicUser(user) };
+    return { user: publicUser(finalUser), redeemCodeResult };
   }
 
   @Post('login')

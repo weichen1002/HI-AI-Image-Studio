@@ -52,6 +52,13 @@ export const config = {
   ),
   SESSION_SECRET:
     process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
+  REDEEM_CODE_SECRET:
+    process.env.REDEEM_CODE_SECRET ||
+    process.env.SESSION_SECRET ||
+    crypto
+      .createHash('sha256')
+      .update(`${resolvePath(process.env.SQLITE_FILE || SQLITE_FILE)}:redeem-codes`)
+      .digest('hex'),
   ADMIN_TOKEN: process.env.ADMIN_TOKEN || '',
   HIAPI_TEXT_MODEL: process.env.HIAPI_TEXT_MODEL || '',
   HIAPI_BASE_URL: trimSlash(

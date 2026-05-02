@@ -13,6 +13,7 @@ import { HiapiService } from '../hiapi/hiapi.service';
 import { CreditsRepo } from '../credits/credits.repo';
 import { costFor } from '../credits/pricing';
 import * as crypto from 'crypto';
+import { SystemSettingsRepo } from '../db/repositories/system-settings.repo';
 
 function normalizePrompt(value: any) {
   const prompt = String(value || '').trim();
@@ -53,15 +54,18 @@ export class PromptsController {
   constructor(
     private readonly hiapiService: HiapiService,
     private readonly creditsRepo: CreditsRepo,
+    private readonly settingsRepo: SystemSettingsRepo,
   ) {}
 
   @Post('enhance')
   async enhance(@Req() req: RequestWithUser, @Body() body: any) {
     const prompt = normalizePrompt(body?.prompt);
     const direction = normalizeDirection(body?.direction);
+    const pricing = this.settingsRepo.getPricingSettings();
     const cost = costFor(
       req.user.plan === 'pro' ? 'pro' : 'free',
       'prompt_enhance',
+      pricing,
     );
     const refId = crypto.randomUUID();
     const userId = req.user.id;

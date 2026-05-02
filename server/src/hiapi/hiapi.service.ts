@@ -1,9 +1,20 @@
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { config } from '../config';
 import * as fs from 'fs/promises';
+import { SystemSettingsRepo } from '../db/repositories/system-settings.repo';
 
-export function sizeForSub2api(aspectRatio: string): string {
-  if (config.HIAPI_SIZE_FORMAT === 'ratio') return aspectRatio;
+export type SupportedImageSize =
+  | 'auto'
+  | '1024x1024'
+  | '1536x1024'
+  | '1024x1536';
+export type SupportedImageQuality = 'auto' | 'low' | 'medium' | 'high';
+export type SupportedOutputFormat = 'png' | 'jpeg' | 'webp';
+export type SupportedBackground = 'auto' | 'transparent' | 'opaque';
+export type SupportedModeration = 'auto' | 'low';
+
+export function sizeForSub2api(aspectRatio: string, sizeFormat: string) {
+  if (sizeFormat === 'ratio') return aspectRatio;
   return (
     {
       '1:1': '1024x1024',
@@ -16,9 +27,86 @@ export function sizeForSub2api(aspectRatio: string): string {
   );
 }
 
-export function imageSourceFromResult(item: any): string {
+function resolveRequestedSize(
+  aspectRatio: string,
+  sizeFormat: string,
+  requestedSize?: SupportedImageSize,
+) {
+  if (requestedSize && requestedSize !== 'auto') {
+    return requestedSize;
+  }
+  return sizeForSub2api(aspectRatio, sizeFormat);
+}
+
+function sizeForQualityTier(
+  aspectRatio: string,
+  qualityTier: '1k' | '2k' | '4k',
+) {
+  const map = {
+    '1:1': {
+      '1k': '1024x1024',
+      '2k': '2048x2048',
+      '4k': '2880x2880',
+    },
+    '16:9': {
+      '1k': '1536x1024',
+      '2k': '2048x1152',
+      '4k': '3584x2016',
+    },
+    '9:16': {
+      '1k': '1024x1536',
+      '2k': '1152x2048',
+      '4k': '2016x3584',
+    },
+    '4:3': {
+      '1k': '1536x1024',
+      '2k': '2048x1536',
+      '4k': '3072x2304',
+    },
+    '3:4': {
+      '1k': '1024x1536',
+      '2k': '1536x2048',
+      '4k': '2304x3072',
+    },
+    auto: {
+      '1k': '1024x1024',
+      '2k': '2048x2048',
+      '4k': '2880x2880',
+    },
+  } as const;
+  return map[aspectRatio as keyof typeof map]?.[qualityTier] || '1024x1024';
+}
+
+function qualityForTier(qualityTier: '1k' | '2k' | '4k') {
+  return (
+    {
+      '1k': 'low',
+      '2k': 'medium',
+      '4k': 'high',
+    }[qualityTier] || 'medium'
+  ) as SupportedImageQuality;
+}
+
+function mimeTypeForOutputFormat(outputFormat: SupportedOutputFormat) {
+  return (
+    {
+      png: 'image/png',
+      jpeg: 'image/jpeg',
+      webp: 'image/webp',
+    }[outputFormat] || 'image/png'
+  );
+}
+
+export function imageSourceFromResult(
+  item: any,
+  fallbackMimeType: string = 'image/png',
+): string {
   if (item?.url) return item.url;
-  if (item?.b64_json) return `data:image/png;base64,${item.b64_json}`;
+  const mimeType =
+    typeof item?.mime_type === 'string' && item.mime_type
+      ? item.mime_type
+      : fallbackMimeType;
+  if (item?.b64_json) return `data:${mimeType};base64,${item.b64_json}`;
   return '';
 }
 
@@ -38,7 +126,58 @@ function normalizeHiapiError(error: any) {
   return new HttpException(message, HttpStatus.BAD_GATEWAY);
 }
 
-async function parseHiapiResponse(response: Response) {
+function collectMessageText(output: any[]) {
+  const texts: string[] = [];
+  for (const item of output) {
+    if (item?.type !== 'message' || !Array.isArray(item.content)) continue;
+    for (const content of item.content) {
+      const text = String(
+        content?.text || content?.output_text || content?.value || '',
+      ).trim();
+      if (text) texts.push(text);
+    }
+  }
+  return texts.join('\n').trim();
+}
+
+function collectResponseImages(output: any[], fallbackMimeType: string) {
+  const imageUrls: string[] = [];
+  for (const item of output) {
+    if (item?.type !== 'image_generation_call') continue;
+    const results = Array.isArray(item.result) ? item.result : [item.result];
+    for (const result of results) {
+      if (typeof result === 'string' && result.trim()) {
+        imageUrls.push(`data:${fallbackMimeType};base64,${result}`);
+        continue;
+      }
+      if (result?.b64_json) {
+        imageUrls.push(`data:${fallbackMimeType};base64,${result.b64_json}`);
+      }
+      if (result?.image_url) {
+        imageUrls.push(String(result.image_url));
+      }
+    }
+  }
+  return imageUrls.filter(Boolean);
+}
+
+function removeItemIds(value: any): any {
+  if (Array.isArray(value)) {
+    return value.map((item) => removeItemIds(item));
+  }
+  if (!value || typeof value !== 'object') return value;
+  const next: Record<string, any> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (key === 'id') continue;
+    next[key] = removeItemIds(item);
+  }
+  return next;
+}
+
+async function parseHiapiResponse(
+  response: Response,
+  fallbackMimeType: string = 'image/png',
+) {
   const text = await response.text();
   const data = readJsonSafely(text);
 
@@ -55,7 +194,7 @@ async function parseHiapiResponse(response: Response) {
 
   const items = Array.isArray(data?.data) ? data.data : [];
   const imageUrls = items
-    .map((item: any) => imageSourceFromResult(item))
+    .map((item: any) => imageSourceFromResult(item, fallbackMimeType))
     .filter(Boolean);
   const content = items
     .map((item: any) => item.revised_prompt || item.prompt || '')
@@ -96,18 +235,67 @@ async function parseChatResponse(response: Response) {
   return String(content).trim();
 }
 
+async function parseResponsesImageResponse(
+  response: Response,
+  fallbackMimeType: string = 'image/png',
+) {
+  const text = await response.text();
+  const data = readJsonSafely(text);
+
+  if (!response.ok) {
+    const message = data?.error?.message || data?.message || text || '请求失败';
+    throw new HttpException(message, response.status);
+  }
+
+  if (data?.error) {
+    const message = data.error.message || data.error || '请求失败';
+    throw new HttpException(message, HttpStatus.BAD_GATEWAY);
+  }
+
+  const output = Array.isArray(data?.output) ? data.output : [];
+  const imageUrls = collectResponseImages(output, fallbackMimeType);
+  const content =
+    String(data?.output_text || '').trim() || collectMessageText(output);
+  const responseId = String(data?.id || '').trim();
+
+  if (!responseId) {
+    throw new HttpException('Responses API 未返回 response_id', HttpStatus.BAD_GATEWAY);
+  }
+  if (!imageUrls.length) {
+    throw new HttpException('Responses API 未返回图片结果', HttpStatus.BAD_GATEWAY);
+  }
+
+  return {
+    responseId,
+    content,
+    imageUrls,
+    outputItems: output,
+  };
+}
+
 @Injectable()
 export class HiapiService {
-  async generateImage(prompt: string, aspectRatio: string) {
+  constructor(private readonly settingsRepo: SystemSettingsRepo) {}
+
+  private async generateSingleImage(params: {
+    prompt: string;
+    size: string;
+    quality: SupportedImageQuality;
+    outputFormat: SupportedOutputFormat;
+    outputCompression?: number;
+    background?: SupportedBackground;
+    moderation?: SupportedModeration;
+  }) {
+    const modelSettings = this.settingsRepo.getModelSettings();
     const controller = new AbortController();
     const timeout = setTimeout(
       () => controller.abort(),
-      config.HIAPI_TIMEOUT_MS,
+      modelSettings.timeoutMs,
     );
     let response: Response;
 
     try {
-      response = await fetch(`${config.HIAPI_BASE_URL}/images/generations`, {
+      response = await fetch(`${modelSettings.baseUrl}/images/generations`, {
         method: 'POST',
         signal: controller.signal,
         headers: {
@@ -115,11 +303,19 @@ export class HiapiService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: config.HIAPI_MODEL,
-          prompt,
+          model: modelSettings.imageModel,
+          prompt: params.prompt,
           n: 1,
-          size: sizeForSub2api(aspectRatio),
-          response_format: config.HIAPI_RESPONSE_FORMAT,
+          size: params.size,
+          quality: params.quality,
+          output_format: params.outputFormat,
+          ...(params.outputFormat !== 'png' &&
+          Number.isFinite(params.outputCompression)
+            ? { output_compression: params.outputCompression }
+            : {}),
+          background: params.background || 'auto',
+          moderation: params.moderation || 'auto',
+          response_format: modelSettings.responseFormat,
         }),
       });
     } catch (error: any) {
@@ -128,7 +324,176 @@ export class HiapiService {
       clearTimeout(timeout);
     }
 
-    return parseHiapiResponse(response);
+    return parseHiapiResponse(
+      response,
+      mimeTypeForOutputFormat(params.outputFormat),
+    );
+  }
+
+  async generateImage(
+    prompt: string,
+    aspectRatio: string,
+    options?: {
+      size?: SupportedImageSize;
+      quality?: SupportedImageQuality;
+      qualityTier?: '1k' | '2k' | '4k';
+      count?: number;
+      outputFormat?: SupportedOutputFormat;
+      outputCompression?: number;
+      background?: SupportedBackground;
+      moderation?: SupportedModeration;
+    },
+  ) {
+    const modelSettings = this.settingsRepo.getModelSettings();
+    const qualityTier = options?.qualityTier || '1k';
+    const requestedSize = resolveRequestedSize(
+      aspectRatio,
+      modelSettings.sizeFormat,
+      options?.size,
+    );
+    const size =
+      options?.size && options.size !== 'auto'
+        ? requestedSize
+        : sizeForQualityTier(aspectRatio, qualityTier);
+    const quality = options?.quality || qualityForTier(qualityTier);
+    const count = Math.max(1, Math.min(4, Math.floor(options?.count || 1)));
+    const outputFormat = options?.outputFormat || 'png';
+    const outputCompression = Number.isFinite(options?.outputCompression)
+      ? Math.max(0, Math.min(100, Math.floor(options?.outputCompression || 0)))
+      : 100;
+    const background = options?.background || 'auto';
+    const moderation = options?.moderation || 'auto';
+
+    const results = await Promise.all(
+      Array.from({ length: count }, () =>
+        this.generateSingleImage({
+          prompt,
+          size,
+          quality,
+          outputFormat,
+          outputCompression,
+          background,
+          moderation,
+        }),
+      ),
+    );
+
+    return {
+      content: results.map((item) => item.content).filter(Boolean).join('\n'),
+      imageUrls: results.flatMap((item) => item.imageUrls),
+    };
+  }
+
+  async editImageFromFiles(params: {
+    imageFiles: Array<{
+      filePath: string;
+      fileType: string;
+      fileName: string;
+    }>;
+    prompt: string;
+    aspectRatio: string;
+    size?: SupportedImageSize;
+    quality?: SupportedImageQuality;
+    qualityTier?: '1k' | '2k' | '4k';
+    count?: number;
+    outputFormat?: SupportedOutputFormat;
+    outputCompression?: number;
+    background?: SupportedBackground;
+    moderation?: SupportedModeration;
+    modelOverride?: string;
+    maskFilePath?: string;
+    maskFileType?: string;
+    maskFileName?: string;
+  }) {
+    const modelSettings = this.settingsRepo.getModelSettings();
+    const requestedSize = resolveRequestedSize(
+      params.aspectRatio,
+      modelSettings.sizeFormat,
+      params.size,
+    );
+    const qualityTier = params.qualityTier || '1k';
+    const size =
+      params.size && params.size !== 'auto'
+        ? requestedSize
+        : sizeForQualityTier(params.aspectRatio, qualityTier);
+    const quality = params.quality || qualityForTier(qualityTier);
+    const outputFormat = params.outputFormat || 'png';
+    const count = Math.max(1, Math.min(4, Math.floor(params.count || 1)));
+    const outputCompression = Number.isFinite(params.outputCompression)
+      ? Math.max(0, Math.min(100, Math.floor(params.outputCompression || 0)))
+      : 100;
+    const background = params.background || 'auto';
+    const moderation = params.moderation || 'auto';
+    const effectiveModel = String(
+      params.modelOverride || modelSettings.imageModel || '',
+    ).trim();
+    const results = await Promise.all(
+      Array.from({ length: count }, async () => {
+        const currentModelSettings = this.settingsRepo.getModelSettings();
+        const controller = new AbortController();
+        const timeout = setTimeout(
+          () => controller.abort(),
+          currentModelSettings.timeoutMs,
+        );
+        let response: Response;
+
+        try {
+          const form = new FormData();
+          form.set('model', effectiveModel || currentModelSettings.imageModel);
+          form.set('prompt', params.prompt);
+          form.set('n', '1');
+          form.set('size', size);
+          form.set('quality', quality);
+          form.set('output_format', outputFormat);
+          if (outputFormat !== 'png') {
+            form.set('output_compression', String(outputCompression));
+          }
+          form.set('background', background);
+          form.set('moderation', moderation);
+          form.set('response_format', currentModelSettings.responseFormat);
+          // 多参考图时按顺序逐个 append，第一张作为主参考图。
+          for (const imageFile of params.imageFiles) {
+            const buffer = await fs.readFile(imageFile.filePath);
+            form.append(
+              'image',
+              new Blob([buffer], { type: imageFile.fileType }),
+              imageFile.fileName,
+            );
+          }
+          if (params.maskFilePath) {
+            const maskBuffer = await fs.readFile(params.maskFilePath);
+            form.set(
+              'mask',
+              new Blob([maskBuffer], { type: params.maskFileType || 'image/png' }),
+              params.maskFileName || 'mask.png',
+            );
+          }
+
+          response = await fetch(`${currentModelSettings.baseUrl}/images/edits`, {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+              Authorization: `Bearer ${config.HIAPI_API_KEY}`,
+            },
+            body: form as any,
+          });
+        } catch (error: any) {
+          throw normalizeHiapiError(error);
+        } finally {
+          clearTimeout(timeout);
+        }
+
+        return parseHiapiResponse(
+          response,
+          mimeTypeForOutputFormat(outputFormat),
+        );
+      }),
+    );
+
+    return {
+      content: results.map((item) => item.content).filter(Boolean).join('\n'),
+      imageUrls: results.flatMap((item) => item.imageUrls),
+    };
   }
 
   async editImageFromFile(params: {
@@ -137,35 +502,135 @@ export class HiapiService {
     fileName: string;
     prompt: string;
     aspectRatio: string;
+    size?: SupportedImageSize;
+    quality?: SupportedImageQuality;
+    qualityTier?: '1k' | '2k' | '4k';
+    count?: number;
+    outputFormat?: SupportedOutputFormat;
+    outputCompression?: number;
+    background?: SupportedBackground;
+    moderation?: SupportedModeration;
   }) {
+    return this.editImageFromFiles({
+      imageFiles: [
+        {
+          filePath: params.filePath,
+          fileType: params.fileType,
+          fileName: params.fileName,
+        },
+      ],
+      prompt: params.prompt,
+      aspectRatio: params.aspectRatio,
+      size: params.size,
+      quality: params.quality,
+      qualityTier: params.qualityTier,
+      count: params.count,
+      outputFormat: params.outputFormat,
+      outputCompression: params.outputCompression,
+      background: params.background,
+      moderation: params.moderation,
+    });
+  }
+
+  async createDialogueImage(params: {
+    prompt: string;
+    userId?: string;
+    inputImageUrls?: string[];
+    historyTurns?: Array<{
+      prompt: string;
+      inputImageUrls?: string[];
+      outputItems?: any[];
+    }>;
+    aspectRatio: string;
+    qualityTier?: '1k' | '2k' | '4k';
+    background?: SupportedBackground;
+  }) {
+    const modelSettings = this.settingsRepo.getModelSettings();
+    if (!modelSettings.textModel) {
+      throw new HttpException(
+        '请先在 .env 中配置 HIAPI_TEXT_MODEL',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
     const controller = new AbortController();
     const timeout = setTimeout(
       () => controller.abort(),
-      config.HIAPI_TIMEOUT_MS,
+      modelSettings.timeoutMs,
     );
+    const toolBackground =
+      params.background === 'transparent' ? 'auto' : params.background || 'auto';
+    const toolSize = sizeForSub2api(params.aspectRatio, modelSettings.sizeFormat);
+    const toolQuality = qualityForTier(params.qualityTier || '1k');
+    const inputItems: any[] = [];
+
+    for (const turn of params.historyTurns || []) {
+      const turnContent: Array<Record<string, string>> = [
+        {
+          type: 'input_text',
+          text: String(turn.prompt || '').trim(),
+        },
+      ];
+      for (const imageUrl of turn.inputImageUrls || []) {
+        const value = String(imageUrl || '').trim();
+        if (!value) continue;
+        turnContent.push({
+          type: 'input_image',
+          image_url: value,
+        });
+      }
+      inputItems.push({
+        role: 'user',
+        content: turnContent,
+      });
+      for (const item of turn.outputItems || []) {
+        inputItems.push(removeItemIds(item));
+      }
+    }
+
+    const currentContent: Array<Record<string, string>> = [
+      {
+        type: 'input_text',
+        text: params.prompt,
+      },
+    ];
+    for (const imageUrl of params.inputImageUrls || []) {
+      const value = String(imageUrl || '').trim();
+      if (!value) continue;
+      currentContent.push({
+        type: 'input_image',
+        image_url: value,
+      });
+    }
+    inputItems.push({
+      role: 'user',
+      content: currentContent,
+    });
+
     let response: Response;
-
     try {
-      const buffer = await fs.readFile(params.filePath);
-      const form = new FormData();
-      form.set('model', config.HIAPI_MODEL);
-      form.set('prompt', params.prompt);
-      form.set('n', '1');
-      form.set('size', sizeForSub2api(params.aspectRatio));
-      form.set('response_format', config.HIAPI_RESPONSE_FORMAT);
-      form.set(
-        'image',
-        new Blob([buffer], { type: params.fileType }),
-        params.fileName,
-      );
-
-      response = await fetch(`${config.HIAPI_BASE_URL}/images/edits`, {
+      response = await fetch(`${modelSettings.baseUrl}/responses`, {
         method: 'POST',
         signal: controller.signal,
         headers: {
           Authorization: `Bearer ${config.HIAPI_API_KEY}`,
+          'Content-Type': 'application/json',
         },
-        body: form as any,
+        body: JSON.stringify({
+          model: modelSettings.textModel,
+          store: true,
+          ...(params.userId ? { user: params.userId } : {}),
+          input: inputItems,
+          tools: [
+            {
+              type: 'image_generation',
+              action: inputItems.length > 1 || (params.inputImageUrls || []).length ? 'auto' : 'generate',
+              size: toolSize,
+              quality: toolQuality,
+              background: toolBackground,
+            },
+          ],
+        }),
       });
     } catch (error: any) {
       throw normalizeHiapiError(error);
@@ -173,11 +638,12 @@ export class HiapiService {
       clearTimeout(timeout);
     }
 
-    return parseHiapiResponse(response);
+    return parseResponsesImageResponse(response);
   }
 
   async enhancePrompt(input: string, direction: string = 'ecommerce') {
-    if (!config.HIAPI_TEXT_MODEL) {
+    const modelSettings = this.settingsRepo.getModelSettings();
+    if (!modelSettings.textModel) {
       throw new HttpException(
         '请先在 .env 中配置 HIAPI_TEXT_MODEL',
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -206,12 +672,12 @@ export class HiapiService {
     const controller = new AbortController();
     const timeout = setTimeout(
       () => controller.abort(),
-      config.HIAPI_TIMEOUT_MS,
+      modelSettings.timeoutMs,
     );
     let response: Response;
 
     try {
-      response = await fetch(`${config.HIAPI_BASE_URL}/chat/completions`, {
+      response = await fetch(`${modelSettings.baseUrl}/chat/completions`, {
         method: 'POST',
         signal: controller.signal,
         headers: {
@@ -219,7 +685,7 @@ export class HiapiService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: config.HIAPI_TEXT_MODEL,
+          model: modelSettings.textModel,
           temperature: 0.7,
           messages: [
             {

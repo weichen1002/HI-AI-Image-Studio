@@ -19,7 +19,7 @@
           <div class="brand-icon">
             <img :src="logoUrl" alt="Hi AI Image Studio logo" width="20" height="20" loading="eager" fetchpriority="high" />
           </div>
-          <span class="text-h3" style="font-weight: 800; font-size: 22px; letter-spacing: -0.5px; color: #fff;">Hi AI Image Studio</span>
+          <span class="text-h3" style="font-weight: 800; font-size: 22px; letter-spacing: -0.5px; color: #fff;">{{ siteSettings.siteName }}</span>
         </div>
         
         <div class="auth-hero-copy relative z-10" style="max-width: 440px;">
@@ -70,7 +70,7 @@
             {{ mode === 'login' ? '欢迎回来 👋' : '创建账户 ✨' }}
           </h2>
           <p class="text-muted" style="font-size: 14px;">
-            {{ mode === 'login' ? '登录你的 Hi AI Image Studio 账户，继续你的 AI 创造之旅' : '加入我们，开启智能设计新体验' }}
+            {{ mode === 'login' ? `登录你的 ${siteSettings.siteName} 账户，继续你的 AI 创造之旅` : '加入我们，开启智能设计新体验' }}
           </p>
         </div>
 
@@ -143,6 +143,23 @@
             <div v-if="fieldErrors.captcha" class="field-error">{{ fieldErrors.captcha }}</div>
           </div>
 
+          <div class="auth-field" v-if="mode === 'register'">
+            <label for="redeemCode" class="label" style="font-size: 13px; font-weight: 700; color: #334155;">兑换码（选填）</label>
+            <div class="input-wrapper">
+              <GiftIcon class="input-icon" :size="18" aria-hidden="true" />
+              <Input
+                id="redeemCode"
+                name="redeemCode"
+                autocomplete="off"
+                spellcheck="false"
+                v-model="form.redeemCode"
+                class="with-icon custom-input"
+                maxlength="32"
+                placeholder="有兑换码可直接填写"
+              />
+            </div>
+          </div>
+
           <div class="auth-options flex justify-between items-center" style="font-size: 13px;" v-if="mode === 'login'">
             <label for="remember" class="flex items-center gap-2 cursor-pointer" style="color: #475569; font-weight: 500;">
               <input id="remember" name="remember" type="checkbox" class="custom-checkbox" /> 记住我
@@ -168,11 +185,14 @@
             </button>
           </div>
 
-          <div class="auth-switch text-center" style="font-size: 13px; color: #64748b;">
+          <div v-if="siteSettings.allowRegistration" class="auth-switch text-center" style="font-size: 13px; color: #64748b;">
             {{ mode === 'login' ? '还没有账户？' : '已有账户？' }}
             <button type="button" class="btn-link text-primary hover-underline" style="font-weight: 600;" @click="mode = mode === 'login' ? 'register' : 'login'">
               {{ mode === 'login' ? '立即注册' : '立即登录' }}
             </button>
+          </div>
+          <div v-else class="auth-switch text-center" style="font-size: 13px; color: #64748b;">
+            当前已关闭新用户注册，如需开通请联系 {{ siteSettings.supportContact }}
           </div>
         </form>
       </div>
@@ -180,22 +200,25 @@
     </div>
     
     <div class="absolute bottom-6 text-center w-full" style="font-size: 12px; color: rgba(255,255,255,0.6);">
-      © 2024 Hi AI Image Studio. All rights reserved.
+      {{ siteSettings.footerCopyright }}
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, watch, computed } from 'vue'
+import { ref, reactive, watch, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import { ArrowLeftIcon, AlertCircleIcon, ZapIcon, LayoutIcon, ShieldIcon, MailIcon, LockIcon, EyeIcon, EyeOffIcon, SparklesIcon, LibraryIcon } from 'lucide-vue-next'
-import { Button, Input, toastError } from '../components/common'
+import { useSiteStore } from '../stores/site'
+import { AlertCircleIcon, ZapIcon, LayoutIcon, ShieldIcon, MailIcon, LockIcon, EyeIcon, EyeOffIcon, SparklesIcon, LibraryIcon, GiftIcon } from 'lucide-vue-next'
+import { Button, Input, toastError, toastSuccess } from '../components/common'
 import { apiFetch } from '../utils/api'
 import logoUrl from '../hi-image-logo.png'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const siteStore = useSiteStore()
+const siteSettings = computed(() => siteStore.settings)
 
 const mode = ref('login')
 const loading = ref(false)
@@ -215,7 +238,8 @@ const fieldErrors = reactive({
 const form = reactive({
   username: '',
   password: '',
-  captcha: ''
+  captcha: '',
+  redeemCode: ''
 })
 
 async function refreshCaptcha() {
@@ -246,6 +270,16 @@ watch(mode, async (next) => {
   }
 })
 
+watch(
+  () => siteSettings.value.allowRegistration,
+  (allowed) => {
+    if (!allowed && mode.value === 'register') {
+      mode.value = 'login'
+    }
+  },
+  { immediate: true }
+)
+
 function validateForm() {
   fieldErrors.username = ''
   fieldErrors.password = ''
@@ -273,7 +307,19 @@ async function submitAuth() {
     if (mode.value === 'login') {
       await authStore.login(form.username, form.password)
     } else {
-      await authStore.register(form.username, form.password, captchaId.value, form.captcha)
+      const result = await authStore.register(
+        form.username,
+        form.password,
+        captchaId.value,
+        form.captcha,
+        form.redeemCode
+      )
+      const redeemCodeResult = result?.redeemCodeResult
+      if (redeemCodeResult?.attempted && redeemCodeResult?.success) {
+        toastSuccess(`注册成功，兑换码已到账 ${redeemCodeResult.amount || 0} 余额`)
+      } else if (redeemCodeResult?.attempted && redeemCodeResult?.message) {
+        toastError(`注册成功，兑换码未生效：${redeemCodeResult.message}`)
+      }
     }
     router.push('/studio')
   } catch (e) {
@@ -285,6 +331,10 @@ async function submitAuth() {
     loading.value = false
   }
 }
+
+onMounted(() => {
+  siteStore.fetchSettings()
+})
 </script>
 
 <style scoped>

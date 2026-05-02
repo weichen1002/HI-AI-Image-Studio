@@ -8,6 +8,7 @@ import { CreditsModule } from './credits/credits.module';
 import { AdminModule } from './admin/admin.module';
 import { PromptsModule } from './prompts/prompts.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
+import { RedeemCodesModule } from './redeem-codes/redeem-codes.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { AnnouncementsModule } from './announcements/announcements.module';
     AdminModule,
     PromptsModule,
     AnnouncementsModule,
+    RedeemCodesModule,
   ],
 })
 export class AppModule {}

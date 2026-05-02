@@ -67,9 +67,21 @@ const routes = [
         meta: { requiresRole: ['admin', 'superadmin'] }
       },
       {
+        path: 'admin/settings',
+        name: 'studio-admin-settings',
+        component: () => import('../views/studio/admin/AdminSettingsView.vue'),
+        meta: { requiresRole: ['admin', 'superadmin'] }
+      },
+      {
         path: 'admin/ledger',
         name: 'studio-admin-ledger',
         component: () => import('../views/studio/admin/AdminLedgerView.vue'),
+        meta: { requiresRole: ['admin', 'superadmin'] }
+      },
+      {
+        path: 'admin/redeem-codes',
+        name: 'studio-admin-redeem-codes',
+        component: () => import('../views/studio/admin/AdminRedeemCodesView.vue'),
         meta: { requiresRole: ['admin', 'superadmin'] }
       }
     ]

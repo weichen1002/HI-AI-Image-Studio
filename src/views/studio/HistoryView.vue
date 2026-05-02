@@ -46,6 +46,8 @@
           <img v-if="coverUrl(img)" :src="coverUrl(img)" loading="lazy" />
           <div v-else class="fallback-cover">无图片</div>
 
+          <div v-if="(img.imageUrls || []).length > 1" class="count-badge">{{ img.imageUrls.length }} 张</div>
+
           <div v-if="img.inputImageUrls && img.inputImageUrls[0]" class="cover-toggle" @click.stop>
             <button type="button" class="toggle-btn" :class="{ active: coverMode[img.id] !== 'input' }" @click="setCoverMode(img, 'result')">结果</button>
             <button type="button" class="toggle-btn" :class="{ active: coverMode[img.id] === 'input' }" @click="setCoverMode(img, 'input')">参考</button>
@@ -69,7 +71,7 @@
         <div class="history-body">
           <p class="prompt-text">{{ img.prompt }}</p>
           <div class="meta">
-            <span class="meta-pill">{{ img.mode === 'image' ? '图文生图' : '文生图' }}</span>
+            <span class="meta-pill">{{ modeLabel(img) }}</span>
             <span class="meta-pill">{{ img.aspectRatio }}</span>
             <span class="meta-time">{{ formatTime(img.createdAt) }}</span>
           </div>
@@ -96,6 +98,13 @@ import { Button, LinkButton } from '../../components/common'
 
 const imagesStore = useImagesStore()
 const router = useRouter()
+
+function modeLabel(image) {
+  if (image?.mode === 'dialogue' || image?.mode === 'continuous') return '对话创作'
+  if (image?.mode === 'tools') return '图片工具'
+  if (image?.mode === 'image') return '图生图'
+  return '文生图'
+}
 const coverMode = reactive({})
 const imagesCount = computed(() => (imagesStore.images || []).length)
 const sortedImages = computed(() => {
@@ -136,6 +145,14 @@ function formatTime(val) {
 }
 
 function reusePrompt(image) {
+  if (image.mode === 'dialogue' || image.mode === 'continuous') {
+    router.push({ path: '/studio', query: { mode: 'dialogue', imageId: image.id } })
+    return
+  }
+  if (image.mode === 'tools') {
+    router.push({ path: '/studio', query: { mode: 'tools' } })
+    return
+  }
   if (image.mode === 'image' && image.inputImageUrls?.[0]) {
     router.push({ path: '/studio', query: { mode: 'image', prompt: image.prompt, input: encodeURIComponent(image.inputImageUrls[0]) } })
     return
@@ -330,6 +347,21 @@ async function downloadCover(image) {
   right: 12px;
   display: flex;
   gap: 8px;
+}
+
+.count-badge {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.78);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .history-card:hover .cover-action,

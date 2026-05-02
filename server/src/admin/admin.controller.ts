@@ -6,12 +6,14 @@ import {
   HttpStatus,
   Param,
   Post,
+  Put,
   Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import type { RequestWithUser } from '../auth/auth.guard';
+import { SystemSettingsRepo } from '../db/repositories/system-settings.repo';
 import { UsersRepo, UserPlan, UserRole } from '../db/repositories/users.repo';
 import { CreditsRepo } from '../credits/credits.repo';
 import type { LedgerType } from '../credits/credits.repo';
@@ -43,12 +45,19 @@ function normalizeOptionalNumber(value: string | undefined) {
   return n;
 }
 
+function normalizeNonNegativeInt(value: unknown, fallback = 0) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.floor(n));
+}
+
 @Controller('api/admin')
 @UseGuards(AuthGuard, AdminRoleGuard)
 export class AdminController {
   constructor(
     private readonly usersRepo: UsersRepo,
     private readonly creditsRepo: CreditsRepo,
+    private readonly settingsRepo: SystemSettingsRepo,
   ) {}
 
   @Get('users')
@@ -100,6 +109,109 @@ export class AdminController {
       })),
       total: result.total,
     };
+  }
+
+  @Get('settings/signup-bonus')
+  getSignupBonusSettings() {
+    const rules = this.settingsRepo.getSignupBonusRules();
+    return {
+      enabled: rules.enabled,
+      usernameBonus: normalizeNonNegativeInt(rules.bySource.username, 5),
+    };
+  }
+
+  @Put('settings/signup-bonus')
+  updateSignupBonusSettings(@Body() body: any, @Req() req: RequestWithUser) {
+    const enabled = body?.enabled !== false;
+    const usernameBonus = normalizeNonNegativeInt(body?.usernameBonus, 5);
+
+    const rules = this.settingsRepo.saveSignupBonusRules(
+      { enabled, usernameBonus },
+      req.user.id,
+    );
+
+    return {
+      enabled: rules.enabled,
+      usernameBonus: normalizeNonNegativeInt(rules.bySource.username, 5),
+    };
+  }
+
+  @Get('settings/bootstrap')
+  getSettingsBootstrap() {
+    const bootstrap = this.settingsRepo.getAdminSettingsBootstrap();
+    return {
+      general: bootstrap.general,
+      signupBonus: {
+        enabled: bootstrap.signupBonus.enabled,
+        usernameBonus: normalizeNonNegativeInt(
+          bootstrap.signupBonus.bySource.username,
+          5,
+        ),
+      },
+      pricing: bootstrap.pricing,
+      model: bootstrap.model,
+      upload: bootstrap.upload,
+    };
+  }
+
+  @Put('settings/general')
+  updateGeneralSettings(@Body() body: any, @Req() req: RequestWithUser) {
+    return this.settingsRepo.saveGeneralSettings(
+      {
+        siteName: body?.siteName,
+        siteSubtitle: body?.siteSubtitle,
+        supportContact: body?.supportContact,
+        allowRegistration: body?.allowRegistration,
+        footerCopyright: body?.footerCopyright,
+      },
+      req.user.id,
+    );
+  }
+
+  @Put('settings/pricing')
+  updatePricingSettings(@Body() body: any, @Req() req: RequestWithUser) {
+    return this.settingsRepo.savePricingSettings(
+      {
+        free: {
+          promptEnhance: body?.free?.promptEnhance,
+          textToImage: body?.free?.textToImage,
+          imageToImage: body?.free?.imageToImage,
+        },
+        pro: {
+          promptEnhance: body?.pro?.promptEnhance,
+          textToImage: body?.pro?.textToImage,
+          imageToImage: body?.pro?.imageToImage,
+        },
+      },
+      req.user.id,
+    );
+  }
+
+  @Put('settings/model')
+  updateModelSettings(@Body() body: any, @Req() req: RequestWithUser) {
+    return this.settingsRepo.saveModelSettings(
+      {
+        baseUrl: body?.baseUrl,
+        imageModel: body?.imageModel,
+        cutoutModel: body?.cutoutModel,
+        textModel: body?.textModel,
+        timeoutMs: body?.timeoutMs,
+        responseFormat: body?.responseFormat,
+        sizeFormat: body?.sizeFormat,
+      },
+      req.user.id,
+    );
+  }
+
+  @Put('settings/upload')
+  updateUploadSettings(@Body() body: any, @Req() req: RequestWithUser) {
+    return this.settingsRepo.saveUploadSettings(
+      {
+        maxFileSizeMb: body?.maxFileSizeMb,
+        allowedMimeTypes: body?.allowedMimeTypes,
+      },
+      req.user.id,
+    );
   }
 
   @Post('users/:id/plan')
