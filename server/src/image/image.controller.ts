@@ -205,6 +205,15 @@ function toListImage(image: any) {
   };
 }
 
+function toPublicDialogueMessage(message: any) {
+  return {
+    id: String(message?.id || ''),
+    imageId: String(message?.imageId || ''),
+    prompt: String(message?.prompt || ''),
+    createdAt: String(message?.createdAt || ''),
+  };
+}
+
 function uploadDir() {
   const dir = path.join(config.DATA_DIR, 'uploads');
   fs.mkdirSync(dir, { recursive: true });
@@ -275,6 +284,83 @@ async function saveUploadedBuffer(file: Express.Multer.File) {
   };
 }
 
+function parseDataUrl(value: string, fallbackMimeType: string = 'image/png') {
+  const normalizedValue = String(value || '').trim();
+  const commaIndex = normalizedValue.indexOf(',');
+  const meta = commaIndex >= 0 ? normalizedValue.slice(0, commaIndex) : '';
+  const body = commaIndex >= 0 ? normalizedValue.slice(commaIndex + 1) : '';
+  const mimeMatch = /^data:([^;]+);base64$/i.exec(meta);
+  const mimeType = mimeMatch?.[1] || fallbackMimeType;
+  if (!meta || !body) {
+    throw new HttpException('上游返回了无效的图片数据', HttpStatus.BAD_GATEWAY);
+  }
+  return {
+    mimeType,
+    buffer: Buffer.from(body, 'base64'),
+  };
+}
+
+async function saveImageBuffer(buffer: Buffer, mimeType: string) {
+  const ext = extForMime(mimeType);
+  if (!ext) {
+    throw new HttpException('上游返回了不支持的图片格式', HttpStatus.BAD_GATEWAY);
+  }
+  const fileName = `${crypto.randomUUID()}${ext}`;
+  const filePath = path.join(uploadDir(), fileName);
+  await fsp.writeFile(filePath, buffer);
+  return {
+    fileName,
+    filePath,
+    url: `/uploads/${fileName}`,
+    created: true,
+  };
+}
+
+async function persistImageAsset(url: string, fallbackMimeType: string = 'image/png') {
+  const normalizedUrl = String(url || '').trim();
+  if (!normalizedUrl) return null;
+  if (normalizedUrl.startsWith('/uploads/')) {
+    return {
+      fileName: path.basename(normalizedUrl),
+      filePath: toUploadFilePath(normalizedUrl),
+      url: normalizedUrl,
+      created: false,
+    };
+  }
+  if (normalizedUrl.startsWith('data:')) {
+    const { mimeType, buffer } = parseDataUrl(normalizedUrl, fallbackMimeType);
+    return saveImageBuffer(buffer, mimeType);
+  }
+  try {
+    const response = await fetch(normalizedUrl);
+    if (!response.ok) {
+      throw new HttpException('下载上游图片失败', HttpStatus.BAD_GATEWAY);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    const mimeType =
+      response.headers.get('content-type')?.split(';')[0]?.trim() ||
+      fallbackMimeType;
+    return saveImageBuffer(Buffer.from(arrayBuffer), mimeType);
+  } catch (error) {
+    if (error instanceof HttpException) throw error;
+    throw new HttpException('保存上游图片失败', HttpStatus.BAD_GATEWAY);
+  }
+}
+
+async function persistImageAssets(urls: string[], fallbackMimeType: string = 'image/png') {
+  const persisted = await Promise.all(
+    (Array.isArray(urls) ? urls : []).filter(Boolean).map((item) =>
+      persistImageAsset(String(item || ''), fallbackMimeType),
+    ),
+  );
+  return persisted.filter(Boolean) as Array<{
+    fileName: string;
+    filePath: string;
+    url: string;
+    created: boolean;
+  }>;
+}
+
 @Controller('api/images')
 @UseGuards(AuthGuard)
 export class ImageController {
@@ -287,12 +373,43 @@ export class ImageController {
     private readonly settingsRepo: SystemSettingsRepo,
   ) {}
 
+  private async materializeImageAssets(image: any, userId: string) {
+    const nextImage = toListImage(image);
+    try {
+      const resultAssets = await persistImageAssets(nextImage.imageUrls, 'image/png');
+      const inputAssets = await persistImageAssets(nextImage.inputImageUrls, 'image/png');
+      const imageUrls = resultAssets.map((item) => item.url);
+      const inputImageUrls = inputAssets.map((item) => item.url);
+      if (
+        imageUrls.join('|') !== nextImage.imageUrls.join('|') ||
+        inputImageUrls.join('|') !== nextImage.inputImageUrls.join('|')
+      ) {
+        this.imagesRepo.updateSources({
+          id: nextImage.id,
+          userId,
+          imageUrls,
+          inputImageUrls,
+        });
+      }
+      return {
+        ...nextImage,
+        imageUrls,
+        inputImageUrls,
+      };
+    } catch (error) {
+      console.error(error);
+      return nextImage;
+    }
+  }
+
   @Get()
-  getImages(@Req() req: RequestWithUser, @Query('limit') limitValue?: string) {
+  async getImages(@Req() req: RequestWithUser, @Query('limit') limitValue?: string) {
     const limit = normalizeLimit(limitValue);
-    const images = this.imagesRepo
-      .listByUser({ userId: req.user.id, limit })
-      .map(toListImage);
+    const images = await Promise.all(
+      this.imagesRepo
+        .listByUser({ userId: req.user.id, limit })
+        .map((item) => this.materializeImageAssets(item, req.user.id)),
+    );
     return { images };
   }
 
@@ -320,7 +437,7 @@ export class ImageController {
       userId: req.user.id,
       limit: normalizeDialogueLimit(limitValue),
     });
-    return { chainId, messages };
+    return { chainId, messages: messages.map(toPublicDialogueMessage) };
   }
 
   @Post('dialogue')
@@ -410,6 +527,7 @@ export class ImageController {
           url: string;
         }
       | undefined;
+    const persistedResultAssets: Array<{ filePath: string; created: boolean }> = [];
 
     try {
       this.creditsRepo.charge({
@@ -454,6 +572,13 @@ export class ImageController {
         qualityTier,
         background,
       });
+      const persistedResults = await persistImageAssets(result.imageUrls, 'image/png');
+      persistedResultAssets.push(
+        ...persistedResults.map((item) => ({
+          filePath: item.filePath,
+          created: item.created,
+        })),
+      );
 
       const saved = this.sqlite.transaction(() => {
         const created = this.imagesRepo.create({
@@ -463,7 +588,7 @@ export class ImageController {
           prompt,
           aspectRatio,
           content: result.content,
-          imageUrls: result.imageUrls,
+          imageUrls: persistedResults.map((item) => item.url),
           inputImageUrls: uploadedReference
             ? [uploadedReference.url]
             : sourceImage?.imageUrls?.[0]
@@ -489,13 +614,19 @@ export class ImageController {
       return {
         image: saved,
         chainId,
-        messages: this.dialogueRepo.listRecentByChain({
-          chainId,
-          userId,
-          limit: 5,
-        }),
+        messages: this.dialogueRepo
+          .listRecentByChain({
+            chainId,
+            userId,
+            limit: 5,
+          })
+          .map(toPublicDialogueMessage),
       };
     } catch (error: any) {
+      for (const item of persistedResultAssets) {
+        if (!item.created) continue;
+        await removeUploadedFile(item.filePath);
+      }
       await removeUploadedFile(uploadedReference?.filePath || '');
       if (charged) {
         try {
@@ -519,12 +650,12 @@ export class ImageController {
   }
 
   @Get(':id')
-  getImage(@Req() req: RequestWithUser, @Param('id') id: string) {
+  async getImage(@Req() req: RequestWithUser, @Param('id') id: string) {
     const image = this.imagesRepo.findById({ id, userId: req.user.id });
     if (!image) {
       throw new HttpException('记录不存在', HttpStatus.NOT_FOUND);
     }
-    const nextImage = { ...image, mode: image.mode || 'text' };
+    const nextImage = await this.materializeImageAssets(image, req.user.id);
     const dialogueMessages = nextImage.continuationChainId
       ? this.dialogueRepo.listRecentByChain({
           chainId: nextImage.continuationChainId,
@@ -532,7 +663,10 @@ export class ImageController {
           limit: 5,
         })
       : [];
-    return { image: nextImage, dialogueMessages };
+    return {
+      image: nextImage,
+      dialogueMessages: dialogueMessages.map(toPublicDialogueMessage),
+    };
   }
 
   @Delete(':id')
@@ -549,9 +683,10 @@ export class ImageController {
       }
     });
 
-    const urls = Array.isArray(image.inputImageUrls)
-      ? image.inputImageUrls
-      : [];
+    const urls = [
+      ...(Array.isArray(image.imageUrls) ? image.imageUrls : []),
+      ...(Array.isArray(image.inputImageUrls) ? image.inputImageUrls : []),
+    ];
     for (const u of urls) {
       const filePath = toUploadFilePath(u);
       if (!filePath) continue;
@@ -567,7 +702,7 @@ export class ImageController {
 
   @Delete()
   async clearImages(@Req() req: RequestWithUser) {
-    const urls = this.imagesRepo.listInputImageUrlsByUser({
+    const urls = this.imagesRepo.listAssetUrlsByUser({
       userId: req.user.id,
     });
     const deleted = this.sqlite.transaction(() => {
@@ -623,6 +758,7 @@ export class ImageController {
     const userId = req.user.id;
     const refId = crypto.randomUUID();
     let charged = false;
+    const persistedResultAssets: Array<{ filePath: string; created: boolean }> = [];
 
     try {
       this.creditsRepo.charge({
@@ -642,6 +778,16 @@ export class ImageController {
         background,
         moderation,
       });
+      const persistedResults = await persistImageAssets(
+        result.imageUrls,
+        mimeForFileName(`result.${outputFormat}`),
+      );
+      persistedResultAssets.push(
+        ...persistedResults.map((item) => ({
+          filePath: item.filePath,
+          created: item.created,
+        })),
+      );
       const image = this.sqlite.transaction(() => {
         return this.imagesRepo.create({
           userId,
@@ -649,11 +795,15 @@ export class ImageController {
           prompt,
           aspectRatio,
           content: result.content,
-          imageUrls: result.imageUrls,
+          imageUrls: persistedResults.map((item) => item.url),
         });
       });
       return { image };
     } catch (error: any) {
+      for (const item of persistedResultAssets) {
+        if (!item.created) continue;
+        await removeUploadedFile(item.filePath);
+      }
       if (charged) {
         try {
           this.creditsRepo.refund({
@@ -763,6 +913,7 @@ export class ImageController {
       url: string;
       fileType: string;
     }> = [];
+    const persistedResultAssets: Array<{ filePath: string; created: boolean }> = [];
 
     try {
       this.creditsRepo.charge({
@@ -797,6 +948,16 @@ export class ImageController {
         background,
         moderation,
       });
+      const persistedResults = await persistImageAssets(
+        result.imageUrls,
+        mimeForFileName(`result.${outputFormat}`),
+      );
+      persistedResultAssets.push(
+        ...persistedResults.map((item) => ({
+          filePath: item.filePath,
+          created: item.created,
+        })),
+      );
 
       const image = {
         userId,
@@ -804,7 +965,7 @@ export class ImageController {
         prompt,
         aspectRatio,
         content: result.content,
-        imageUrls: result.imageUrls,
+        imageUrls: persistedResults.map((item) => item.url),
         inputImageUrls: uploaded.map((item) => item.url),
         operationType: 'image_to_image' as const,
       };
@@ -813,6 +974,10 @@ export class ImageController {
       });
       return { image: saved };
     } catch (error: any) {
+      for (const item of persistedResultAssets) {
+        if (!item.created) continue;
+        await removeUploadedFile(item.filePath);
+      }
       for (const item of uploaded) {
         await removeUploadedFile(item.filePath);
       }
@@ -932,6 +1097,7 @@ export class ImageController {
           url: string;
         }
       | undefined;
+    const persistedResultAssets: Array<{ filePath: string; created: boolean }> = [];
 
     try {
       this.creditsRepo.charge({
@@ -972,6 +1138,16 @@ export class ImageController {
             }
           : {}),
       });
+      const persistedResults = await persistImageAssets(
+        result.imageUrls,
+        mimeForFileName('result.png'),
+      );
+      persistedResultAssets.push(
+        ...persistedResults.map((item) => ({
+          filePath: item.filePath,
+          created: item.created,
+        })),
+      );
 
       const inputUrl =
         sourceImage?.imageUrls?.[0] ||
@@ -988,7 +1164,7 @@ export class ImageController {
           prompt,
           aspectRatio,
           content: result.content,
-          imageUrls: result.imageUrls,
+          imageUrls: persistedResults.map((item) => item.url),
           inputImageUrls: inputUrl ? [inputUrl] : [],
           sourceImageId: sourceImage?.id || '',
         });
@@ -999,6 +1175,10 @@ export class ImageController {
       await removeUploadedFile(uploadedMask?.filePath || '');
       return { image: saved };
     } catch (error: any) {
+      for (const item of persistedResultAssets) {
+        if (!item.created) continue;
+        await removeUploadedFile(item.filePath);
+      }
       await removeUploadedFile(uploadedImage?.filePath || '');
       await removeUploadedFile(uploadedMask?.filePath || '');
       if (charged) {

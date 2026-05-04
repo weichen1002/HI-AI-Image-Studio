@@ -236,7 +236,7 @@ const forms = reactive({
     cutoutModel: '',
     textModel: '',
     timeoutMs: '60000',
-    responseFormat: 'url',
+    responseFormat: 'b64_json',
     sizeFormat: 'pixel'
   },
   upload: {

@@ -62,7 +62,7 @@ POST https://hiapis.cloud/v1/images/generations
 model: gpt-image-2
 ```
 
-默认请求 `response_format=url`，服务端会读取 `data[0].url` 给前端展示。如果中转站返回 `data[0].b64_json`，也会自动转成 `data:image/png;base64,...`。
+当前按 `gpt-image-2` 官方行为处理，默认接收 `b64_json`。服务端会把返回的图片结果落地到本地 `/uploads`，数据库中只保存本地 URL，避免在历史记录里长期存储超长 base64。
 
 默认按 OpenAI Images API 常见尺寸传参，例如 `1:1` 会映射为 `1024x1024`。如果你的 Sub2API 部署要求直接传比例，可以设置：
 

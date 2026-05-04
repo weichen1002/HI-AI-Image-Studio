@@ -97,6 +97,23 @@ function mimeTypeForOutputFormat(outputFormat: SupportedOutputFormat) {
   );
 }
 
+function isGptImageModel(model: string) {
+  const normalizedModel = String(model || '').trim().toLowerCase();
+  return (
+    normalizedModel.startsWith('gpt-image') ||
+    normalizedModel === 'chatgpt-image-latest'
+  );
+}
+
+function normalizeResponseFormat(
+  model: string,
+  responseFormat: 'url' | 'b64_json',
+) {
+  // GPT Image 官方固定返回 base64，这里不再向上游传 `response_format`。
+  if (isGptImageModel(model)) return '';
+  return responseFormat === 'b64_json' ? 'b64_json' : 'url';
+}
+
 export function imageSourceFromResult(
   item: any,
   fallbackMimeType: string = 'image/png',
@@ -287,6 +304,11 @@ export class HiapiService {
     moderation?: SupportedModeration;
   }) {
     const modelSettings = this.settingsRepo.getModelSettings();
+    const imageModel = String(modelSettings.imageModel || '').trim();
+    const responseFormat = normalizeResponseFormat(
+      imageModel,
+      modelSettings.responseFormat,
+    );
     const controller = new AbortController();
     const timeout = setTimeout(
       () => controller.abort(),
@@ -303,7 +325,7 @@ export class HiapiService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: modelSettings.imageModel,
+          model: imageModel,
           prompt: params.prompt,
           n: 1,
           size: params.size,
@@ -315,7 +337,7 @@ export class HiapiService {
             : {}),
           background: params.background || 'auto',
           moderation: params.moderation || 'auto',
-          response_format: modelSettings.responseFormat,
+          ...(responseFormat ? { response_format: responseFormat } : {}),
         }),
       });
     } catch (error: any) {
@@ -427,6 +449,10 @@ export class HiapiService {
     const effectiveModel = String(
       params.modelOverride || modelSettings.imageModel || '',
     ).trim();
+    const responseFormat = normalizeResponseFormat(
+      effectiveModel,
+      modelSettings.responseFormat,
+    );
     const results = await Promise.all(
       Array.from({ length: count }, async () => {
         const currentModelSettings = this.settingsRepo.getModelSettings();
@@ -450,7 +476,9 @@ export class HiapiService {
           }
           form.set('background', background);
           form.set('moderation', moderation);
-          form.set('response_format', currentModelSettings.responseFormat);
+          if (responseFormat) {
+            form.set('response_format', responseFormat);
+          }
           // 多参考图时按顺序逐个 append，第一张作为主参考图。
           for (const imageFile of params.imageFiles) {
             const buffer = await fs.readFile(imageFile.filePath);

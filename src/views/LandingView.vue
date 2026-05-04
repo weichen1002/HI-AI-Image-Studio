@@ -38,10 +38,10 @@
         <nav class="flex gap-4 items-center">
           <template v-if="!isAuthenticated">
             <LinkButton to="/login" variant="ghost" class="nav-link">登录</LinkButton>
-            <LinkButton to="/login" class="nav-btn cyber-glow">开始创作 <ArrowRightIcon :size="16" class="ml-1" /></LinkButton>
+            <LinkButton to="/login" class="nav-btn cyber-glow">开始创作 <ArrowRightIcon :size="16" class="ml-1 landing-button-arrow" /></LinkButton>
           </template>
           <template v-else>
-            <LinkButton to="/studio" class="nav-btn cyber-glow">进入工作台 <ArrowRightIcon :size="16" class="ml-1" /></LinkButton>
+            <LinkButton to="/studio" class="nav-btn cyber-glow">进入工作台 <ArrowRightIcon :size="16" class="ml-1 landing-button-arrow" /></LinkButton>
           </template>
         </nav>
       </div>
@@ -162,7 +162,7 @@
                 <img :src="img.url" alt="AI Generated Image" loading="lazy" />
                 <div class="item-overlay">
                   <p class="item-prompt">{{ img.prompt }}</p>
-                  <button class="btn-try">做同款 <ArrowRightIcon :size="16"/></button>
+                  <button class="btn-try">做同款 <ArrowRightIcon :size="16" class="landing-button-arrow" /></button>
                 </div>
               </div>
             </div>
@@ -171,7 +171,7 @@
                 <img :src="img.url" alt="AI Generated Image" loading="lazy" />
                 <div class="item-overlay">
                   <p class="item-prompt">{{ img.prompt }}</p>
-                  <button class="btn-try">做同款 <ArrowRightIcon :size="16"/></button>
+                  <button class="btn-try">做同款 <ArrowRightIcon :size="16" class="landing-button-arrow" /></button>
                 </div>
               </div>
             </div>
@@ -186,7 +186,7 @@
                 <img :src="img.url" alt="AI Generated Image" loading="lazy" />
                 <div class="item-overlay">
                   <p class="item-prompt">{{ img.prompt }}</p>
-                  <button class="btn-try">做同款 <ArrowRightIcon :size="16"/></button>
+                  <button class="btn-try">做同款 <ArrowRightIcon :size="16" class="landing-button-arrow" /></button>
                 </div>
               </div>
             </div>
@@ -195,7 +195,7 @@
                 <img :src="img.url" alt="AI Generated Image" loading="lazy" />
                 <div class="item-overlay">
                   <p class="item-prompt">{{ img.prompt }}</p>
-                  <button class="btn-try">做同款 <ArrowRightIcon :size="16"/></button>
+                  <button class="btn-try">做同款 <ArrowRightIcon :size="16" class="landing-button-arrow" /></button>
                 </div>
               </div>
             </div>
@@ -458,7 +458,7 @@
           <p class="cta-subtitle">加入数万名创作者，即刻获取您的专属图像生成额度。</p>
           <LinkButton :to="isAuthenticated ? '/studio' : '/login'" class="btn-mega cyber-glow mt-10 inline-flex items-center">
             免费体验作图
-            <ArrowRightIcon :size="20" class="ml-2" />
+            <ArrowRightIcon :size="20" class="ml-2 landing-button-arrow" />
           </LinkButton>
         </div>
       </section>
@@ -876,6 +876,12 @@ const testimonials = [
   font-size: 15px;
   display: inline-flex;
   align-items: center;
+}
+
+.landing-button-arrow {
+  color: #fff;
+  stroke: #fff;
+  flex-shrink: 0;
 }
 
 .cyber-glow {

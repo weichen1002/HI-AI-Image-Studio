@@ -106,6 +106,32 @@ export class ImagesRepo {
     return urls;
   }
 
+  listAssetUrlsByUser(params: { userId: string }) {
+    const rows = this.sqlite.connection
+      .prepare(
+        `SELECT image_urls, input_image_urls
+         FROM images
+         WHERE user_id = ?`,
+      )
+      .all(params.userId) as any[];
+    const urls: string[] = [];
+    for (const row of rows) {
+      for (const key of ['image_urls', 'input_image_urls']) {
+        try {
+          const parsed = JSON.parse(String(row?.[key] || '[]'));
+          if (Array.isArray(parsed)) {
+            for (const item of parsed) {
+              if (item) urls.push(String(item));
+            }
+          }
+        } catch {
+          void 0;
+        }
+      }
+    }
+    return urls;
+  }
+
   deleteById(params: { id: string; userId: string }) {
     const result = this.sqlite.connection
       .prepare('DELETE FROM images WHERE id = ? AND user_id = ?')
@@ -117,6 +143,29 @@ export class ImagesRepo {
     const result = this.sqlite.connection
       .prepare('DELETE FROM images WHERE user_id = ?')
       .run(params.userId);
+    return Number(result?.changes || 0);
+  }
+
+  updateSources(params: {
+    id: string;
+    userId: string;
+    imageUrls: string[];
+    inputImageUrls?: string[];
+  }) {
+    const result = this.sqlite.connection
+      .prepare(
+        `UPDATE images
+         SET image_urls = ?, input_image_urls = ?
+         WHERE id = ? AND user_id = ?`,
+      )
+      .run(
+        JSON.stringify(params.imageUrls || []),
+        (params.inputImageUrls || []).length
+          ? JSON.stringify(params.inputImageUrls || [])
+          : null,
+        params.id,
+        params.userId,
+      );
     return Number(result?.changes || 0);
   }
 

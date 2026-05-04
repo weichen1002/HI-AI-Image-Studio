@@ -66,7 +66,7 @@ export const config = {
   ),
   HIAPI_MODEL: process.env.HIAPI_MODEL || 'gpt-image-2',
   HIAPI_API_KEY: process.env.HIAPI_API_KEY || '',
-  HIAPI_RESPONSE_FORMAT: process.env.HIAPI_RESPONSE_FORMAT || 'url',
+  HIAPI_RESPONSE_FORMAT: process.env.HIAPI_RESPONSE_FORMAT || 'b64_json',
   HIAPI_SIZE_FORMAT: process.env.HIAPI_SIZE_FORMAT || 'pixel',
   HIAPI_TIMEOUT_MS: Number(process.env.HIAPI_TIMEOUT_MS || 60000),
 };
