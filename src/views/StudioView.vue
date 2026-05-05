@@ -60,9 +60,18 @@
 
     <!-- Main Content Area -->
     <main class="main-content" :class="{ 'admin-bg': isAdminRoute }">
-      <header class="topbar">
+      <header class="topbar" :class="{ 'topbar-create': isCreateRoute }">
         <div class="topbar-title">
-          <div class="text-h3">{{ currentRouteName }}</div>
+          <div class="text-h3 topbar-heading">
+            <span v-if="isCreateRoute" class="topbar-mode-icon">
+              <PenToolIcon v-if="siteStore.createIcon === 'wand'" :size="20" />
+              <ImageIcon v-else-if="siteStore.createIcon === 'image'" :size="20" />
+              <MessageSquareIcon v-else-if="siteStore.createIcon === 'dialogue'" :size="20" />
+              <WrenchIcon v-else-if="siteStore.createIcon === 'tools'" :size="20" />
+              <PenToolIcon v-else :size="20" />
+            </span>
+            <span>{{ currentRouteName }}</span>
+          </div>
           <div v-if="currentRouteDesc" class="topbar-sub">{{ currentRouteDesc }}</div>
         </div>
         
@@ -252,7 +261,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useImagesStore } from '../stores/images'
 import { useSiteStore } from '../stores/site'
-import { AlertCircleIcon, BellIcon, ChevronDownIcon, GiftIcon, HeadphonesIcon, ImageIcon, LoaderIcon, LogOutIcon, PenToolIcon, FolderIcon, LayoutTemplateIcon, SettingsIcon, SlidersHorizontalIcon, UserIcon, UsersIcon, ReceiptIcon } from 'lucide-vue-next'
+import { AlertCircleIcon, BellIcon, ChevronDownIcon, GiftIcon, HeadphonesIcon, ImageIcon, LoaderIcon, LogOutIcon, PenToolIcon, FolderIcon, LayoutTemplateIcon, SettingsIcon, SlidersHorizontalIcon, UserIcon, UsersIcon, ReceiptIcon, MessageSquareIcon, WrenchIcon } from 'lucide-vue-next'
 import { Button, Input, LinkButton, Modal, Popover, toastError, toastSuccess } from '../components/common'
 import logoUrl from '../hi-image-logo.png'
 import { useAnnouncementsStore } from '../stores/announcements'
@@ -299,10 +308,12 @@ const routeDescs = {
 }
 
 const currentRouteName = computed(() => {
+  if (isCreateRoute.value) return siteStore.createTitle
   return routeNames[route.name] || '工作台'
 })
 
 const currentRouteDesc = computed(() => {
+  if (isCreateRoute.value) return siteStore.createSubtitle
   return routeDescs[route.name] || ''
 })
 
@@ -554,6 +565,7 @@ async function logoutFromMenu() {
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+  flex: 1 1 auto;
 }
 
 .topbar-title :deep(.text-h3) {
@@ -564,20 +576,44 @@ async function logoutFromMenu() {
   text-shadow: 0 10px 24px rgba(15, 23, 42, 0.10);
 }
 
+.topbar-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.topbar-mode-icon {
+  width: 36px;
+  height: 36px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--gradient-subtle);
+  color: var(--primary);
+  flex: none;
+}
+
+.topbar.topbar-create {
+  min-height: 78px;
+}
+
 .topbar-sub {
   font-size: 13px;
   font-weight: 750;
   color: var(--muted);
   line-height: 1.4;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  max-width: 680px;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .topbar-right {
   display: flex;
   align-items: center;
   gap: 14px;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .topbar-meta {
@@ -1117,6 +1153,50 @@ async function logoutFromMenu() {
 }
 
 @media (max-width: 760px) {
+  .topbar-title {
+    flex-basis: 100%;
+  }
+
+  .topbar-title :deep(.text-h3) {
+    font-size: 22px;
+  }
+
+  .topbar-heading {
+    gap: 10px;
+  }
+
+  .topbar-mode-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+  }
+
+  .topbar-sub {
+    max-width: none;
+  }
+
+  .topbar-right {
+    width: 100%;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .topbar-meta {
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .meta-tag,
+  .redeem-entry {
+    height: 28px;
+    padding: 0 8px;
+  }
+
+  .user-trigger-text,
+  .user-trigger-chevron {
+    display: none;
+  }
+
   .generation-bar {
     left: 20px;
     right: 20px;

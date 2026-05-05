@@ -143,4 +143,11 @@ export class DialogueRepo {
       .all(params.chainId, params.userId, limit);
     return rows.map(toDialogueMessage).filter(Boolean) as DialogueMessageEntity[];
   }
+
+  deleteByChain(params: { chainId: string; userId: string }) {
+    const result = this.sqlite.connection
+      .prepare('DELETE FROM dialogue_messages WHERE chain_id = ? AND user_id = ?')
+      .run(params.chainId, params.userId);
+    return Number(result?.changes || 0);
+  }
 }

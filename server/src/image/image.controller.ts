@@ -361,6 +361,33 @@ async function persistImageAssets(urls: string[], fallbackMimeType: string = 'im
   }>;
 }
 
+async function persistImageAssetsSafely(
+  urls: string[],
+  fallbackMimeType: string = 'image/png',
+) {
+  try {
+    const persisted = await persistImageAssets(urls, fallbackMimeType);
+    return {
+      urls: persisted.map((item) => item.url),
+      persisted,
+      degraded: false,
+    };
+  } catch (error) {
+    console.error(error);
+    // 结果落地失败时回退到原始地址，避免把本来成功的生成请求变成失败。
+    return {
+      urls: (Array.isArray(urls) ? urls : []).filter(Boolean).map((item) => String(item)),
+      persisted: [] as Array<{
+        fileName: string;
+        filePath: string;
+        url: string;
+        created: boolean;
+      }>,
+      degraded: true,
+    };
+  }
+}
+
 @Controller('api/images')
 @UseGuards(AuthGuard)
 export class ImageController {
@@ -440,6 +467,85 @@ export class ImageController {
     return { chainId, messages: messages.map(toPublicDialogueMessage) };
   }
 
+  @Get('dialogue/chain')
+  async getDialogueChain(
+    @Req() req: RequestWithUser,
+    @Query('chainId') chainIdValue?: string,
+    @Query('imageId') imageId?: string,
+  ) {
+    let chainId = String(chainIdValue || '').trim();
+    if (!chainId && imageId) {
+      const image = this.imagesRepo.findById({ id: imageId, userId: req.user.id });
+      if (!image) {
+        throw new HttpException('记录不存在', HttpStatus.NOT_FOUND);
+      }
+      chainId = String(image.continuationChainId || '').trim();
+    }
+    if (!chainId) {
+      return { chainId: '', images: [], messages: [] };
+    }
+
+    const images = await Promise.all(
+      this.imagesRepo
+        .listByChain({ chainId, userId: req.user.id })
+        .map((item) => this.materializeImageAssets(item, req.user.id)),
+    );
+    const messages = this.dialogueRepo.listByChainAsc({
+      chainId,
+      userId: req.user.id,
+      limit: 30,
+    });
+
+    return {
+      chainId,
+      images,
+      messages: messages.map(toPublicDialogueMessage),
+    };
+  }
+
+  @Delete('dialogue/chain/:chainId')
+  async deleteDialogueChain(
+    @Req() req: RequestWithUser,
+    @Param('chainId') chainId: string,
+  ) {
+    const normalizedChainId = String(chainId || '').trim();
+    if (!normalizedChainId) {
+      throw new HttpException('对话链不存在', HttpStatus.NOT_FOUND);
+    }
+
+    const urls = this.imagesRepo.listAssetUrlsByChain({
+      userId: req.user.id,
+      chainId: normalizedChainId,
+    });
+    const deleted = this.sqlite.transaction(() => {
+      const changes = this.imagesRepo.deleteByChain({
+        chainId: normalizedChainId,
+        userId: req.user.id,
+      });
+      this.dialogueRepo.deleteByChain({
+        chainId: normalizedChainId,
+        userId: req.user.id,
+      });
+      return changes;
+    });
+
+    if (deleted <= 0) {
+      throw new HttpException('对话链不存在', HttpStatus.NOT_FOUND);
+    }
+
+    for (const u of urls) {
+      const filePath = toUploadFilePath(u);
+      if (!filePath) continue;
+      try {
+        await fsp.unlink(filePath);
+      } catch {
+        void 0;
+      }
+    }
+
+    return { ok: true };
+  }
+
   @Post('dialogue')
   @UseInterceptors(
     FileFieldsInterceptor([{ name: 'image', maxCount: 1 }], {
@@ -506,6 +612,9 @@ export class ImageController {
     const latestMessage = historyTurns.length
       ? historyTurns[historyTurns.length - 1]
       : null;
+    const latestImage = latestMessage?.imageId
+      ? this.imagesRepo.findById({ id: latestMessage.imageId, userId })
+      : null;
     const chainId = historyTurns.length && candidateChainId
       ? candidateChainId
       : this.dialogueRepo.createChainId();
@@ -558,23 +667,39 @@ export class ImageController {
               ? [await urlToInputImage(sourceImage.imageUrls[0])]
               : []),
           ].filter(Boolean);
+      const continuationImageInputs =
+        historyTurns.length && latestImage?.imageUrls?.[0]
+          ? [await urlToInputImage(latestImage.imageUrls[0])].filter(Boolean)
+          : bootstrapImageInputs;
+      const storedInputImageUrls = uploadedReference
+        ? [uploadedReference.url]
+        : historyTurns.length && latestImage?.imageUrls?.[0]
+          ? [latestImage.imageUrls[0]]
+          : sourceImage?.imageUrls?.[0]
+            ? [sourceImage.imageUrls[0]]
+            : [];
 
       const result = await this.hiapiService.createDialogueImage({
         prompt,
         userId,
         inputImageUrls: bootstrapImageInputs,
+        fallbackInputImageUrls: continuationImageInputs,
         historyTurns: historyTurns.map((item) => ({
           prompt: item.prompt,
-          inputImageUrls: item.inputImageUrls,
-          outputItems: item.outputItems,
+          inputImageUrls: [],
+          outputItems: [],
         })),
+        previousResponseId: latestMessage?.responseId || '',
         aspectRatio,
         qualityTier,
         background,
       });
-      const persistedResults = await persistImageAssets(result.imageUrls, 'image/png');
+      const persistedResults = await persistImageAssetsSafely(
+        result.imageUrls,
+        'image/png',
+      );
       persistedResultAssets.push(
-        ...persistedResults.map((item) => ({
+        ...persistedResults.persisted.map((item) => ({
           filePath: item.filePath,
           created: item.created,
         })),
@@ -588,12 +713,8 @@ export class ImageController {
           prompt,
           aspectRatio,
           content: result.content,
-          imageUrls: persistedResults.map((item) => item.url),
-          inputImageUrls: uploadedReference
-            ? [uploadedReference.url]
-            : sourceImage?.imageUrls?.[0]
-              ? [sourceImage.imageUrls[0]]
-              : [],
+          imageUrls: persistedResults.urls,
+          inputImageUrls: storedInputImageUrls,
           sourceImageId: sourceImage?.id || latestMessage?.imageId || '',
           continuationChainId: chainId,
         });
@@ -604,8 +725,8 @@ export class ImageController {
           parentImageId: sourceImage?.id || latestMessage?.imageId || '',
           responseId: result.responseId,
           previousResponseId: latestMessage?.responseId || '',
-          inputImageUrls: bootstrapImageInputs,
-          outputItems: result.outputItems,
+          inputImageUrls: storedInputImageUrls,
+          outputItems: [],
           prompt,
         });
         return created;
@@ -778,12 +899,12 @@ export class ImageController {
         background,
         moderation,
       });
-      const persistedResults = await persistImageAssets(
+      const persistedResults = await persistImageAssetsSafely(
         result.imageUrls,
         mimeForFileName(`result.${outputFormat}`),
       );
       persistedResultAssets.push(
-        ...persistedResults.map((item) => ({
+        ...persistedResults.persisted.map((item) => ({
           filePath: item.filePath,
           created: item.created,
         })),
@@ -795,7 +916,7 @@ export class ImageController {
           prompt,
           aspectRatio,
           content: result.content,
-          imageUrls: persistedResults.map((item) => item.url),
+          imageUrls: persistedResults.urls,
         });
       });
       return { image };
@@ -948,12 +1069,12 @@ export class ImageController {
         background,
         moderation,
       });
-      const persistedResults = await persistImageAssets(
+      const persistedResults = await persistImageAssetsSafely(
         result.imageUrls,
         mimeForFileName(`result.${outputFormat}`),
       );
       persistedResultAssets.push(
-        ...persistedResults.map((item) => ({
+        ...persistedResults.persisted.map((item) => ({
           filePath: item.filePath,
           created: item.created,
         })),
@@ -965,7 +1086,7 @@ export class ImageController {
         prompt,
         aspectRatio,
         content: result.content,
-        imageUrls: persistedResults.map((item) => item.url),
+        imageUrls: persistedResults.urls,
         inputImageUrls: uploaded.map((item) => item.url),
         operationType: 'image_to_image' as const,
       };
@@ -1138,12 +1259,12 @@ export class ImageController {
             }
           : {}),
       });
-      const persistedResults = await persistImageAssets(
+      const persistedResults = await persistImageAssetsSafely(
         result.imageUrls,
         mimeForFileName('result.png'),
       );
       persistedResultAssets.push(
-        ...persistedResults.map((item) => ({
+        ...persistedResults.persisted.map((item) => ({
           filePath: item.filePath,
           created: item.created,
         })),
@@ -1164,7 +1285,7 @@ export class ImageController {
           prompt,
           aspectRatio,
           content: result.content,
-          imageUrls: persistedResults.map((item) => item.url),
+          imageUrls: persistedResults.urls,
           inputImageUrls: inputUrl ? [inputUrl] : [],
           sourceImageId: sourceImage?.id || '',
         });

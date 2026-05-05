@@ -2,7 +2,7 @@
   <div>
     <div class="history-toolbar">
       <div class="history-stats">
-        <span v-if="imagesCount > 0" class="stat-pill">共 {{ imagesCount }} 条</span>
+        <span v-if="historyItems.length > 0" class="stat-pill">共 {{ historyItems.length }} 项</span>
       </div>
       <div class="history-actions">
         <Button variant="ghost" @click="clearAll" :disabled="imagesStore.isLoading || !imagesStore.images.length">
@@ -41,46 +41,56 @@
     </div>
 
     <div v-else class="grid-history">
-      <div v-for="img in sortedImages" :key="img.id" class="history-card" role="button" tabindex="0" @click="openDetail(img)" @keydown.enter.prevent="openDetail(img)">
+      <div
+        v-for="item in historyItems"
+        :key="item.key"
+        class="history-card"
+        :class="{ 'dialogue-chain-card': item.type === 'dialogue-chain' }"
+        role="button"
+        tabindex="0"
+        @click="openDetail(item)"
+        @keydown.enter.prevent="openDetail(item)"
+      >
         <div class="history-cover">
-          <img v-if="coverUrl(img)" :src="coverUrl(img)" loading="lazy" />
+          <img v-if="coverUrl(item)" :src="coverUrl(item)" loading="lazy" />
           <div v-else class="fallback-cover">无图片</div>
 
-          <div v-if="(img.imageUrls || []).length > 1" class="count-badge">{{ img.imageUrls.length }} 张</div>
+          <div v-if="item.type === 'dialogue-chain'" class="count-badge">{{ item.roundCount }} 轮</div>
+          <div v-else-if="(item.image.imageUrls || []).length > 1" class="count-badge">{{ item.image.imageUrls.length }} 张</div>
 
-          <div v-if="img.inputImageUrls && img.inputImageUrls[0]" class="cover-toggle" @click.stop>
-            <button type="button" class="toggle-btn" :class="{ active: coverMode[img.id] !== 'input' }" @click="setCoverMode(img, 'result')">结果</button>
-            <button type="button" class="toggle-btn" :class="{ active: coverMode[img.id] === 'input' }" @click="setCoverMode(img, 'input')">参考</button>
+          <div v-if="item.image.inputImageUrls && item.image.inputImageUrls[0]" class="cover-toggle" @click.stop>
+            <button type="button" class="toggle-btn" :class="{ active: coverMode[item.key] !== 'input' }" @click="setCoverMode(item, 'result')">结果</button>
+            <button type="button" class="toggle-btn" :class="{ active: coverMode[item.key] === 'input' }" @click="setCoverMode(item, 'input')">参考</button>
           </div>
 
           <div class="cover-actions" @click.stop>
             <button
-              v-if="coverUrl(img)"
+              v-if="coverUrl(item)"
               class="cover-action"
               type="button"
               title="下载图片"
-              @click="downloadCover(img)"
+              @click="downloadCover(item)"
             >
               <DownloadIcon :size="16" />
             </button>
-            <button class="cover-action danger" type="button" title="删除" @click="removeOne(img)">
+            <button class="cover-action danger" type="button" title="删除" @click="removeOne(item)">
               <Trash2Icon :size="16" />
             </button>
           </div>
         </div>
         <div class="history-body">
-          <p class="prompt-text">{{ img.prompt }}</p>
+          <p class="prompt-text">{{ item.image.prompt }}</p>
           <div class="meta">
-            <span class="meta-pill">{{ modeLabel(img) }}</span>
-            <span class="meta-pill">{{ img.aspectRatio }}</span>
-            <span class="meta-time">{{ formatTime(img.createdAt) }}</span>
+            <span class="meta-pill">{{ modeLabel(item) }}</span>
+            <span class="meta-pill">{{ item.image.aspectRatio }}</span>
+            <span class="meta-time">{{ formatTime(item.image.createdAt) }}</span>
           </div>
           <div class="card-actions">
-            <Button class="action-btn" type="button" @click.stop="reusePrompt(img)">
+            <Button class="action-btn" type="button" @click.stop="reusePrompt(item)">
               <template #icon>
                 <Wand2Icon :size="15" />
               </template>
-              再次创作
+              {{ item.type === 'dialogue-chain' ? '继续对话' : '再次创作' }}
             </Button>
           </div>
         </div>
@@ -99,7 +109,13 @@ import { Button, LinkButton } from '../../components/common'
 const imagesStore = useImagesStore()
 const router = useRouter()
 
-function modeLabel(image) {
+function isDialogueImage(image) {
+  return image?.mode === 'dialogue' || image?.mode === 'continuous'
+}
+
+function modeLabel(item) {
+  if (item?.type === 'dialogue-chain') return `对话创作 · ${item.roundCount}轮`
+  const image = item?.image || item
   if (image?.mode === 'dialogue' || image?.mode === 'continuous') return '对话创作'
   if (image?.mode === 'tools') return '图片工具'
   if (image?.mode === 'image') return '图生图'
@@ -116,20 +132,59 @@ const sortedImages = computed(() => {
   })
   return list
 })
+const historyItems = computed(() => {
+  const items = []
+  const dialogueChains = new Map()
+
+  for (const image of sortedImages.value) {
+    if (isDialogueImage(image) && image.continuationChainId) {
+      const chainId = image.continuationChainId
+      const existing = dialogueChains.get(chainId)
+      if (existing) {
+        existing.images.push(image)
+        existing.roundCount += 1
+        continue
+      }
+      const item = {
+        type: 'dialogue-chain',
+        key: `chain-${chainId}`,
+        chainId,
+        image,
+        images: [image],
+        roundCount: 1
+      }
+      dialogueChains.set(chainId, item)
+      items.push(item)
+      continue
+    }
+    items.push({
+      type: 'image',
+      key: image.id,
+      image
+    })
+  }
+
+  return items
+})
 
 onMounted(() => {
   fetchImages()
 })
 
 function fetchImages() {
-  imagesStore.fetchImages()
+  imagesStore.fetchImages(50)
 }
 
-async function removeOne(image) {
-  if (!image?.id) return
-  const ok = window.confirm('确定删除这条记录吗？')
+async function removeOne(item) {
+  if (!item?.image?.id) return
+  const isChain = item.type === 'dialogue-chain'
+  const ok = window.confirm(isChain ? '确定删除整条对话记录吗？该操作不可撤销。' : '确定删除这条记录吗？')
   if (!ok) return
-  await imagesStore.deleteImage(image.id)
+  if (isChain) {
+    await imagesStore.deleteDialogueChain(item.chainId)
+    return
+  }
+  await imagesStore.deleteImage(item.image.id)
 }
 
 async function clearAll() {
@@ -144,7 +199,8 @@ function formatTime(val) {
   }).format(new Date(val))
 }
 
-function reusePrompt(image) {
+function reusePrompt(item) {
+  const image = item?.image || item
   if (image.mode === 'dialogue' || image.mode === 'continuous') {
     router.push({ path: '/studio', query: { mode: 'dialogue', imageId: image.id } })
     return
@@ -160,24 +216,27 @@ function reusePrompt(image) {
   router.push({ path: '/studio', query: { prompt: image.prompt } })
 }
 
-function openDetail(image) {
-  router.push({ path: `/studio/history/${image.id}` })
+function openDetail(item) {
+  router.push({ path: `/studio/history/${item.image.id}` })
 }
 
-function setCoverMode(image, val) {
-  coverMode[image.id] = val
+function setCoverMode(item, val) {
+  coverMode[item.key] = val
 }
 
-function coverUrl(image) {
-  const current = coverMode[image.id] === 'input' ? 'input' : 'result'
+function coverUrl(item) {
+  const image = item.image || item
+  const current = coverMode[item.key || image.id] === 'input' ? 'input' : 'result'
   if (current === 'input') return image.inputImageUrls?.[0] || image.imageUrls?.[0] || ''
   return image.imageUrls?.[0] || ''
 }
 
-function downloadName(image) {
+function downloadName(item) {
+  const image = item.image || item
   const date = new Date(image.createdAt || Date.now()).toISOString().slice(0, 10)
-  const current = coverMode[image.id] === 'input' ? 'input' : 'result'
-  return `hi-image-${date}-${current}-${image.id || Date.now()}.png`
+  const current = coverMode[item.key || image.id] === 'input' ? 'input' : 'result'
+  const prefix = item.type === 'dialogue-chain' ? 'dialogue' : 'image'
+  return `hi-${prefix}-${date}-${current}-${image.id || Date.now()}.png`
 }
 
 function triggerDownload(url, filename) {
@@ -189,12 +248,12 @@ function triggerDownload(url, filename) {
   link.remove()
 }
 
-async function downloadCover(image) {
-  const url = coverUrl(image)
+async function downloadCover(item) {
+  const url = coverUrl(item)
   if (!url) return
 
   if (url.startsWith('data:')) {
-    triggerDownload(url, downloadName(image))
+    triggerDownload(url, downloadName(item))
     return
   }
 
@@ -202,7 +261,7 @@ async function downloadCover(image) {
     const response = await fetch(url)
     const blob = await response.blob()
     const objectUrl = URL.createObjectURL(blob)
-    triggerDownload(objectUrl, downloadName(image))
+    triggerDownload(objectUrl, downloadName(item))
     URL.revokeObjectURL(objectUrl)
   } catch {
     window.open(url, '_blank', 'noopener,noreferrer')
@@ -266,6 +325,22 @@ async function downloadCover(image) {
   transform: translateY(-3px);
   border-color: rgba(99, 102, 241, 0.18);
   box-shadow: 0 18px 46px rgba(99, 102, 241, 0.12);
+}
+
+.dialogue-chain-card {
+  border-color: rgba(99, 102, 241, 0.16);
+}
+
+.dialogue-chain-card .history-cover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 55%, rgba(15, 23, 42, 0.22));
+  pointer-events: none;
+}
+
+.dialogue-chain-card .count-badge {
+  background: rgba(99, 102, 241, 0.88);
 }
 
 .history-card:focus-visible {

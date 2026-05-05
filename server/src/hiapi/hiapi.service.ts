@@ -178,17 +178,18 @@ function collectResponseImages(output: any[], fallbackMimeType: string) {
   return imageUrls.filter(Boolean);
 }
 
-function removeItemIds(value: any): any {
-  if (Array.isArray(value)) {
-    return value.map((item) => removeItemIds(item));
-  }
-  if (!value || typeof value !== 'object') return value;
-  const next: Record<string, any> = {};
-  for (const [key, item] of Object.entries(value)) {
-    if (key === 'id') continue;
-    next[key] = removeItemIds(item);
-  }
-  return next;
+function shouldFallbackToReplay(error: any) {
+  const status = Number(error?.getStatus?.() || error?.status || 0);
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    [400, 404, 409, 422, 500, 502].includes(status) ||
+    message.includes('previous_response_id') ||
+    message.includes('previous response') ||
+    message.includes('response_id') ||
+    message.includes('unsupported') ||
+    message.includes('upstream request failed') ||
+    message.includes('未返回图片结果')
+  );
 }
 
 async function parseHiapiResponse(
@@ -564,11 +565,13 @@ export class HiapiService {
     prompt: string;
     userId?: string;
     inputImageUrls?: string[];
+    fallbackInputImageUrls?: string[];
     historyTurns?: Array<{
       prompt: string;
       inputImageUrls?: string[];
       outputItems?: any[];
     }>;
+    previousResponseId?: string;
     aspectRatio: string;
     qualityTier?: '1k' | '2k' | '4k';
     background?: SupportedBackground;
@@ -590,83 +593,105 @@ export class HiapiService {
       params.background === 'transparent' ? 'auto' : params.background || 'auto';
     const toolSize = sizeForSub2api(params.aspectRatio, modelSettings.sizeFormat);
     const toolQuality = qualityForTier(params.qualityTier || '1k');
-    const inputItems: any[] = [];
-
-    for (const turn of params.historyTurns || []) {
-      const turnContent: Array<Record<string, string>> = [
+    const createUserTurn = (prompt: string, inputImageUrls: string[] = []) => {
+      const content: Array<Record<string, string>> = [
         {
           type: 'input_text',
-          text: String(turn.prompt || '').trim(),
+          text: String(prompt || '').trim(),
         },
       ];
-      for (const imageUrl of turn.inputImageUrls || []) {
+      for (const imageUrl of inputImageUrls || []) {
         const value = String(imageUrl || '').trim();
         if (!value) continue;
-        turnContent.push({
+        content.push({
           type: 'input_image',
           image_url: value,
         });
       }
-      inputItems.push({
+      return {
         role: 'user',
-        content: turnContent,
-      });
-      for (const item of turn.outputItems || []) {
-        inputItems.push(removeItemIds(item));
+        content,
+      };
+    };
+
+    const createRequest = async (request: {
+      input: any[];
+      action: 'auto' | 'generate' | 'edit';
+      previousResponseId?: string;
+    }) => {
+      let response: Response;
+      try {
+        response = await fetch(`${modelSettings.baseUrl}/responses`, {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            Authorization: `Bearer ${config.HIAPI_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: modelSettings.textModel,
+            store: true,
+            ...(params.userId ? { user: params.userId } : {}),
+            ...(request.previousResponseId
+              ? { previous_response_id: request.previousResponseId }
+              : {}),
+            input: request.input,
+            tool_choice: { type: 'image_generation' },
+            tools: [
+              {
+                type: 'image_generation',
+                action: request.action,
+                size: toolSize,
+                quality: toolQuality,
+                background: toolBackground,
+              },
+            ],
+          }),
+        });
+      } catch (error: any) {
+        throw normalizeHiapiError(error);
       }
-    }
+      return parseResponsesImageResponse(response);
+    };
 
-    const currentContent: Array<Record<string, string>> = [
-      {
-        type: 'input_text',
-        text: params.prompt,
-      },
-    ];
-    for (const imageUrl of params.inputImageUrls || []) {
-      const value = String(imageUrl || '').trim();
-      if (!value) continue;
-      currentContent.push({
-        type: 'input_image',
-        image_url: value,
-      });
-    }
-    inputItems.push({
-      role: 'user',
-      content: currentContent,
-    });
-
-    let response: Response;
     try {
-      response = await fetch(`${modelSettings.baseUrl}/responses`, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          Authorization: `Bearer ${config.HIAPI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: modelSettings.textModel,
-          store: true,
-          ...(params.userId ? { user: params.userId } : {}),
-          input: inputItems,
-          tools: [
-            {
-              type: 'image_generation',
-              action: inputItems.length > 1 || (params.inputImageUrls || []).length ? 'auto' : 'generate',
-              size: toolSize,
-              quality: toolQuality,
-              background: toolBackground,
-            },
-          ],
-        }),
+      try {
+        if (params.previousResponseId) {
+          const responseChainInput = [
+            createUserTurn(params.prompt, params.inputImageUrls || []),
+          ];
+          const hasEditContext =
+            Boolean(params.previousResponseId) ||
+            Boolean((params.inputImageUrls || []).length);
+          return await createRequest({
+            input: responseChainInput,
+            action: hasEditContext ? 'edit' : 'generate',
+            previousResponseId: params.previousResponseId,
+          });
+        }
+      } catch (error: any) {
+        if (!shouldFallbackToReplay(error)) {
+          throw error;
+        }
+      }
+
+      const replayInput: any[] = [];
+      for (const turn of params.historyTurns || []) {
+        const prompt = String(turn.prompt || '').trim();
+        if (!prompt) continue;
+        replayInput.push(createUserTurn(prompt));
+      }
+      const replayImages =
+        params.fallbackInputImageUrls || params.inputImageUrls || [];
+      replayInput.push(createUserTurn(params.prompt, replayImages));
+
+      return await createRequest({
+        input: replayInput,
+        action: replayImages.length ? 'edit' : 'generate',
       });
-    } catch (error: any) {
-      throw normalizeHiapiError(error);
     } finally {
       clearTimeout(timeout);
     }
-
-    return parseResponsesImageResponse(response);
   }
 
   async enhancePrompt(input: string, direction: string = 'ecommerce') {

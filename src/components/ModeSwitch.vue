@@ -71,7 +71,8 @@ const normalizedOptions = computed(() => {
 
 .mode-btn {
   min-width: 0;
-  height: 36px;
+  min-height: 36px;
+  height: auto;
   border-radius: 999px;
   border: none;
   background: transparent;
@@ -80,10 +81,13 @@ const normalizedOptions = computed(() => {
   color: var(--muted);
   cursor: pointer;
   transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+  line-height: 1.2;
+  padding: 7px 10px;
+  overflow-wrap: anywhere;
 }
 
 .mode-switch.compact .mode-btn {
-  height: 32px;
+  min-height: 32px;
   font-size: 12px;
 }
 
@@ -91,5 +95,16 @@ const normalizedOptions = computed(() => {
   background: var(--gradient-subtle);
   color: var(--primary);
   box-shadow: 0 6px 16px rgba(99, 102, 241, 0.14);
+}
+
+@media (max-width: 520px) {
+  .mode-switch {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-radius: 16px;
+  }
+
+  .mode-btn {
+    border-radius: 12px;
+  }
 }
 </style>

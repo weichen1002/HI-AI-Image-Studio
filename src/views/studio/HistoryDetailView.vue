@@ -45,7 +45,7 @@
           <template #icon>
             <Trash2Icon :size="16" />
           </template>
-          删除
+          {{ isDialogueDetail ? '删除对话' : '删除' }}
         </Button>
       </div>
     </div>
@@ -106,6 +106,34 @@
             </div>
           </div>
           <div class="prompt-box">{{ image.prompt }}</div>
+        </div>
+
+        <div v-if="isDialogueDetail" class="meta-card">
+          <div class="meta-head">
+            <div class="meta-title">对话链</div>
+            <div class="chain-count">{{ dialogueRounds.length }} 轮</div>
+          </div>
+          <div v-if="dialogueRounds.length" class="chain-list">
+            <button
+              v-for="(round, index) in dialogueRounds"
+              :key="round.key"
+              type="button"
+              class="chain-round"
+              :class="{ active: round.image?.id === image.id }"
+              @click="selectDialogueRound(round)"
+            >
+              <img v-if="round.coverUrl" :src="round.coverUrl" :alt="`第 ${index + 1} 轮`" />
+              <div v-else class="chain-thumb-empty">{{ index + 1 }}</div>
+              <div class="chain-round-body">
+                <div class="chain-round-meta">
+                  <span>第 {{ index + 1 }} 轮</span>
+                  <span>{{ formatTime(round.createdAt) }}</span>
+                </div>
+                <div class="chain-round-prompt">{{ round.prompt }}</div>
+              </div>
+            </button>
+          </div>
+          <div v-else class="chain-empty">暂无对话链记录</div>
         </div>
 
         <div class="meta-card">
@@ -177,6 +205,11 @@ const imagesStore = useImagesStore()
 const loading = ref(true)
 const errorMsg = ref('')
 const image = ref(null)
+const dialogueChain = ref({
+  chainId: '',
+  images: [],
+  messages: []
+})
 const tab = ref('result')
 const currentIndex = ref(0)
 const editorOpen = ref(false)
@@ -192,6 +225,36 @@ const currentGallery = computed(() => {
 })
 const activeUrl = computed(() => {
   return currentGallery.value[currentIndex.value] || ''
+})
+const isDialogueDetail = computed(() => image.value?.mode === 'dialogue' || image.value?.mode === 'continuous')
+const dialogueImageById = computed(() => {
+  const map = new Map()
+  for (const item of dialogueChain.value.images || []) {
+    map.set(String(item.id), item)
+  }
+  return map
+})
+const dialogueRounds = computed(() => {
+  const messages = Array.isArray(dialogueChain.value.messages) ? dialogueChain.value.messages : []
+  if (messages.length) {
+    return messages.map((message) => {
+      const roundImage = dialogueImageById.value.get(String(message.imageId || '')) || null
+      return {
+        key: message.id || message.imageId,
+        image: roundImage,
+        prompt: message.prompt || roundImage?.prompt || '',
+        createdAt: message.createdAt || roundImage?.createdAt || '',
+        coverUrl: roundImage?.imageUrls?.[0] || ''
+      }
+    })
+  }
+  return (dialogueChain.value.images || []).map((roundImage) => ({
+    key: roundImage.id,
+    image: roundImage,
+    prompt: roundImage.prompt || '',
+    createdAt: roundImage.createdAt || '',
+    coverUrl: roundImage.imageUrls?.[0] || ''
+  }))
 })
 
 const previewAspect = computed(() => {
@@ -227,6 +290,14 @@ onMounted(async () => {
   try {
     const data = await imagesStore.fetchImage(route.params.id)
     image.value = data?.image || null
+    if (isDialogueDetail.value) {
+      dialogueChain.value = await imagesStore.fetchDialogueChain({
+        chainId: image.value?.continuationChainId || '',
+        imageId: image.value?.id || ''
+      })
+    } else {
+      dialogueChain.value = { chainId: '', images: [], messages: [] }
+    }
     currentIndex.value = 0
     tab.value = hasInput.value ? 'result' : 'result'
   } catch (e) {
@@ -266,6 +337,13 @@ function openEditor(nextMode) {
   editorOpen.value = true
 }
 
+function selectDialogueRound(round) {
+  if (!round?.image) return
+  image.value = round.image
+  currentIndex.value = 0
+  tab.value = round.image.inputImageUrls?.[0] ? 'result' : 'result'
+}
+
 function handleEditorCompleted(nextImage) {
   if (!nextImage?.id) return
   router.push({ path: `/studio/history/${nextImage.id}` })
@@ -278,9 +356,13 @@ function openSourceImage() {
 
 async function remove() {
   if (!image.value?.id) return
-  const ok = window.confirm('确定删除这条记录吗？')
+  const ok = window.confirm(isDialogueDetail.value ? '确定删除整条对话记录吗？该操作不可撤销。' : '确定删除这条记录吗？')
   if (!ok) return
-  await imagesStore.deleteImage(image.value.id)
+  if (isDialogueDetail.value && image.value.continuationChainId) {
+    await imagesStore.deleteDialogueChain(image.value.continuationChainId)
+  } else {
+    await imagesStore.deleteImage(image.value.id)
+  }
   router.push('/studio/history')
 }
 
@@ -671,6 +753,96 @@ async function copyPrompt() {
   word-break: break-word;
   max-height: 240px;
   overflow: auto;
+}
+
+.chain-count {
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.08);
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.chain-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.chain-round {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 10px;
+  padding: 9px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255,255,255,0.62);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.chain-round:hover,
+.chain-round.active {
+  border-color: rgba(99, 102, 241, 0.28);
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.chain-round img,
+.chain-thumb-empty {
+  width: 58px;
+  height: 58px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: rgba(15, 23, 42, 0.05);
+}
+
+.chain-thumb-empty {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.chain-round-body {
+  min-width: 0;
+}
+
+.chain-round-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.chain-round-prompt {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 700;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.chain-empty {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .kv-grid {

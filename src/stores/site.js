@@ -14,6 +14,15 @@ export const useSiteStore = defineStore('site', () => {
   const settings = ref({ ...defaultSettings })
   const loaded = ref(false)
   const loading = ref(false)
+  const createTitle = ref('文生图')
+  const createSubtitle = ref('直接从文字开始生成，保留简单清爽的创作流程。')
+  const createIcon = ref('wand')
+
+  function setCreateHeader(title, subtitle, icon = 'wand') {
+    createTitle.value = String(title || '文生图')
+    createSubtitle.value = String(subtitle || '')
+    createIcon.value = String(icon || 'wand')
+  }
 
   async function fetchSettings(force = false) {
     if (loading.value) return settings.value
@@ -49,5 +58,5 @@ export const useSiteStore = defineStore('site', () => {
     }
   }
 
-  return { settings, loaded, loading, fetchSettings }
+  return { settings, loaded, loading, createTitle, createSubtitle, createIcon, fetchSettings, setCreateHeader }
 })

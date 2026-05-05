@@ -84,6 +84,17 @@ export class ImagesRepo {
     return toImage(row);
   }
 
+  listByChain(params: { chainId: string; userId: string }) {
+    const rows = this.sqlite.connection
+      .prepare(
+        `SELECT * FROM images
+         WHERE continuation_chain_id = ? AND user_id = ?
+         ORDER BY created_at ASC`,
+      )
+      .all(params.chainId, params.userId);
+    return rows.map(toImage).filter(Boolean) as ImageEntity[];
+  }
+
   listInputImageUrlsByUser(params: { userId: string }) {
     const rows = this.sqlite.connection
       .prepare(
@@ -132,6 +143,32 @@ export class ImagesRepo {
     return urls;
   }
 
+  listAssetUrlsByChain(params: { userId: string; chainId: string }) {
+    const rows = this.sqlite.connection
+      .prepare(
+        `SELECT image_urls, input_image_urls
+         FROM images
+         WHERE user_id = ? AND continuation_chain_id = ?`,
+      )
+      .all(params.userId, params.chainId) as any[];
+    const urls: string[] = [];
+    for (const row of rows) {
+      for (const key of ['image_urls', 'input_image_urls']) {
+        try {
+          const parsed = JSON.parse(String(row?.[key] || '[]'));
+          if (Array.isArray(parsed)) {
+            for (const item of parsed) {
+              if (item) urls.push(String(item));
+            }
+          }
+        } catch {
+          void 0;
+        }
+      }
+    }
+    return urls;
+  }
+
   deleteById(params: { id: string; userId: string }) {
     const result = this.sqlite.connection
       .prepare('DELETE FROM images WHERE id = ? AND user_id = ?')
@@ -143,6 +180,13 @@ export class ImagesRepo {
     const result = this.sqlite.connection
       .prepare('DELETE FROM images WHERE user_id = ?')
       .run(params.userId);
+    return Number(result?.changes || 0);
+  }
+
+  deleteByChain(params: { chainId: string; userId: string }) {
+    const result = this.sqlite.connection
+      .prepare('DELETE FROM images WHERE continuation_chain_id = ? AND user_id = ?')
+      .run(params.chainId, params.userId);
     return Number(result?.changes || 0);
   }
 

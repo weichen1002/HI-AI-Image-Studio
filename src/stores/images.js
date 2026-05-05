@@ -104,6 +104,18 @@ export const useImagesStore = defineStore('images', () => {
     }
   }
 
+  async function fetchDialogueChain({ chainId = '', imageId = '' } = {}) {
+    const search = new URLSearchParams()
+    if (chainId) search.set('chainId', chainId)
+    if (imageId) search.set('imageId', imageId)
+    const data = await apiFetch(`/api/images/dialogue/chain?${search.toString()}`)
+    return {
+      chainId: data?.chainId || '',
+      images: Array.isArray(data?.images) ? data.images.map(toListImage) : [],
+      messages: Array.isArray(data?.messages) ? data.messages : []
+    }
+  }
+
   async function generate(prompt, aspectRatio, options = {}) {
     if (isGenerating.value) {
       throw new Error('已有图片正在生成，请等待当前任务完成')
@@ -356,11 +368,17 @@ export const useImagesStore = defineStore('images', () => {
     toastSuccess('已删除')
   }
 
+  async function deleteDialogueChain(chainId) {
+    await apiFetch(`/api/images/dialogue/chain/${encodeURIComponent(chainId)}`, { method: 'DELETE' })
+    images.value = images.value.filter((im) => String(im.continuationChainId || '') !== String(chainId || ''))
+    toastSuccess('已删除对话')
+  }
+
   async function clearImages() {
     await apiFetch('/api/images', { method: 'DELETE' })
     images.value = []
     toastSuccess('已清空')
   }
 
-  return { images, isLoading, activeJob, isGenerating, fetchImages, fetchImage, fetchDialogueHistory, generate, generateFromImages, continueDialogue, editImage, clearJob, deleteImage, clearImages }
+  return { images, isLoading, activeJob, isGenerating, fetchImages, fetchImage, fetchDialogueHistory, fetchDialogueChain, generate, generateFromImages, continueDialogue, editImage, clearJob, deleteImage, deleteDialogueChain, clearImages }
 })

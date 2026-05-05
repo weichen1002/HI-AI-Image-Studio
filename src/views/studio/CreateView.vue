@@ -1,18 +1,5 @@
 <template>
   <div class="workspace-shell">
-    <div class="workspace-header">
-      <div class="workspace-title-wrap">
-        <h2 class="text-h3 flex items-center gap-2">
-          <div class="icon-wrapper">
-            <Wand2Icon :size="20" style="color: var(--primary)" />
-          </div>
-          {{ workspaceTitle }}
-        </h2>
-        <p class="workspace-subtitle">{{ workspaceSubtitle }}</p>
-      </div>
-      <span class="badge">gpt-image-2</span>
-    </div>
-
     <ModeSwitch
       v-model="primaryMode"
       :options="primaryModes"
@@ -23,7 +10,7 @@
     <div class="creator-grid">
       <div class="panel flex flex-col gap-4 creator-left">
         <form @submit.prevent="submitCurrentMode" class="flex flex-col gap-4">
-          <template v-if="primaryMode !== 'tools'">
+          <template v-if="primaryMode === 'text' || primaryMode === 'image'">
             <div v-if="primaryMode === 'text'">
               <label class="label">快捷预设</label>
               <QuickPresetsBar
@@ -41,7 +28,7 @@
 
             <div>
               <div class="prompt-label-row">
-                <label class="label">提示词 (Prompt)</label>
+                <label class="label">提示词</label>
                 <Popover v-model:open="promptHelpOpen" placement="bottom-start" :offset="10">
                   <template #trigger>
                     <button type="button" class="prompt-help" aria-label="提示词写法说明" title="提示词写法说明">
@@ -49,16 +36,16 @@
                     </button>
                   </template>
                   <div class="prompt-help-panel">
-                    <div class="prompt-help-title">怎么写更容易出好图</div>
+                    <div class="prompt-help-title">提示词要点</div>
                     <ul class="prompt-help-list">
-                      <li>主体：是什么、在哪里、在做什么</li>
-                      <li>风格：写实/插画/3D/摄影、氛围关键词</li>
-                      <li>构图：居中/偏左/留白、前景/背景层次</li>
-                      <li>光线：自然光/棚拍/逆光、柔和或强对比</li>
-                      <li>限制：不要文字/水印/Logo（需要留白也建议写出来）</li>
+                      <li>主体：对象、场景、动作</li>
+                      <li>风格：写实、插画、3D 或摄影</li>
+                      <li>构图：位置、留白、前后景</li>
+                      <li>光线：自然光、棚拍、逆光</li>
+                      <li>限制：不要文字、水印、Logo</li>
                     </ul>
                     <div class="prompt-help-example">
-                      示例：电商主图，单个香水瓶居中，极简纯白背景，柔光棚拍，阴影自然，高清细节，不要文字与水印
+                      示例：单个香水瓶居中，纯白背景，柔光棚拍，自然阴影，高清细节，不要文字和水印
                     </div>
                   </div>
                 </Popover>
@@ -69,7 +56,7 @@
                   class="textarea custom-scrollbar"
                   required
                   maxlength="4000"
-                  placeholder="例如：生成一张适合小红书封面的咖啡新品海报，温暖自然光，产品在画面中心，文字区域干净..."
+                  placeholder="例如：咖啡新品海报，温暖自然光，产品居中，背景干净，预留标题区域。"
                 ></textarea>
               </div>
               <div class="prompt-toolbar">
@@ -175,7 +162,7 @@
                     :options="outputFormatOptions"
                     placeholder="选择输出格式"
                   />
-                  <div class="field-hint">PNG 更稳妥，JPEG/WEBP 更适合压缩体积。</div>
+                  <div class="field-hint">PNG 画质稳，JPEG/WEBP 体积小。</div>
                 </div>
 
                 <div>
@@ -193,7 +180,7 @@
                     :disabled="!supportsCompression"
                   />
                   <div class="field-hint">
-                    {{ supportsCompression ? '仅对 JPEG / WEBP 生效，数值越低体积越小。' : 'PNG 不使用有损压缩，切换为 JPEG 或 WEBP 后可调。' }}
+                    {{ supportsCompression ? '仅 JPEG / WEBP 生效，数值越低体积越小。' : 'PNG 无损，不需要压缩率。' }}
                   </div>
                 </div>
 
@@ -205,7 +192,7 @@
                     :options="backgroundOptions"
                     placeholder="选择背景策略"
                   />
-                  <div class="field-hint">透明背景仅支持 PNG / WEBP，选择不兼容格式时会自动回退。</div>
+                  <div class="field-hint">透明背景支持 PNG / WEBP。</div>
                 </div>
 
                 <div>
@@ -216,22 +203,30 @@
                     :options="moderationOptions"
                     placeholder="选择审核等级"
                   />
-                  <div class="field-hint">默认自动平衡安全与通过率，低限制更适合内部创作测试。</div>
+                  <div class="field-hint">默认推荐自动；测试可用低限制。</div>
                 </div>
               </div>
             </div>
           </template>
 
           <template v-else-if="primaryMode === 'dialogue'">
-            <div class="source-card">
+            <div class="source-card dialogue-context-card">
               <div class="section-head">
                 <div>
-                  <div class="section-title">当前对话基底</div>
+                  <div class="section-title">上下文</div>
                   <div class="section-desc">{{ dialogueSourceHint }}</div>
                 </div>
                 <div class="dialogue-source-actions">
-                  <button type="button" class="btn btn-ghost btn-xs" @click="adoptActiveResultAsDialogueSource">
-                    使用最近结果
+                  <button
+                    v-if="currentImage?.imageUrls?.[0]"
+                    type="button"
+                    class="btn btn-ghost btn-xs"
+                    @click="adoptActiveResultAsDialogueSource"
+                  >
+                    用结果继续
+                  </button>
+                  <button type="button" class="btn btn-ghost btn-xs" @click="startBlankDialogue">
+                    新建
                   </button>
                   <button
                     v-if="hasDialogueSource"
@@ -239,7 +234,7 @@
                     class="btn btn-ghost btn-xs"
                     @click="clearDialogueSource"
                   >
-                    清空基底
+                    断开
                   </button>
                 </div>
               </div>
@@ -247,18 +242,19 @@
                 <span class="source-chip">{{ dialogueSourceTag }}</span>
                 <span class="source-text">{{ dialogueSourceSummary }}</span>
               </div>
+              <div class="dialogue-context-upload">
+                <div class="dialogue-upload-label-row">
+                  <label class="label">起始图片（选填）</label>
+                  <span class="field-caption">上传后作为新起点</span>
+                </div>
+                <ImageUploadGallery v-model="dialogueInputFiles" :max-count="1" />
+              </div>
             </div>
 
-            <div>
-              <label class="label">起始图片（选填）</label>
-              <ImageUploadGallery v-model="dialogueInputFiles" :max-count="1" />
-              <div class="field-hint">不上传也能直接开始；上传后会以这张图为起点，或替换当前基底。</div>
-            </div>
-
-            <div>
+            <div class="dialogue-prompt-card">
               <div class="prompt-label-row">
-                <label class="label">当前这轮要求</label>
-                <span class="field-caption">像聊天一样逐步把图片做对，不用一次写完所有要求。</span>
+                <label class="label">本轮要求</label>
+                <span class="field-caption">逐轮调整，不必一次写完。</span>
               </div>
               <div class="textarea-wrapper">
                 <textarea
@@ -272,6 +268,15 @@
               <div class="prompt-toolbar">
                 <span class="prompt-count">{{ dialoguePrompt.length }} / 4000</span>
                 <div class="prompt-actions">
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-xs"
+                    :disabled="loading || !dialoguePrompt"
+                    @click="openEnhancePreview('dialogue')"
+                  >
+                    <Wand2Icon :size="16" />
+                    <span>润色预览</span>
+                  </button>
                   <button
                     type="button"
                     class="btn btn-ghost btn-xs"
@@ -306,38 +311,53 @@
             <div class="dialogue-history-card">
               <div class="section-head">
                 <div>
-                  <div class="section-title">最近几轮对话要求</div>
-                  <div class="section-desc">这部分会跟着同一条对话创作链保存，不会只留在当前输入框里。</div>
+                  <div class="section-title">历史</div>
+                  <div class="section-desc">保留最近几轮，点击复用。</div>
                 </div>
               </div>
-              <div v-if="dialogueMessages.length" class="dialogue-history-list">
+              <div v-if="dialogueTimelineMessages.length" class="dialogue-history-list">
                 <button
-                  v-for="item in dialogueMessages"
+                  v-for="(item, index) in dialogueTimelineMessages"
                   :key="item.id"
                   type="button"
                   class="dialogue-history-item"
                   @click="dialoguePrompt = item.prompt"
                 >
-                  <div class="dialogue-history-text">{{ item.prompt }}</div>
-                  <div class="dialogue-history-meta">{{ formatDialogueTime(item.createdAt) }}</div>
+                  <div class="dialogue-history-content">
+                    <div class="dialogue-history-meta">
+                      <span>第 {{ index + 1 }} 轮</span>
+                      <span>{{ formatDialogueTime(item.createdAt) }}</span>
+                    </div>
+                    <div class="dialogue-history-text">{{ item.prompt }}</div>
+                  </div>
                 </button>
               </div>
               <div v-else class="dialogue-history-empty">
-                这条对话创作链还没有历史要求。第一次成功生成后，最近几轮会显示在这里。
+                暂无记录。生成后会保留在这里。
               </div>
             </div>
           </template>
 
           <template v-else>
-            <div class="source-card">
+            <div class="source-card tool-source-card">
               <div class="section-head">
                 <div>
-                  <div class="section-title">工具来源图</div>
+                  <div class="section-title">来源图</div>
                   <div class="section-desc">{{ toolSourceHint }}</div>
                 </div>
-                <button type="button" class="btn btn-ghost btn-xs" @click="openSourcePicker('tool')">
-                  选择图片
-                </button>
+                <div class="tool-source-actions">
+                  <button type="button" class="btn btn-ghost btn-xs" @click="openSourcePicker('tool')">
+                    {{ hasToolSource ? '更换图片' : '选择图片' }}
+                  </button>
+                  <button
+                    v-if="toolSourceFile"
+                    type="button"
+                    class="btn btn-ghost btn-xs"
+                    @click="clearToolSource"
+                  >
+                    清除
+                  </button>
+                </div>
               </div>
               <div class="source-summary" :class="{ empty: !hasToolSource }">
                 <span class="source-chip">{{ toolSourceTag }}</span>
@@ -345,11 +365,11 @@
               </div>
             </div>
 
-            <div>
+            <div class="tool-card">
               <div class="section-head">
                 <div>
-                  <div class="section-title">工具选择</div>
-                  <div class="section-desc">只保留当前可用的图片处理工具。</div>
+                  <div class="section-title">选择工具</div>
+                  <div class="section-desc">选择工具后进入编辑器。</div>
                 </div>
               </div>
               <div class="tool-grid">
@@ -364,19 +384,17 @@
                 >
                   <span class="tool-name">{{ item.label }}</span>
                   <span class="tool-desc">{{ item.description }}</span>
+                  <span class="tool-status">{{ toolStatusText(item) }}</span>
                 </button>
+              </div>
+              <div class="tool-current-note">
+                {{ currentToolMeta.detail }}
               </div>
             </div>
 
-            <div class="tool-detail-card">
-              <span class="tool-detail-label">当前工具</span>
-              <div class="tool-detail-title">{{ currentToolMeta.label }}</div>
-              <div class="tool-detail-desc">{{ currentToolMeta.detail }}</div>
-            </div>
-
-            <div>
+            <div class="tool-prompt-card">
               <div class="prompt-label-row">
-                <label class="label">工具要求</label>
+                <label class="label">补充要求</label>
                 <span class="field-caption">{{ toolPromptHint }}</span>
               </div>
               <div class="textarea-wrapper">
@@ -417,7 +435,19 @@
 
       <div class="panel flex flex-col h-full creator-right creator-preview-panel" style="padding: 18px;">
         <div class="preview-panel-head">
-          <div class="preview-panel-title">{{ previewPanelTitle }}</div>
+          <div class="preview-panel-title-row">
+            <div class="preview-panel-title">{{ previewPanelTitle }}</div>
+            <button
+              v-if="canResetPreview"
+              type="button"
+              class="btn btn-ghost btn-xs preview-reset-btn"
+              :disabled="loading"
+              @click="clearPreview"
+            >
+              <RefreshCcwIcon :size="15" />
+              <span>重置预览</span>
+            </button>
+          </div>
           <div class="preview-panel-subtitle">{{ previewPanelSubtitle }}</div>
         </div>
         <div class="preview-container">
@@ -452,7 +482,7 @@
 
   <PromptEnhanceModal
     v-model:open="enhanceModalOpen"
-    :original-prompt="generationForm.prompt"
+    :original-prompt="enhanceOriginalPrompt"
     @apply="applyEnhancedPrompt"
   />
   <ImageEditModal
@@ -479,6 +509,7 @@ import { computed, reactive, ref, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { SparklesIcon, LoaderIcon, Wand2Icon, Trash2Icon, RefreshCcwIcon, ImageIcon, MoreHorizontalIcon, InfoIcon } from 'lucide-vue-next'
 import { useImagesStore } from '../../stores/images'
+import { useSiteStore } from '../../stores/site'
 import ModeSwitch from '../../components/ModeSwitch.vue'
 import ImageUploadGallery from '../../components/ImageUploadGallery.vue'
 import QuickPresetsBar from '../../components/studio/QuickPresetsBar.vue'
@@ -488,26 +519,28 @@ import { Popover, SelectMenu } from '../../components/common'
 import { quickPresets } from './create.presets'
 
 const imagesStore = useImagesStore()
+const siteStore = useSiteStore()
 const route = useRoute()
 const router = useRouter()
 
 const primaryModes = [
   { label: '文生图', value: 'text' },
   { label: '图生图', value: 'image' },
+  { label: '对话创作', value: 'dialogue' },
   { label: '工具', value: 'tools' }
 ]
 const toolOptions = [
   {
     label: '局部重绘',
     value: 'inpaint',
-    description: '局部擦除后重新补画',
-    detail: '适合修手部、脸部、边缘和局部瑕疵。'
+    description: '涂抹局部后重新生成',
+    detail: '适合修手部、脸部、边缘和局部瑕疵。进入后先涂抹要改的位置。'
   },
   {
     label: '扩图',
     value: 'outpaint',
-    description: '往四周补全画面',
-    detail: '适合补背景、扩构图和增加留白。'
+    description: '扩展画布并补全内容',
+    detail: '适合补背景、扩构图和增加留白。进入后选择扩展方向。'
   }
 ]
 const ratios = ['1:1', '16:9', '9:16', '4:3', '3:4']
@@ -541,6 +574,7 @@ const activePresetKey = ref('')
 const moreOpen = ref(false)
 const advancedOpen = ref(false)
 const enhanceModalOpen = ref(false)
+const enhanceTarget = ref('generation')
 const promptHelpOpen = ref(false)
 const sourceInputRef = ref(null)
 const sourcePickerTarget = ref('')
@@ -642,13 +676,20 @@ function applyPreset(key) {
   generationForm.aspectRatio = preset.aspectRatio
 }
 
-function openEnhancePreview() {
+function openEnhancePreview(target = 'generation') {
+  enhanceTarget.value = target
   moreOpen.value = false
   enhanceModalOpen.value = true
 }
 
 function applyEnhancedPrompt(val) {
-  generationForm.prompt = String(val || '').trim() || generationForm.prompt
+  const nextPrompt = String(val || '').trim()
+  if (!nextPrompt) return
+  if (enhanceTarget.value === 'dialogue') {
+    dialoguePrompt.value = nextPrompt
+    return
+  }
+  generationForm.prompt = nextPrompt
 }
 
 function openSourcePicker(target) {
@@ -660,6 +701,12 @@ function resetEditorSource() {
   editorSourceUrl.value = ''
   editorSourceFile.value = null
   editorSourceImageId.value = ''
+}
+
+function clearToolSource() {
+  toolSourceFile.value = null
+  revokeObjectUrl(toolSourcePreviewUrl.value)
+  toolSourcePreviewUrl.value = ''
 }
 
 function adoptActiveResultAsDialogueSource() {
@@ -682,6 +729,24 @@ function clearDialogueSource() {
   dialogueInputPreviewUrl.value = ''
   dialogueChainId.value = ''
   dialogueMessages.value = []
+  clearPreview()
+}
+
+function startBlankDialogue() {
+  const hasContext = Boolean(
+    dialoguePrompt.value ||
+      dialogueChainId.value ||
+      dialogueMessages.value.length ||
+      currentDialogueSource() ||
+      previewUrls.value.length
+  )
+  if (hasContext) {
+    const ok = window.confirm('确定新建空白对话吗？当前输入、上下文和预览会清空，不再沿旧记录继续生成。')
+    if (!ok) return
+  }
+  clearDialogueSource()
+  dialoguePrompt.value = ''
+  moreOpen.value = false
 }
 
 async function fetchDialogueMessages(params = {}) {
@@ -812,12 +877,12 @@ async function submitToolMode() {
 async function submitCurrentMode() {
   errorMsg.value = ''
   try {
-    if (primaryMode.value !== 'tools') {
-      await submitGenerateMode()
-      return
-    }
     if (primaryMode.value === 'dialogue') {
       await submitDialogueMode()
+      return
+    }
+    if (primaryMode.value === 'text' || primaryMode.value === 'image') {
+      await submitGenerateMode()
       return
     }
     await submitToolMode()
@@ -837,6 +902,12 @@ function onSourcePick(event) {
   sourcePickerTarget.value = ''
 }
 
+function toolStatusText(item) {
+  if (item.disabled) return '即将上线'
+  if (selectedTool.value === item.value) return '当前选择'
+  return '可用'
+}
+
 function handleEditorCompleted(image) {
   if (!image?.imageUrls?.[0]) return
   primaryMode.value = 'tools'
@@ -844,15 +915,13 @@ function handleEditorCompleted(image) {
 }
 
 async function hydrateDialogueFromImage(imageId) {
-  // 已隐藏对话创作入口，旧链接进入时回退到普通生成模式。
-  primaryMode.value = 'image'
+  primaryMode.value = 'dialogue'
   if (!imageId) return
   const data = await imagesStore.fetchImage(imageId)
   if (!data?.image) return
-  const imageUrl = data.image.imageUrls?.[0]
-  if (!imageUrl) return
-  generationInputFiles.value = []
-  await loadInputFromUrl(imageUrl, generationInputFiles)
+  dialogueSourceImage.value = data.image
+  dialogueChainId.value = data.image.continuationChainId || ''
+  dialogueMessages.value = Array.isArray(data.dialogueMessages) ? data.dialogueMessages : []
 }
 
 onMounted(async () => {
@@ -860,6 +929,8 @@ onMounted(async () => {
     const routeMode = String(route.query.mode || '')
     if (routeMode === 'tools') {
       primaryMode.value = 'tools'
+    } else if (routeMode === 'dialogue') {
+      primaryMode.value = 'dialogue'
     } else {
       primaryMode.value = routeMode === 'image' ? 'image' : 'text'
     }
@@ -952,8 +1023,15 @@ const errorMsg = ref('')
 const loading = computed(() => imagesStore.isGenerating)
 const currentImage = computed(() => imagesStore.activeJob?.image || null)
 const previewUrls = computed(() => (currentImage.value?.imageUrls || []).filter(Boolean))
+const canResetPreview = computed(() => Boolean(imagesStore.activeJob && !loading.value))
+const enhanceOriginalPrompt = computed(() => {
+  return enhanceTarget.value === 'dialogue' ? dialoguePrompt.value : generationForm.prompt
+})
 const supportsCompression = computed(() => generationForm.outputFormat === 'jpeg' || generationForm.outputFormat === 'webp')
 const hasDialogueSource = computed(() => Boolean(currentDialogueSource()))
+const dialogueTimelineMessages = computed(() => {
+  return Array.isArray(dialogueMessages.value) ? dialogueMessages.value.slice().reverse() : []
+})
 const toolSource = computed(() => resolveToolSource())
 const hasToolSource = computed(() => Boolean(toolSource.value))
 const currentToolMeta = computed(() => toolOptions.find((item) => item.value === selectedTool.value) || toolOptions[0])
@@ -986,8 +1064,8 @@ const displayPreviewUrls = computed(() => {
   return []
 })
 const canShowGlow = computed(() => {
-  if (primaryMode.value !== 'tools') return Boolean(generationForm.prompt)
   if (primaryMode.value === 'dialogue') return Boolean(dialoguePrompt.value)
+  if (primaryMode.value !== 'tools') return Boolean(generationForm.prompt)
   return !currentToolMeta.value.disabled
 })
 const previewAspectRatio = computed(() => getRatioValue(generationForm.aspectRatio))
@@ -1005,36 +1083,45 @@ const advancedSummary = computed(() => {
 })
 const workspaceTitle = computed(() => {
   if (primaryMode.value === 'dialogue') return '对话创作'
-  if (primaryMode.value === 'tools') return '图片工具'
+  if (primaryMode.value === 'tools') return '工具'
   return primaryMode.value === 'image' ? '图生图' : '文生图'
 })
 const workspaceSubtitle = computed(() => {
   if (primaryMode.value === 'dialogue') {
-    return '可以从空白、参考图或已有结果开始，通过多轮对话逐步把图片做对。'
+    return '从空白、参考图或已有结果开始，逐轮调整。'
   }
   if (primaryMode.value === 'tools') {
-    return '只保留当前可用的图片处理工具，操作更直接。'
+    return '选择来源图，进入局部重绘或扩图。'
   }
   return primaryMode.value === 'image'
-    ? '上传参考图后继续生成，适合统一主体、风格和构图方向。'
-    : '直接从文字开始生成，保留简单清爽的创作流程。'
+    ? '上传参考图，延续主体、风格和构图。'
+    : '输入提示词，直接生成图片。'
+})
+const workspaceIcon = computed(() => {
+  if (primaryMode.value === 'image') return 'image'
+  if (primaryMode.value === 'dialogue') return 'dialogue'
+  if (primaryMode.value === 'tools') return 'tools'
+  return 'wand'
 })
 const loadingText = computed(() => {
-  if (primaryMode.value === 'dialogue') return '正在根据这轮对话继续创作...'
-  if (primaryMode.value === 'tools') return '正在准备工具工作区...'
-  return '正在构思画面细节...'
+  if (primaryMode.value === 'dialogue') return '正在继续生成...'
+  if (primaryMode.value === 'tools') return '正在打开工具...'
+  return '正在生成图片...'
 })
 const submitButtonText = computed(() => {
   if (primaryMode.value === 'dialogue') {
-    return loading.value ? 'AI 正在对话创作...' : '继续生成'
+    return loading.value ? '生成中...' : '继续生成'
   }
   if (primaryMode.value === 'tools') {
-    return `进入${currentToolMeta.value.label}`
+    return `打开${currentToolMeta.value.label}`
   }
-  return loading.value ? 'AI 正在绘制...' : '生成图片'
+  return loading.value ? '生成中...' : '生成图片'
 })
 const submitDisabled = computed(() => {
   if (loading.value) return true
+  if (primaryMode.value === 'dialogue') {
+    return !dialoguePrompt.value
+  }
   if (primaryMode.value !== 'tools') {
     if (!generationForm.prompt) return true
     if (primaryMode.value === 'image') {
@@ -1042,43 +1129,39 @@ const submitDisabled = computed(() => {
     }
     return false
   }
-  if (primaryMode.value === 'dialogue') {
-    if (!dialoguePrompt.value) return true
-    return false
-  }
   return !hasToolSource.value || currentToolMeta.value.disabled
 })
 const previewPanelTitle = computed(() => {
-  if (primaryMode.value === 'dialogue' && !previewUrls.value.length) return '对话创作基底预览'
+  if (primaryMode.value === 'dialogue' && !previewUrls.value.length) return '对话预览'
   if (primaryMode.value === 'tools' && !previewUrls.value.length) return '工具来源图预览'
   return '生成结果预览'
 })
 const previewPanelSubtitle = computed(() => {
   if (primaryMode.value === 'dialogue') {
     return hasDialogueSource.value
-      ? '这轮会围绕当前基底继续创作，最近几轮要求会一起沉淀下来。'
-      : '不带图也能直接开始，第一轮成功生成后会自动建立对话链。'
+      ? '沿当前图片和历史继续。'
+      : '可直接从文字开始。'
   }
   if (primaryMode.value === 'tools') {
     return hasToolSource.value
-      ? '选好工具后，会基于这张图进入具体操作。'
-      : '先选择来源图，再进入局部重绘、扩图或抠图。'
+      ? '将基于这张图处理。'
+      : '先选择来源图。'
   }
-  return '生成结果会自动保存在灵感记录，可随时继续使用。'
+  return '结果会自动保存到灵感记录。'
 })
 const previewEmptyTitle = computed(() => {
-  if (primaryMode.value === 'dialogue') return '对话创作会从这里开始'
-  if (primaryMode.value === 'tools') return '先准备一张要处理的图片'
-  return '您的作品将在这里呈现'
+  if (primaryMode.value === 'dialogue') return '从这里开始'
+  if (primaryMode.value === 'tools') return '选择来源图'
+  return '预览区'
 })
 const previewEmptySubtitle = computed(() => {
   if (primaryMode.value === 'dialogue') {
-    return '直接描述这轮要求即可；如果有参考图或已有结果，也可以作为当前基底继续聊。'
+    return '描述本轮要求；需要图片时可上传。'
   }
   if (primaryMode.value === 'tools') {
-    return '局部重绘、扩图和抠图都会在这里基于来源图继续操作。'
+    return '局部重绘和扩图会基于来源图处理。'
   }
-  return '输入提示词并点击生成开始创作'
+  return '输入提示词后生成。'
 })
 const dialogueSourceTag = computed(() => {
   const source = currentDialogueSource()
@@ -1088,16 +1171,16 @@ const dialogueSourceTag = computed(() => {
 })
 const dialogueSourceSummary = computed(() => {
   const source = currentDialogueSource()
-  if (source?.type === 'reference') return '当前会从这张参考图开始对话创作，后续每轮都会沿着同一条链继续。'
-  if (source?.type === 'result') return '当前会围绕这张结果图继续对话创作，并优先延续已建立的会话上下文。'
-  return '当前没有图片基底，这轮会直接从你的文字要求开始。'
+  if (source?.type === 'reference') return '从这张图开始，后续会保留为同一条对话。'
+  if (source?.type === 'result') return '沿这张结果继续。'
+  return '直接从文字开始。'
 })
 const dialogueSourceHint = computed(() => {
-  if (dialogueChainId.value) return '继续同一条对话时，会自动复用最近几轮要求和图片上下文。'
-  return '可以空白开始，也可以用参考图或已有结果作为当前基底。'
+  if (dialogueChainId.value) return '沿当前对话继续。'
+  return '空白开始，或选择图片起点。'
 })
 const dialoguePromptPlaceholder = computed(() => {
-  return '例如：上一张整体方向对了，但人物表情更自然一点，背景层次再丰富些，不要出现多余文字。'
+  return '例如：方向正确，表情更自然，背景层次更丰富，不要多余文字。'
 })
 const toolSourceTag = computed(() => {
   if (toolSource.value?.type === 'manual') return '手动选择'
@@ -1107,12 +1190,25 @@ const toolSourceTag = computed(() => {
 })
 const toolSourceSummary = computed(() => {
   if (toolSource.value?.type === 'manual') return '会优先使用你手动选择的图片进入工具。'
-  if (toolSource.value?.type === 'result') return '会优先使用最近结果图进入工具。'
-  if (toolSource.value?.type === 'reference') return '会使用当前参考图进入工具。'
-  return '请选择一张图片后再进入局部重绘、扩图或抠图。'
+  if (toolSource.value?.type === 'result') return '使用最近结果图。'
+  if (toolSource.value?.type === 'reference') return '使用当前参考图。'
+  return '请选择一张图片。'
 })
-const toolSourceHint = computed(() => '选择一张需要处理的图片')
+const toolSourceHint = computed(() => {
+  if (toolSource.value?.type === 'manual') return '使用手动选择的图片。'
+  if (toolSource.value?.type === 'result') return '使用最近生成结果。'
+  if (toolSource.value?.type === 'reference') return '使用当前参考图。'
+  return '先选择一张图片。'
+})
 const editorPrompt = computed(() => toolPrompt.value || generationForm.prompt || dialoguePrompt.value || '')
+
+watch(
+  [workspaceTitle, workspaceSubtitle, workspaceIcon],
+  ([title, subtitle, icon]) => {
+    siteStore.setCreateHeader(title, subtitle, icon)
+  },
+  { immediate: true }
+)
 
 function formatDialogueTime(val) {
   return new Intl.DateTimeFormat('zh-CN', {
@@ -1128,7 +1224,7 @@ function formatDialogueTime(val) {
 .workspace-shell {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
   min-height: 0;
 }
 
@@ -1154,7 +1250,8 @@ function formatDialogueTime(val) {
 }
 
 .workspace-mode-switch {
-  max-width: 860px;
+  width: 100%;
+  max-width: 820px;
 }
 
 .submode-switch {
@@ -1195,7 +1292,12 @@ function formatDialogueTime(val) {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
   margin-bottom: 12px;
+}
+
+.section-head > div:first-child {
+  min-width: 0;
 }
 
 .dialogue-source-actions {
@@ -1209,6 +1311,7 @@ function formatDialogueTime(val) {
   font-size: 14px;
   font-weight: 900;
   color: var(--text);
+  line-height: 1.25;
 }
 
 .section-desc {
@@ -1223,6 +1326,8 @@ function formatDialogueTime(val) {
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
+  line-height: 1.4;
+  text-align: right;
 }
 
 .prompt-label-row {
@@ -1230,6 +1335,7 @@ function formatDialogueTime(val) {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  flex-wrap: wrap;
   margin-bottom: 10px;
 }
 
@@ -1318,6 +1424,7 @@ function formatDialogueTime(val) {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .prompt-count {
@@ -1330,6 +1437,8 @@ function formatDialogueTime(val) {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .btn-icon {
@@ -1380,12 +1489,65 @@ function formatDialogueTime(val) {
 }
 
 .source-card,
-.tool-detail-card,
+.tool-card,
+.tool-prompt-card,
 .dialogue-history-card {
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.58);
   padding: 14px;
+}
+
+.tool-source-card,
+.tool-card,
+.tool-prompt-card {
+  padding: 12px;
+}
+
+.tool-source-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dialogue-context-card {
+  padding: 12px;
+}
+
+.dialogue-context-card .section-head,
+.dialogue-history-card .section-head {
+  margin-bottom: 10px;
+}
+
+.dialogue-context-upload {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(15, 23, 42, 0.07);
+}
+
+.dialogue-upload-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.dialogue-upload-label-row .label {
+  margin-bottom: 0;
+}
+
+.dialogue-prompt-card {
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(99, 102, 241, 0.16);
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.04);
+}
+
+.dialogue-prompt-card .textarea {
+  min-height: 150px;
 }
 
 .source-summary {
@@ -1397,6 +1559,7 @@ function formatDialogueTime(val) {
   border: 1px solid rgba(15, 23, 42, 0.08);
   background: rgba(255, 255, 255, 0.75);
   padding: 12px 14px;
+  min-width: 0;
 }
 
 .source-summary.empty {
@@ -1418,24 +1581,29 @@ function formatDialogueTime(val) {
 }
 
 .source-text {
+  min-width: 0;
   color: var(--text);
   font-size: 13px;
   line-height: 1.5;
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .dialogue-history-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .dialogue-history-item {
   width: 100%;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 14px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.72);
-  padding: 12px;
+  padding: 10px 11px;
   text-align: left;
   cursor: pointer;
   transition: all 0.2s;
@@ -1449,15 +1617,23 @@ function formatDialogueTime(val) {
 .dialogue-history-text {
   color: var(--text);
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.5;
   font-weight: 700;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .dialogue-history-meta {
-  margin-top: 8px;
+  margin-bottom: 6px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .dialogue-history-empty {
@@ -1474,15 +1650,15 @@ function formatDialogueTime(val) {
 }
 
 .tool-btn {
-  min-height: 74px;
+  min-height: 88px;
   border: 1px solid rgba(15, 23, 42, 0.07);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.88);
-  padding: 12px 14px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  justify-content: center;
+  justify-content: space-between;
   gap: 6px;
   text-align: left;
   cursor: pointer;
@@ -1497,7 +1673,7 @@ function formatDialogueTime(val) {
 .tool-btn.active {
   border-color: rgba(99, 102, 241, 0.32);
   background: rgba(99, 102, 241, 0.04);
-  box-shadow: none;
+  box-shadow: 0 10px 24px rgba(99, 102, 241, 0.08);
 }
 
 .tool-btn.disabled {
@@ -1506,7 +1682,7 @@ function formatDialogueTime(val) {
 
 .tool-name {
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 900;
   color: var(--text);
 }
 
@@ -1517,38 +1693,43 @@ function formatDialogueTime(val) {
   font-weight: 600;
 }
 
-.tool-detail-card {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.78);
-}
-
-.tool-detail-label {
+.tool-status {
+  margin-top: 2px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--muted);
   font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.tool-detail-title {
-  font-size: 15px;
   font-weight: 900;
-  color: var(--text);
 }
 
-.tool-detail-desc {
-  font-size: 13px;
-  line-height: 1.5;
-  font-weight: 600;
+.tool-btn.active .tool-status {
+  background: rgba(99, 102, 241, 0.10);
+  color: var(--primary);
+}
+
+.tool-current-note {
+  margin-top: 10px;
+  padding: 10px 11px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.035);
   color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 700;
+}
+
+.tool-prompt-card .textarea {
+  min-height: 112px;
 }
 
 .ratio-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .ratio-btn {
@@ -1671,6 +1852,8 @@ function formatDialogueTime(val) {
   font-size: 12px;
   color: var(--muted);
   font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .advanced-arrow {
@@ -1683,10 +1866,21 @@ function formatDialogueTime(val) {
   margin-bottom: 16px;
 }
 
+.preview-panel-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .preview-panel-title {
   font-size: 15px;
   font-weight: 900;
   color: var(--text);
+}
+
+.preview-reset-btn {
+  flex: none;
 }
 
 .preview-panel-subtitle {
@@ -1695,6 +1889,7 @@ function formatDialogueTime(val) {
   line-height: 1.5;
   color: var(--muted);
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .generate-btn {
@@ -1892,6 +2087,30 @@ function formatDialogueTime(val) {
   .tool-grid,
   .settings-grid {
     grid-template-columns: 1fr;
+  }
+
+  .section-head,
+  .prompt-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .field-caption {
+    text-align: left;
+  }
+
+  .source-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .source-chip {
+    min-width: 0;
+  }
+
+  .dialogue-source-actions,
+  .prompt-actions {
+    justify-content: flex-start;
   }
 
   .ratio-grid {
