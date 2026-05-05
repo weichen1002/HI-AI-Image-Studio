@@ -37,6 +37,7 @@ export class AuthController {
 
   private readonly captchaTtlMs = 2 * 60 * 1000;
   private readonly captchas = new Map<string, { answer: string; expiresAt: number }>();
+  private readonly emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   private setSession(res: Response, userId: string) {
     const token = signSession(userId);
@@ -64,6 +65,14 @@ export class AuthController {
     this.captchas.delete(captchaId);
     const normalized = String(input || '').trim().toLowerCase();
     return normalized && normalized === record.answer;
+  }
+
+  private cleanEmail(value: string | undefined | null) {
+    return String(value || '').trim().toLowerCase();
+  }
+
+  private isEmail(value: string) {
+    return this.emailPattern.test(value);
   }
 
   @Get('captcha')
@@ -113,6 +122,23 @@ export class AuthController {
       );
     }
 
+    const username = this.cleanEmail(body.username);
+    const password = String(body.password || '');
+    const redeemCode = String(body.redeemCode || '');
+
+    if (!username || username.length > 254 || !this.isEmail(username)) {
+      throw new HttpException(
+        { msg: '请输入有效邮箱' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    if (password.length < 6) {
+      throw new HttpException(
+        { msg: '密码至少 6 位' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
     const captchaId = String(body.captchaId || '');
     const captcha = String(body.captcha || '');
     if (!captchaId || !captcha || !this.verifyCaptcha(captchaId, captcha)) {
@@ -122,21 +148,10 @@ export class AuthController {
       );
     }
 
-    const username = cleanUsername(body.username);
-    const password = String(body.password || '');
-    const redeemCode = String(body.redeemCode || '');
-
-    if (!username || password.length < 6) {
-      throw new HttpException(
-        { msg: '用户名不能为空，密码至少 6 位' },
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-
     const existing = this.usersRepo.findByUsername(username);
     if (existing) {
       throw new HttpException(
-        { msg: '用户名已存在' },
+        { msg: '邮箱已注册' },
         HttpStatus.CONFLICT,
       );
     }

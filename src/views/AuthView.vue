@@ -76,19 +76,20 @@
 
         <form @submit.prevent="submitAuth" class="auth-form flex-col" style="flex: 1; display: flex;">
           <div class="auth-field">
-            <label for="username" class="label" style="font-size: 13px; font-weight: 700; color: #334155;">邮箱 / 用户名</label>
+            <label for="username" class="label" style="font-size: 13px; font-weight: 700; color: #334155;">{{ mode === 'login' ? '邮箱 / 用户名' : '邮箱' }}</label>
             <div class="input-wrapper">
               <MailIcon class="input-icon" :size="18" aria-hidden="true" />
               <Input
                 id="username"
                 name="username"
-                autocomplete="username"
+                :autocomplete="mode === 'register' ? 'email' : 'username'"
                 spellcheck="false"
                 v-model="form.username"
+                :type="mode === 'register' ? 'email' : 'text'"
                 class="with-icon custom-input"
                 required
-                maxlength="32"
-                placeholder="请输入邮箱或用户名"
+                maxlength="254"
+                :placeholder="mode === 'register' ? '请输入邮箱' : '请输入邮箱或用户名'"
               />
             </div>
             <div v-if="fieldErrors.username" class="field-error">{{ fieldErrors.username }}</div>
@@ -242,6 +243,10 @@ const form = reactive({
   redeemCode: ''
 })
 
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+}
+
 async function refreshCaptcha() {
   try {
     const data = await apiFetch('/api/captcha', undefined, { toast: false, redirectOn401: false })
@@ -287,7 +292,12 @@ function validateForm() {
   const username = String(form.username || '').trim()
   const password = String(form.password || '')
 
-  if (!username) fieldErrors.username = '请输入邮箱或用户名'
+  if (!username) {
+    fieldErrors.username = mode.value === 'register' ? '请输入邮箱' : '请输入邮箱或用户名'
+  }
+  if (!fieldErrors.username && mode.value === 'register' && !isValidEmail(username)) {
+    fieldErrors.username = '请输入有效邮箱'
+  }
   if (!password) fieldErrors.password = '请输入密码'
   if (!fieldErrors.password && password.length < 6) fieldErrors.password = '密码至少 6 位'
 
@@ -308,7 +318,7 @@ async function submitAuth() {
       await authStore.login(form.username, form.password)
     } else {
       const result = await authStore.register(
-        form.username,
+        String(form.username || '').trim().toLowerCase(),
         form.password,
         captchaId.value,
         form.captcha,

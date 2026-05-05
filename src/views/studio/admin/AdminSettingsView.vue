@@ -81,7 +81,7 @@
             <div class="field-grid compact-top">
               <div class="field">
                 <div class="field-label">注册来源</div>
-                <Input model-value="用户名注册" disabled />
+                <Input model-value="邮箱注册" disabled />
               </div>
               <div class="field">
                 <div class="field-label">赠送余额</div>

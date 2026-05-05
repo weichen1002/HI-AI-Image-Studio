@@ -2115,6 +2115,11 @@ function formatDialogueTime(val) {
 }
 
 @media (max-width: 760px) {
+  .workspace-shell {
+    gap: 12px;
+    width: 100%;
+  }
+
   .workspace-header {
     flex-direction: column;
   }
@@ -2123,13 +2128,29 @@ function formatDialogueTime(val) {
     max-width: none;
   }
 
+  .creator-grid {
+    gap: 14px;
+  }
+
+  .creator-left,
+  .creator-right {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .creator-preview-panel {
+    padding: 14px !important;
+  }
+
   .preview-panel-title-row {
     align-items: flex-start;
     flex-direction: column;
+    gap: 8px;
   }
 
   .preview-panel-actions {
     justify-content: flex-start;
+    width: 100%;
   }
 
   .preview-panel-actions .model-badge {
@@ -2145,15 +2166,42 @@ function formatDialogueTime(val) {
   .prompt-toolbar {
     align-items: stretch;
     flex-direction: column;
+    gap: 10px;
   }
 
   .field-caption {
     text-align: left;
   }
 
+  .textarea {
+    min-height: 132px;
+    max-height: 46dvh;
+  }
+
+  .dialogue-prompt-card .textarea,
+  .tool-prompt-card .textarea {
+    min-height: 126px;
+  }
+
+  .prompt-actions {
+    width: 100%;
+  }
+
+  .prompt-actions .btn:not(.btn-icon) {
+    flex: 1 1 132px;
+  }
+
+  .prompt-actions .btn-icon {
+    flex: 0 0 32px;
+    height: 32px;
+    width: 32px;
+  }
+
   .source-summary {
     align-items: flex-start;
     flex-direction: column;
+    gap: 8px;
+    padding: 10px;
   }
 
   .source-chip {
@@ -2167,21 +2215,84 @@ function formatDialogueTime(val) {
 
   .ratio-grid {
     grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .ratio-btn {
+    height: 54px;
+    gap: 6px;
+    font-size: 12px;
+  }
+
+  .advanced-card,
+  .source-card,
+  .tool-card,
+  .tool-prompt-card,
+  .dialogue-history-card,
+  .dialogue-prompt-card {
+    border-radius: 14px;
+    padding: 12px;
+  }
+
+  .advanced-toggle {
+    align-items: flex-start;
+  }
+
+  .advanced-arrow {
+    flex: 0 0 auto;
+  }
+
+  .tool-btn {
+    min-height: 82px;
   }
 
   .preview-container {
-    min-height: 300px;
+    min-height: 240px;
     padding: 0;
+  }
+
+  .preview-box {
+    max-height: none;
   }
 
   .preview-grid {
     grid-template-columns: 1fr;
+  }
+
+  .loading-state,
+  .empty-state {
+    min-height: 230px;
+  }
+
+  .empty-icon-wrapper {
+    width: 58px;
+    height: 58px;
+    margin-bottom: 14px;
+    border-radius: 18px;
+  }
+
+  .empty-subtext {
+    max-width: 220px;
+  }
+
+  .generate-btn {
+    height: 48px;
+    margin-top: 4px;
   }
 }
 
 @media (max-width: 420px) {
   .ratio-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .prompt-actions .btn:not(.btn-icon) {
+    flex-basis: calc(50% - 6px);
+    padding: 0 8px;
+  }
+
+  .preview-reset-btn span {
+    display: none;
   }
 }
 </style>

@@ -60,7 +60,7 @@ export function publicUser(user: any) {
 export function cleanUsername(value: string | undefined | null): string {
   return String(value || '')
     .trim()
-    .slice(0, 32);
+    .slice(0, 254);
 }
 
 export function normalizeAspectRatio(value: string): string {
