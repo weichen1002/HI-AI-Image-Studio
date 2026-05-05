@@ -769,32 +769,135 @@ onMounted(() => {
 
 @media (max-width: 900px) {
   .auth-layout {
-    align-items: flex-start;
-    padding: 20px;
+    min-height: 100dvh;
+    align-items: stretch;
+    padding: 16px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .auth-container {
+    width: min(480px, 100%);
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    margin: auto;
+    border-radius: 22px;
   }
 
   .auth-right {
-    padding: 34px 28px;
+    width: 100%;
+    padding: 30px 24px 26px;
+    overflow: visible;
+  }
+
+  .auth-title-block {
+    margin-bottom: 22px;
+  }
+
+  .auth-title-block :deep(.text-h3) {
+    font-size: 24px !important;
+    line-height: 1.18;
+  }
+
+  .auth-field {
+    margin-bottom: 14px;
+  }
+
+  .custom-input,
+  .input-wrapper,
+  .captcha-image {
+    min-height: 48px;
+    height: 48px;
+  }
+
+  .submit-btn {
+    height: 50px;
+  }
+
+  .auth-options {
+    margin-bottom: 18px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .auth-divider {
+    margin: 18px 0 14px;
   }
 
   .social-login {
     gap: 12px;
+  }
+
+  .social-btn {
+    height: 44px;
+  }
+
+  .auth-switch {
+    margin-top: 16px;
+    line-height: 1.6;
+  }
+
+  .auth-layout > .absolute {
+    display: none;
   }
 }
 
 @media (max-width: 480px) {
   .auth-layout {
     padding: 0;
+    background: #ffffff;
   }
 
   .auth-container {
-    height: 100vh;
+    width: 100%;
+    min-height: 100dvh;
     border-radius: 0;
     border: 0;
+    box-shadow: none;
+    background: #ffffff;
   }
 
   .auth-right {
-    padding: 28px 20px;
+    min-height: 100dvh;
+    padding: max(22px, env(safe-area-inset-top, 0px)) 18px max(24px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .auth-title-block {
+    margin-bottom: 18px;
+  }
+
+  .auth-title-block :deep(.text-h3) {
+    font-size: 23px !important;
+  }
+
+  .auth-title-block .text-muted {
+    line-height: 1.55;
+  }
+
+  .captcha-row {
+    gap: 10px;
+  }
+
+  .captcha-image {
+    width: 108px;
+    flex: 0 0 108px;
+  }
+
+  .input-icon {
+    left: 14px;
+  }
+
+  .input.with-icon {
+    padding-left: 42px;
+  }
+
+  .eye-btn {
+    right: 14px;
+  }
+
+  .divider span {
+    padding: 0 8px;
   }
 }
 </style>

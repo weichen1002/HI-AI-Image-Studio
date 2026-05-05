@@ -24,6 +24,26 @@
           <LayoutTemplateIcon :size="18" />
           灵感库
         </router-link>
+        <router-link v-if="isAdmin" to="/studio/admin/settings" class="nav-link nav-link-admin-mobile">
+          <SlidersHorizontalIcon :size="18" />
+          系统
+        </router-link>
+        <router-link v-if="isAdmin" to="/studio/admin/users" class="nav-link nav-link-admin-mobile">
+          <UsersIcon :size="18" />
+          用户
+        </router-link>
+        <router-link v-if="isAdmin" to="/studio/admin/ledger" class="nav-link nav-link-admin-mobile">
+          <ReceiptIcon :size="18" />
+          账务
+        </router-link>
+        <router-link v-if="isAdmin" to="/studio/admin/announcements" class="nav-link nav-link-admin-mobile">
+          <BellIcon :size="18" />
+          公告
+        </router-link>
+        <router-link v-if="isAdmin" to="/studio/admin/redeem-codes" class="nav-link nav-link-admin-mobile">
+          <GiftIcon :size="18" />
+          兑换
+        </router-link>
         
         <div style="flex: 1"></div>
 
@@ -558,6 +578,10 @@ async function logoutFromMenu() {
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.08em;
+}
+
+.nav-link-admin-mobile {
+  display: none;
 }
 
 .topbar-title {
@@ -1157,11 +1181,16 @@ async function logoutFromMenu() {
     display: block;
     flex: none;
     width: 100%;
+    padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
   }
 
   .page-shell :deep(> *) {
     flex: none;
     min-height: 0;
+  }
+
+  .nav-link-admin-mobile {
+    display: flex;
   }
 
   .topbar-title {

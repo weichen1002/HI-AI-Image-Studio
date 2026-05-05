@@ -638,13 +638,15 @@ h1, h2, h3, h4, p {
   .scroll-area {
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 8px 12px calc(86px + env(safe-area-inset-bottom, 0px));
+    padding: 8px 12px calc(150px + env(safe-area-inset-bottom, 0px));
     min-height: 0;
+    scroll-padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px));
     -webkit-overflow-scrolling: touch;
   }
 
   .scroll-area.scroll-area-has-generation {
-    padding-bottom: calc(136px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(210px + env(safe-area-inset-bottom, 0px));
+    scroll-padding-bottom: calc(210px + env(safe-area-inset-bottom, 0px));
   }
 
   .panel {
