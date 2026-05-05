@@ -94,6 +94,7 @@ export class AuthController {
     if (!userId) return { user: null };
 
     const user = this.usersRepo.findById(userId);
+    if (user) this.usersRepo.touchLastUsed(user.id);
     return { user: publicUser(user) };
   }
 
@@ -208,6 +209,7 @@ export class AuthController {
 
     const finalUser = this.usersRepo.findById(user.id) || user;
 
+    this.usersRepo.touchLastUsed(finalUser.id);
     this.setSession(res, finalUser.id);
     res.status(HttpStatus.CREATED);
     return { user: publicUser(finalUser), redeemCodeResult };
@@ -226,8 +228,9 @@ export class AuthController {
       );
     }
 
+    this.usersRepo.touchLastUsed(user.id);
     this.setSession(res, user.id);
-    return { user: publicUser(user) };
+    return { user: publicUser(this.usersRepo.findById(user.id) || user) };
   }
 
   @Post('logout')

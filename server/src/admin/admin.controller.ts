@@ -106,6 +106,7 @@ export class AdminController {
         role: u.role,
         creditBalance: u.creditBalance,
         createdAt: u.createdAt,
+        lastUsedAt: u.lastUsedAt,
       })),
       total: result.total,
     };

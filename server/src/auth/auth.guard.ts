@@ -14,6 +14,9 @@ export interface RequestWithUser extends Request {
 
 @Injectable()
 export class AuthGuard implements CanActivate {
+  private readonly lastTouchByUser = new Map<string, number>();
+  private readonly touchIntervalMs = 60 * 1000;
+
   constructor(private readonly usersRepo: UsersRepo) {}
 
   canActivate(context: ExecutionContext): boolean {
@@ -32,6 +35,16 @@ export class AuthGuard implements CanActivate {
     }
 
     request.user = user;
+    this.touchLastUsed(user.id);
     return true;
+  }
+
+  private touchLastUsed(userId: string) {
+    const now = Date.now();
+    const last = this.lastTouchByUser.get(userId) || 0;
+    if (now - last < this.touchIntervalMs) return;
+
+    this.lastTouchByUser.set(userId, now);
+    this.usersRepo.touchLastUsed(userId, new Date(now).toISOString());
   }
 }

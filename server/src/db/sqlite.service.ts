@@ -64,6 +64,7 @@ export class SqliteService implements OnModuleInit {
         username TEXT NOT NULL,
         password_hash TEXT NOT NULL,
         created_at TEXT NOT NULL,
+        last_used_at TEXT,
         plan TEXT NOT NULL,
         role TEXT NOT NULL,
         credit_balance INTEGER NOT NULL
@@ -322,6 +323,24 @@ export class SqliteService implements OnModuleInit {
         )
         .run(7, isoNow());
     }
+
+    const userColumns = this.db
+      .prepare(`PRAGMA table_info(users)`)
+      .all() as Array<{ name: string }>;
+    if (!userColumns.some((column) => column.name === 'last_used_at')) {
+      this.db.prepare('ALTER TABLE users ADD COLUMN last_used_at TEXT').run();
+    }
+
+    const hasV8 = this.db
+      .prepare('SELECT 1 FROM schema_migrations WHERE version = 8')
+      .get();
+    if (!hasV8) {
+      this.db
+        .prepare(
+          'INSERT INTO schema_migrations(version, applied_at) VALUES(?, ?)',
+        )
+        .run(8, isoNow());
+    }
   }
 
   private isEmptyDb() {
@@ -346,8 +365,8 @@ export class SqliteService implements OnModuleInit {
 
     this.transaction(() => {
       const insertUser = this.db.prepare(
-        `INSERT INTO users(id, username, password_hash, created_at, plan, role, credit_balance)
-         VALUES(@id, @username, @password_hash, @created_at, @plan, @role, @credit_balance)`,
+        `INSERT INTO users(id, username, password_hash, created_at, last_used_at, plan, role, credit_balance)
+         VALUES(@id, @username, @password_hash, @created_at, @last_used_at, @plan, @role, @credit_balance)`,
       );
       for (const u of users) {
         insertUser.run({
@@ -355,6 +374,7 @@ export class SqliteService implements OnModuleInit {
           username: String(u.username),
           password_hash: String(u.passwordHash || u.password_hash || ''),
           created_at: String(u.createdAt || u.created_at || isoNow()),
+          last_used_at: String(u.lastUsedAt || u.last_used_at || ''),
           plan: String(u.plan || 'free'),
           role: String(u.role || 'user'),
           credit_balance: Number.isFinite(Number(u.creditBalance))

@@ -10,6 +10,7 @@ export type UserRow = {
   username: string;
   passwordHash: string;
   createdAt: string;
+  lastUsedAt: string;
   plan: UserPlan;
   role: UserRole;
   creditBalance: number;
@@ -22,6 +23,7 @@ function toUser(row: any): UserRow | null {
     username: String(row.username),
     passwordHash: String(row.password_hash),
     createdAt: String(row.created_at),
+    lastUsedAt: String(row.last_used_at || ''),
     plan: (row.plan || 'free') as UserPlan,
     role: (row.role || 'user') as UserRole,
     creditBalance: Number(row.credit_balance || 0),
@@ -116,6 +118,7 @@ export class UsersRepo {
       username: params.username,
       passwordHash: params.passwordHash,
       createdAt: new Date().toISOString(),
+      lastUsedAt: '',
       plan: params.plan || 'free',
       role: params.role || 'user',
       creditBalance: Number.isFinite(Number(params.creditBalance))
@@ -157,5 +160,11 @@ export class UsersRepo {
     this.sqlite.connection
       .prepare('UPDATE users SET credit_balance = ? WHERE id = ?')
       .run(creditBalance, userId);
+  }
+
+  touchLastUsed(userId: string, lastUsedAt = new Date().toISOString()) {
+    this.sqlite.connection
+      .prepare('UPDATE users SET last_used_at = ? WHERE id = ?')
+      .run(lastUsedAt, userId);
   }
 }

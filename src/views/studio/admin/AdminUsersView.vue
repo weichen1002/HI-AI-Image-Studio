@@ -58,6 +58,10 @@
           <template #cell-createdAt="{ row }">
             <span class="mono">{{ formatTime(row.createdAt) }}</span>
           </template>
+
+          <template #cell-lastUsedAt="{ row }">
+            <span class="mono">{{ formatTime(row.lastUsedAt) || '从未使用' }}</span>
+          </template>
         </DataTable>
       </template>
       <template #footer>
@@ -136,6 +140,12 @@
                 <div class="info-k">创建时间</div>
                 <div class="info-v">
                   <span class="mono">{{ formatTime(selected?.createdAt) }}</span>
+                </div>
+              </div>
+              <div class="info-item">
+                <div class="info-k">最后使用</div>
+                <div class="info-v">
+                  <span class="mono">{{ formatTime(selected?.lastUsedAt) || '从未使用' }}</span>
                 </div>
               </div>
             </div>
@@ -278,11 +288,12 @@ const roleOptions = [
 ]
 
 const columns = [
-  { key: 'user', title: '用户', width: '44%', nowrap: true, ellipsis: true },
-  { key: 'plan', title: 'Plan', width: '12%', align: 'left', nowrap: true },
-  { key: 'role', title: 'Role', width: '12%', align: 'left', nowrap: true },
-  { key: 'creditBalance', title: '余额', width: '10%', align: 'left', nowrap: true },
-  { key: 'createdAt', title: '创建时间', width: '22%', align: 'left', nowrap: true }
+  { key: 'user', title: '用户', width: '34%', nowrap: true, ellipsis: true },
+  { key: 'plan', title: 'Plan', width: '10%', align: 'left', nowrap: true },
+  { key: 'role', title: 'Role', width: '10%', align: 'left', nowrap: true },
+  { key: 'creditBalance', title: '余额', width: '8%', align: 'left', nowrap: true },
+  { key: 'createdAt', title: '创建时间', width: '19%', align: 'left', nowrap: true },
+  { key: 'lastUsedAt', title: '最后使用', width: '19%', align: 'left', nowrap: true }
 ]
 
 const q = ref('')

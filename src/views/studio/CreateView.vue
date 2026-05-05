@@ -1,11 +1,13 @@
 <template>
   <div class="workspace-shell">
-    <ModeSwitch
-      v-model="primaryMode"
-      :options="primaryModes"
-      label="工作台模式"
-      class="workspace-mode-switch"
-    />
+    <div class="workspace-mode-row">
+      <ModeSwitch
+        v-model="primaryMode"
+        :options="primaryModes"
+        label="工作台模式"
+        class="workspace-mode-switch"
+      />
+    </div>
 
     <div class="creator-grid">
       <div class="panel flex flex-col gap-4 creator-left">
@@ -437,16 +439,22 @@
         <div class="preview-panel-head">
           <div class="preview-panel-title-row">
             <div class="preview-panel-title">{{ previewPanelTitle }}</div>
-            <button
-              v-if="canResetPreview"
-              type="button"
-              class="btn btn-ghost btn-xs preview-reset-btn"
-              :disabled="loading"
-              @click="clearPreview"
-            >
-              <RefreshCcwIcon :size="15" />
-              <span>重置预览</span>
-            </button>
+            <div class="preview-panel-actions">
+              <div v-if="usesImage2Model" class="model-badge" aria-label="当前生成模型">
+                <SparklesIcon :size="14" />
+                <span>gpt-image-2</span>
+              </div>
+              <button
+                v-if="canResetPreview"
+                type="button"
+                class="btn btn-ghost btn-xs preview-reset-btn"
+                :disabled="loading"
+                @click="clearPreview"
+              >
+                <RefreshCcwIcon :size="15" />
+                <span>重置预览</span>
+              </button>
+            </div>
           </div>
           <div class="preview-panel-subtitle">{{ previewPanelSubtitle }}</div>
         </div>
@@ -1035,6 +1043,7 @@ const dialogueTimelineMessages = computed(() => {
 const toolSource = computed(() => resolveToolSource())
 const hasToolSource = computed(() => Boolean(toolSource.value))
 const currentToolMeta = computed(() => toolOptions.find((item) => item.value === selectedTool.value) || toolOptions[0])
+const usesImage2Model = computed(() => primaryMode.value === 'text' || primaryMode.value === 'image')
 const toolPromptHint = computed(() => {
   if (currentToolMeta.value.value === 'cutout') return '可补充主体边缘、阴影和输出风格要求。'
   if (currentToolMeta.value.value === 'outpaint') return '会带入扩图弹窗，你可以先写扩展方向和留白诉求。'
@@ -1249,9 +1258,31 @@ function formatDialogueTime(val) {
   font-weight: 600;
 }
 
-.workspace-mode-switch {
+.workspace-mode-row {
   width: 100%;
+}
+
+.workspace-mode-switch {
   max-width: 820px;
+}
+
+.model-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.07);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: default;
+  user-select: none;
 }
 
 .submode-switch {
@@ -1873,6 +1904,14 @@ function formatDialogueTime(val) {
   gap: 12px;
 }
 
+.preview-panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .preview-panel-title {
   font-size: 15px;
   font-weight: 900;
@@ -2082,6 +2121,19 @@ function formatDialogueTime(val) {
 
   .workspace-mode-switch {
     max-width: none;
+  }
+
+  .preview-panel-title-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .preview-panel-actions {
+    justify-content: flex-start;
+  }
+
+  .preview-panel-actions .model-badge {
+    min-height: 30px;
   }
 
   .tool-grid,
