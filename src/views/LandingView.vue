@@ -31,7 +31,6 @@
             <a href="#showcase" class="nav-link-subtle">灵感画廊</a>
             <a href="#advantages" class="nav-link-subtle">企业级优势</a>
             <a href="#testimonials" class="nav-link-subtle">创作者之声</a>
-            <a href="#pricing" class="nav-link-subtle">订阅方案</a>
           </nav>
         </div>
 
@@ -365,58 +364,6 @@
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Pricing Section -->
-      <section id="pricing" class="pricing-section relative z-10">
-        <div class="container">
-          <div class="section-header reveal-on-scroll">
-            <h2 class="section-title">灵活的订阅方案</h2>
-            <p class="section-subtitle">提供阶梯化算力支持，伴随您的个人创作与团队业务共同成长</p>
-          </div>
-          
-          <div class="pricing-grid reveal-on-scroll" style="transition-delay: 0.1s">
-            <div class="pricing-card">
-              <h3 class="plan-name">探索版</h3>
-              <div class="plan-price">免费<span>/永久</span></div>
-              <p class="plan-desc">适合初次体验 AI 创作与轻度爱好者</p>
-              <ul class="plan-features">
-                <li><SparklesIcon :size="16" class="check-icon" /> 每日 10 次基础算力生成</li>
-                <li><SparklesIcon :size="16" class="check-icon" /> 标准分辨率图像输出</li>
-                <li><SparklesIcon :size="16" class="check-icon" /> 社区灵感库完全访问</li>
-                <li><SparklesIcon :size="16" class="check-icon" /> 基础工具链支持</li>
-              </ul>
-              <LinkButton to="/login" variant="outline" class="btn-plan w-full mt-auto">免费开启</LinkButton>
-            </div>
-            
-            <div class="pricing-card popular">
-              <div class="popular-badge">创作者首选</div>
-              <h3 class="plan-name">专业版</h3>
-              <div class="plan-price">¥99<span>/月</span></div>
-              <p class="plan-desc">为专业设计师与视觉工作者提供无尽火力</p>
-              <ul class="plan-features">
-                <li><SparklesIcon :size="16" class="check-icon" /> 尊享无限次极速生成队列</li>
-                <li><SparklesIcon :size="16" class="check-icon" /> 4K 电影级高清放大权益</li>
-                <li><SparklesIcon :size="16" class="check-icon" /> 生成资产 100% 商用授权</li>
-                <li><SparklesIcon :size="16" class="check-icon" /> 优先体验前沿实验性模型</li>
-              </ul>
-              <LinkButton to="/login" class="btn-plan cyber-glow w-full mt-auto">升级专业版</LinkButton>
-            </div>
-            
-            <div class="pricing-card">
-              <h3 class="plan-name">企业版</h3>
-              <div class="plan-price">定制方案</div>
-              <p class="plan-desc">为企业级团队提供私有化与高并发解决方案</p>
-              <ul class="plan-features">
-                <li><SparklesIcon :size="16" class="check-icon" /> 专属独立算力节点与 SLA 保证</li>
-                <li><SparklesIcon :size="16" class="check-icon" /> 团队多席位与资产协同管理</li>
-                <li><SparklesIcon :size="16" class="check-icon" /> 高并发 RESTful API 接入</li>
-                <li><SparklesIcon :size="16" class="check-icon" /> 专属客户成功经理 1v1 支持</li>
-              </ul>
-              <LinkButton to="/login" variant="outline" class="btn-plan w-full mt-auto">联系销售</LinkButton>
             </div>
           </div>
         </div>
