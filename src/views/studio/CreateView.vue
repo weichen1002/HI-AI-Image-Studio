@@ -12,6 +12,8 @@
     <div class="creator-grid">
       <div class="panel flex flex-col gap-4 creator-left">
         <form @submit.prevent="submitCurrentMode" class="flex flex-col gap-4">
+          <Transition name="mode-panel" mode="out-in">
+            <div :key="primaryMode" class="mode-panel-body">
           <template v-if="primaryMode === 'text' || primaryMode === 'image'">
             <div v-if="primaryMode === 'text'">
               <label class="label">快捷预设</label>
@@ -423,6 +425,8 @@
               </div>
             </div>
           </template>
+            </div>
+          </Transition>
 
           <button type="submit" class="btn btn-primary generate-btn" :disabled="submitDisabled">
             <div class="glow-effect" v-if="!loading && canShowGlow"></div>
@@ -1264,6 +1268,28 @@ function formatDialogueTime(val) {
 
 .workspace-mode-switch {
   max-width: 820px;
+}
+
+.mode-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.mode-panel-enter-active,
+.mode-panel-leave-active {
+  transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.mode-panel-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.mode-panel-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 
 .model-badge {
