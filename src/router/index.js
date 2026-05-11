@@ -1,6 +1,20 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import LandingView from '../views/LandingView.vue'
+import AuthView from '../views/AuthView.vue'
+import StudioView from '../views/StudioView.vue'
+import CreateView from '../views/studio/CreateView.vue'
+import HistoryView from '../views/studio/HistoryView.vue'
+import HistoryDetailView from '../views/studio/HistoryDetailView.vue'
+import ModelsView from '../views/studio/ModelsView.vue'
+import SettingsView from '../views/studio/SettingsView.vue'
+import ProfileView from '../views/studio/ProfileView.vue'
+import AnnouncementsView from '../views/studio/AnnouncementsView.vue'
+import AdminUsersView from '../views/studio/admin/AdminUsersView.vue'
+import AdminAnnouncementsView from '../views/studio/admin/AdminAnnouncementsView.vue'
+import AdminSettingsView from '../views/studio/admin/AdminSettingsView.vue'
+import AdminLedgerView from '../views/studio/admin/AdminLedgerView.vue'
+import AdminRedeemCodesView from '../views/studio/admin/AdminRedeemCodesView.vue'
 
 const DYNAMIC_IMPORT_ERROR_RELOAD_KEY = 'router:dynamic-import-reload'
 
@@ -53,78 +67,78 @@ const routes = [
   {
     path: '/login',
     name: 'login',
-    component: () => import('../views/AuthView.vue'),
+    component: AuthView,
     meta: { guestOnly: true }
   },
   {
     path: '/studio',
-    component: () => import('../views/StudioView.vue'),
+    component: StudioView,
     meta: { requiresAuth: true },
     children: [
       {
         path: '',
         name: 'studio-create',
-        component: () => import('../views/studio/CreateView.vue')
+        component: CreateView
       },
       {
         path: 'history',
         name: 'studio-history',
-        component: () => import('../views/studio/HistoryView.vue')
+        component: HistoryView
       },
       {
         path: 'history/:id',
         name: 'studio-history-detail',
-        component: () => import('../views/studio/HistoryDetailView.vue')
+        component: HistoryDetailView
       },
       {
         path: 'models',
         name: 'studio-models',
-        component: () => import('../views/studio/ModelsView.vue'),
+        component: ModelsView,
         meta: { requiresAuth: false } // Models page should be accessible without auth for inspiration
       },
       {
         path: 'settings',
         name: 'studio-settings',
-        component: () => import('../views/studio/SettingsView.vue')
+        component: SettingsView
       },
       {
         path: 'profile',
         name: 'studio-profile',
-        component: () => import('../views/studio/ProfileView.vue')
+        component: ProfileView
       },
       {
         path: 'announcements',
         name: 'studio-announcements',
-        component: () => import('../views/studio/AnnouncementsView.vue')
+        component: AnnouncementsView
       },
       {
         path: 'admin/users',
         name: 'studio-admin-users',
-        component: () => import('../views/studio/admin/AdminUsersView.vue'),
+        component: AdminUsersView,
         meta: { requiresRole: ['admin', 'superadmin'] }
       },
       {
         path: 'admin/announcements',
         name: 'studio-admin-announcements',
-        component: () => import('../views/studio/admin/AdminAnnouncementsView.vue'),
+        component: AdminAnnouncementsView,
         meta: { requiresRole: ['admin', 'superadmin'] }
       },
       {
         path: 'admin/settings',
         name: 'studio-admin-settings',
-        component: () => import('../views/studio/admin/AdminSettingsView.vue'),
+        component: AdminSettingsView,
         meta: { requiresRole: ['admin', 'superadmin'] }
       },
       {
         path: 'admin/ledger',
         name: 'studio-admin-ledger',
-        component: () => import('../views/studio/admin/AdminLedgerView.vue'),
+        component: AdminLedgerView,
         meta: { requiresRole: ['admin', 'superadmin'] }
       },
       {
         path: 'admin/redeem-codes',
         name: 'studio-admin-redeem-codes',
-        component: () => import('../views/studio/admin/AdminRedeemCodesView.vue'),
+        component: AdminRedeemCodesView,
         meta: { requiresRole: ['admin', 'superadmin'] }
       }
     ]
