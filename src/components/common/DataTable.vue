@@ -161,14 +161,14 @@ function onRowClick(e, row) {
   color: var(--muted);
   font-weight: 900;
   letter-spacing: 0.06em;
-  background: rgba(15, 23, 42, 0.02);
+  background: #ffffff;
   position: sticky;
   top: 0;
   z-index: 2;
 }
 
 .table-wrap.flat .table th {
-  background: transparent;
+  background: #ffffff;
 }
 
 .table-wrap.flat .table th,

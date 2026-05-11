@@ -18,6 +18,13 @@ type GeneralSettingsValue = {
   siteSubtitle?: unknown;
   supportContact?: unknown;
   allowRegistration?: unknown;
+  requireEmailVerification?: unknown;
+  mailFrom?: unknown;
+  mailProvider?: unknown;
+  mailApiUrl?: unknown;
+  mailApiKey?: unknown;
+  mailSubject?: unknown;
+  appBaseUrl?: unknown;
   footerCopyright?: unknown;
 };
 
@@ -51,6 +58,13 @@ export type GeneralSettings = {
   siteSubtitle: string;
   supportContact: string;
   allowRegistration: boolean;
+  requireEmailVerification: boolean;
+  mailFrom: string;
+  mailProvider: 'mock' | 'resend' | 'smtp-http';
+  mailApiUrl: string;
+  mailApiKey: string;
+  mailSubject: string;
+  appBaseUrl: string;
   footerCopyright: string;
 };
 
@@ -94,6 +108,13 @@ export const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
   siteSubtitle: '把想法变成可以直接使用的商业图片。',
   supportContact: 'QQ 3756934376',
   allowRegistration: true,
+  requireEmailVerification: false,
+  mailFrom: 'no-reply@example.com',
+  mailProvider: 'mock',
+  mailApiUrl: '',
+  mailApiKey: '',
+  mailSubject: '验证你的邮箱',
+  appBaseUrl: 'http://localhost:5171',
   footerCopyright: `© ${new Date().getFullYear()} Hi AI Image Studio. All rights reserved.`,
 };
 
@@ -203,6 +224,39 @@ function normalizeGeneralSettings(value: unknown): GeneralSettings {
     allowRegistration: normalizeBoolean(
       raw.allowRegistration,
       DEFAULT_GENERAL_SETTINGS.allowRegistration,
+    ),
+    requireEmailVerification: normalizeBoolean(
+      raw.requireEmailVerification,
+      DEFAULT_GENERAL_SETTINGS.requireEmailVerification,
+    ),
+    mailFrom: normalizeString(
+      raw.mailFrom,
+      DEFAULT_GENERAL_SETTINGS.mailFrom,
+      200,
+    ),
+    mailProvider:
+      raw.mailProvider === 'resend' || raw.mailProvider === 'smtp-http'
+        ? raw.mailProvider
+        : DEFAULT_GENERAL_SETTINGS.mailProvider,
+    mailApiUrl: normalizeString(
+      raw.mailApiUrl,
+      DEFAULT_GENERAL_SETTINGS.mailApiUrl,
+      300,
+    ),
+    mailApiKey: normalizeString(
+      raw.mailApiKey,
+      DEFAULT_GENERAL_SETTINGS.mailApiKey,
+      300,
+    ),
+    mailSubject: normalizeString(
+      raw.mailSubject,
+      DEFAULT_GENERAL_SETTINGS.mailSubject,
+      200,
+    ),
+    appBaseUrl: normalizeString(
+      raw.appBaseUrl,
+      DEFAULT_GENERAL_SETTINGS.appBaseUrl,
+      300,
     ),
     footerCopyright: normalizeString(
       raw.footerCopyright,
@@ -448,6 +502,7 @@ export class SystemSettingsRepo {
       siteSubtitle: general.siteSubtitle,
       supportContact: general.supportContact,
       allowRegistration: general.allowRegistration,
+      requireEmailVerification: general.requireEmailVerification,
       footerCopyright: general.footerCopyright,
     };
   }

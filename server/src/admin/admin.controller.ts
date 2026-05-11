@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpException,
   HttpStatus,
@@ -13,11 +14,24 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import type { RequestWithUser } from '../auth/auth.guard';
+import { hashPassword } from '../utils';
 import { SystemSettingsRepo } from '../db/repositories/system-settings.repo';
-import { UsersRepo, UserPlan, UserRole } from '../db/repositories/users.repo';
+import {
+  UsersRepo,
+  UserPlan,
+  UserRole,
+  UserStatus,
+} from '../db/repositories/users.repo';
 import { CreditsRepo } from '../credits/credits.repo';
 import type { LedgerType } from '../credits/credits.repo';
 import { AdminRoleGuard, SuperAdminRoleGuard } from './role.guard';
+import { SqliteService } from '../db/sqlite.service';
+import { ImagesRepo } from '../db/repositories/images.repo';
+import { DialogueRepo } from '../db/repositories/dialogue.repo';
+import { AuditLogsRepo } from '../db/repositories/audit-logs.repo';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import { config } from '../config';
 
 function normalizeLimit(value: string | undefined, max = 100, fallback = 50) {
   const limit = Number(value || fallback);
@@ -51,6 +65,41 @@ function normalizeNonNegativeInt(value: unknown, fallback = 0) {
   return Math.max(0, Math.floor(n));
 }
 
+function normalizeUserStatus(value: unknown): UserStatus {
+  const next = String(value || '').trim();
+  if (next === 'banned') return 'banned';
+  if (next === 'pending_verification') return 'pending_verification';
+  return 'active';
+}
+
+function toUploadFilePath(url: string) {
+  const val = String(url || '');
+  if (!val.startsWith('/uploads/')) return '';
+  const fileName = path.basename(val);
+  if (!fileName) return '';
+  return path.join(config.DATA_DIR, 'uploads', fileName);
+}
+
+async function removeUploadedFile(filePath: string) {
+  if (!filePath) return;
+  try {
+    await fs.unlink(filePath);
+  } catch {
+    void 0;
+  }
+}
+
+function requestIp(req: RequestWithUser) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (Array.isArray(forwarded)) return String(forwarded[0] || '').trim();
+  if (typeof forwarded === 'string') return String(forwarded.split(',')[0] || '').trim();
+  return String(req.ip || req.socket?.remoteAddress || '').trim();
+}
+
+function requestUserAgent(req: RequestWithUser) {
+  return String(req.headers['user-agent'] || '').slice(0, 500);
+}
+
 @Controller('api/admin')
 @UseGuards(AuthGuard, AdminRoleGuard)
 export class AdminController {
@@ -58,6 +107,10 @@ export class AdminController {
     private readonly usersRepo: UsersRepo,
     private readonly creditsRepo: CreditsRepo,
     private readonly settingsRepo: SystemSettingsRepo,
+    private readonly sqlite: SqliteService,
+    private readonly imagesRepo: ImagesRepo,
+    private readonly dialogueRepo: DialogueRepo,
+    private readonly auditLogsRepo: AuditLogsRepo,
   ) {}
 
   @Get('users')
@@ -65,6 +118,7 @@ export class AdminController {
     @Query('search') search?: string,
     @Query('plan') plan?: string,
     @Query('role') role?: string,
+    @Query('status') status?: string,
     @Query('minBalance') minBalanceValue?: string,
     @Query('maxBalance') maxBalanceValue?: string,
     @Query('lowBalanceOnly') lowBalanceOnlyValue?: string,
@@ -81,6 +135,10 @@ export class AdminController {
       role === 'user' || role === 'admin' || role === 'superadmin'
         ? (role as UserRole)
         : undefined;
+    const statusValue =
+      status === 'active' || status === 'banned' || status === 'pending_verification'
+        ? (status as UserStatus)
+        : undefined;
 
     const minBalance = normalizeOptionalNumber(minBalanceValue);
     const maxBalance = normalizeOptionalNumber(maxBalanceValue);
@@ -90,6 +148,7 @@ export class AdminController {
       q: search,
       plan: planValue,
       role: roleValue,
+      status: statusValue,
       minBalance,
       maxBalance,
       lowBalanceOnly,
@@ -104,6 +163,7 @@ export class AdminController {
         username: u.username,
         plan: u.plan,
         role: u.role,
+        status: u.status,
         creditBalance: u.creditBalance,
         createdAt: u.createdAt,
         lastUsedAt: u.lastUsedAt,
@@ -163,6 +223,13 @@ export class AdminController {
         siteSubtitle: body?.siteSubtitle,
         supportContact: body?.supportContact,
         allowRegistration: body?.allowRegistration,
+        requireEmailVerification: body?.requireEmailVerification,
+        mailFrom: body?.mailFrom,
+        mailProvider: body?.mailProvider,
+        mailApiUrl: body?.mailApiUrl,
+        mailApiKey: body?.mailApiKey,
+        mailSubject: body?.mailSubject,
+        appBaseUrl: body?.appBaseUrl,
         footerCopyright: body?.footerCopyright,
       },
       req.user.id,
@@ -303,5 +370,146 @@ export class AdminController {
     this.usersRepo.updateRole(id, role);
     const next = this.usersRepo.findById(id);
     return { user: next };
+  }
+
+  @Post('users/:id/status')
+  @UseGuards(SuperAdminRoleGuard)
+  updateStatus(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Req() req: RequestWithUser,
+  ) {
+    const status = normalizeUserStatus(body?.status);
+    const user = this.usersRepo.findById(id);
+    if (!user) throw new HttpException('用户不存在', HttpStatus.NOT_FOUND);
+    if (user.role === 'superadmin') {
+      throw new HttpException('不能封禁超级管理员', HttpStatus.BAD_REQUEST);
+    }
+    if (req.user.id === id && status === 'banned') {
+      throw new HttpException('不能封禁当前登录账号', HttpStatus.BAD_REQUEST);
+    }
+
+    this.usersRepo.updateStatus(id, status);
+    this.auditLogsRepo.create({
+      actorUserId: req.user.id,
+      targetUserId: id,
+      category: 'admin',
+      action:
+        status === 'banned'
+          ? 'user_banned'
+          : status === 'pending_verification'
+            ? 'user_marked_pending_verification'
+            : 'user_unbanned',
+      status: 'success',
+      ip: requestIp(req),
+      userAgent: requestUserAgent(req),
+      detail: { username: user.username },
+    });
+    return { user: this.usersRepo.findById(id) };
+  }
+
+  @Post('users/:id/password')
+  @UseGuards(SuperAdminRoleGuard)
+  updatePassword(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Req() req: RequestWithUser,
+  ) {
+    const password = String(body?.password || '');
+    if (password.length < 6) {
+      throw new HttpException('密码至少 6 位', HttpStatus.BAD_REQUEST);
+    }
+
+    const user = this.usersRepo.findById(id);
+    if (!user) throw new HttpException('用户不存在', HttpStatus.NOT_FOUND);
+
+    this.usersRepo.updatePasswordHash(id, hashPassword(password));
+    this.auditLogsRepo.create({
+      actorUserId: req.user.id,
+      targetUserId: id,
+      category: 'admin',
+      action: 'user_password_updated',
+      status: 'success',
+      ip: requestIp(req),
+      userAgent: requestUserAgent(req),
+      detail: { username: user.username },
+    });
+    return { ok: true };
+  }
+
+  @Delete('users/:id')
+  @UseGuards(SuperAdminRoleGuard)
+  async deleteUser(@Param('id') id: string, @Req() req: RequestWithUser) {
+    const user = this.usersRepo.findById(id);
+    if (!user) throw new HttpException('用户不存在', HttpStatus.NOT_FOUND);
+    if (user.role === 'superadmin') {
+      throw new HttpException('不能删除超级管理员', HttpStatus.BAD_REQUEST);
+    }
+    if (req.user.id === id) {
+      throw new HttpException('不能删除当前登录账号', HttpStatus.BAD_REQUEST);
+    }
+
+    const assetUrls = this.imagesRepo.listAssetUrlsByUser({ userId: id });
+
+    this.sqlite.transaction(() => {
+      this.dialogueRepo.deleteAllByUser({ userId: id });
+      this.imagesRepo.deleteAllByUser({ userId: id });
+      this.sqlite.connection
+        .prepare('DELETE FROM credit_ledgers WHERE user_id = ?')
+        .run(id);
+      this.sqlite.connection
+        .prepare('DELETE FROM redeem_code_claims WHERE user_id = ?')
+        .run(id);
+      this.sqlite.connection
+        .prepare('DELETE FROM announcement_reads WHERE user_id = ?')
+        .run(id);
+      this.usersRepo.deleteById(id);
+    });
+
+    for (const url of assetUrls) {
+      await removeUploadedFile(toUploadFilePath(url));
+    }
+
+    this.auditLogsRepo.create({
+      actorUserId: req.user.id,
+      targetUserId: id,
+      category: 'admin',
+      action: 'user_deleted',
+      status: 'success',
+      ip: requestIp(req),
+      userAgent: requestUserAgent(req),
+      detail: { username: user.username },
+    });
+
+    return { ok: true };
+  }
+
+  @Get('audit-logs')
+  listAuditLogs(
+    @Query('category') category?: string,
+    @Query('action') action?: string,
+    @Query('status') status?: string,
+    @Query('userId') userId?: string,
+    @Query('page') pageValue?: string,
+    @Query('limit') limitValue?: string,
+  ) {
+    const limit = normalizeLimit(limitValue, 200, 50);
+    const page = normalizePage(pageValue, 1);
+    const offset = (page - 1) * limit;
+    const categoryValue =
+      category === 'auth' || category === 'admin' || category === 'security'
+        ? category
+        : undefined;
+    const statusValue =
+      status === 'success' || status === 'failure' ? status : undefined;
+
+    return this.auditLogsRepo.listPaged({
+      category: categoryValue,
+      action: String(action || '').trim() || undefined,
+      status: statusValue,
+      userId: String(userId || '').trim() || undefined,
+      limit,
+      offset,
+    });
   }
 }

@@ -38,6 +38,7 @@ import { SqliteService } from '../db/sqlite.service';
 import { SystemSettingsRepo } from '../db/repositories/system-settings.repo';
 import { DialogueRepo } from '../db/repositories/dialogue.repo';
 import type { ImageMode, ImageOperationType } from '../db/repositories/images.repo';
+import { logError, toErrorDetails } from '../logging/logger';
 
 function normalizeLimit(value: string | undefined) {
   const limit = Number(value || 12);
@@ -373,7 +374,9 @@ async function persistImageAssetsSafely(
       degraded: false,
     };
   } catch (error) {
-    console.error(error);
+    logError('ImageController', 'Persisting generated assets failed, fallback to source URLs', {
+      error: toErrorDetails(error),
+    });
     // 结果落地失败时回退到原始地址，避免把本来成功的生成请求变成失败。
     return {
       urls: (Array.isArray(urls) ? urls : []).filter(Boolean).map((item) => String(item)),
@@ -424,7 +427,11 @@ export class ImageController {
         inputImageUrls,
       };
     } catch (error) {
-      console.error(error);
+      logError('ImageController', 'Materializing stored image assets failed', {
+        imageId: nextImage.id,
+        userId,
+        error: toErrorDetails(error),
+      });
       return nextImage;
     }
   }
@@ -759,10 +766,20 @@ export class ImageController {
             refId,
           });
         } catch (refundError) {
-          console.error(refundError);
+          logError('ImageController', 'Refund failed after dialogue error', {
+            userId,
+            refId,
+            cost,
+            error: toErrorDetails(refundError),
+          });
         }
       }
-      console.error(error);
+      logError('ImageController', 'Dialogue image generation failed', {
+        userId,
+        refId,
+        chainId,
+        error: toErrorDetails(error),
+      });
       const status = error.getStatus
         ? error.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
@@ -935,10 +952,22 @@ export class ImageController {
             refId,
           });
         } catch (refundError) {
-          console.error(refundError);
+          logError('ImageController', 'Refund failed after text-to-image error', {
+            userId,
+            refId,
+            cost,
+            error: toErrorDetails(refundError),
+          });
         }
       }
-      console.error(error);
+      logError('ImageController', 'Text-to-image failed', {
+        userId,
+        refId,
+        prompt,
+        aspectRatio,
+        mode,
+        error: toErrorDetails(error),
+      });
       const status = error.getStatus
         ? error.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
@@ -1112,10 +1141,22 @@ export class ImageController {
             refId,
           });
         } catch (refundError) {
-          console.error(refundError);
+          logError('ImageController', 'Refund failed after image-to-image error', {
+            userId,
+            refId,
+            cost,
+            error: toErrorDetails(refundError),
+          });
         }
       }
-      console.error(error);
+      logError('ImageController', 'Image-to-image failed', {
+        userId,
+        refId,
+        prompt,
+        aspectRatio,
+        imageCount: uploaded.length,
+        error: toErrorDetails(error),
+      });
       const status = error.getStatus
         ? error.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
@@ -1312,10 +1353,22 @@ export class ImageController {
             refId,
           });
         } catch (refundError) {
-          console.error(refundError);
+          logError('ImageController', 'Refund failed after image edit error', {
+            userId,
+            refId,
+            cost,
+            operationType,
+            error: toErrorDetails(refundError),
+          });
         }
       }
-      console.error(error);
+      logError('ImageController', 'Image edit failed', {
+        userId,
+        refId,
+        operationType,
+        prompt,
+        error: toErrorDetails(error),
+      });
       const message = String(error?.message || '').trim();
       if (
         operationType === 'cutout' &&

@@ -15,6 +15,7 @@ import AdminAnnouncementsView from '../views/studio/admin/AdminAnnouncementsView
 import AdminSettingsView from '../views/studio/admin/AdminSettingsView.vue'
 import AdminLedgerView from '../views/studio/admin/AdminLedgerView.vue'
 import AdminRedeemCodesView from '../views/studio/admin/AdminRedeemCodesView.vue'
+import AdminAuditLogsView from '../views/studio/admin/AdminAuditLogsView.vue'
 
 const DYNAMIC_IMPORT_ERROR_RELOAD_KEY = 'router:dynamic-import-reload'
 
@@ -139,6 +140,12 @@ const routes = [
         path: 'admin/redeem-codes',
         name: 'studio-admin-redeem-codes',
         component: AdminRedeemCodesView,
+        meta: { requiresRole: ['admin', 'superadmin'] }
+      },
+      {
+        path: 'admin/audit-logs',
+        name: 'studio-admin-audit-logs',
+        component: AdminAuditLogsView,
         meta: { requiresRole: ['admin', 'superadmin'] }
       }
     ]

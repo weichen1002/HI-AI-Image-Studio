@@ -67,6 +67,7 @@ export class SqliteService implements OnModuleInit {
         last_used_at TEXT,
         plan TEXT NOT NULL,
         role TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
         credit_balance INTEGER NOT NULL
       );
       CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username);
@@ -139,6 +140,22 @@ export class SqliteService implements OnModuleInit {
         updated_at TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id TEXT PRIMARY KEY,
+        actor_user_id TEXT,
+        target_user_id TEXT,
+        category TEXT NOT NULL,
+        action TEXT NOT NULL,
+        status TEXT NOT NULL,
+        ip TEXT,
+        user_agent TEXT,
+        detail_json TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_created ON audit_logs(actor_user_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_target_created ON audit_logs(target_user_id, created_at DESC);
+
       CREATE TABLE IF NOT EXISTS redeem_codes (
         id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
@@ -178,6 +195,17 @@ export class SqliteService implements OnModuleInit {
         PRIMARY KEY (announcement_id, user_id)
       );
       CREATE INDEX IF NOT EXISTS idx_announcement_reads_user ON announcement_reads(user_id, read_at DESC);
+
+      CREATE TABLE IF NOT EXISTS email_verification_tokens (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        email TEXT NOT NULL,
+        token_hash TEXT NOT NULL UNIQUE,
+        expires_at TEXT NOT NULL,
+        used_at TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_email_verification_user_created ON email_verification_tokens(user_id, created_at DESC);
     `);
 
     const hasV1 = this.db
@@ -330,6 +358,14 @@ export class SqliteService implements OnModuleInit {
     if (!userColumns.some((column) => column.name === 'last_used_at')) {
       this.db.prepare('ALTER TABLE users ADD COLUMN last_used_at TEXT').run();
     }
+    if (!userColumns.some((column) => column.name === 'status')) {
+      this.db
+        .prepare(`ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'active'`)
+        .run();
+    }
+    this.db
+      .prepare(`UPDATE users SET status = 'active' WHERE status IS NULL OR status = ''`)
+      .run();
 
     const hasV8 = this.db
       .prepare('SELECT 1 FROM schema_migrations WHERE version = 8')
@@ -340,6 +376,28 @@ export class SqliteService implements OnModuleInit {
           'INSERT INTO schema_migrations(version, applied_at) VALUES(?, ?)',
         )
         .run(8, isoNow());
+    }
+
+    const hasV9 = this.db
+      .prepare('SELECT 1 FROM schema_migrations WHERE version = 9')
+      .get();
+    if (!hasV9) {
+      this.db
+        .prepare(
+          'INSERT INTO schema_migrations(version, applied_at) VALUES(?, ?)',
+        )
+        .run(9, isoNow());
+    }
+
+    const hasV10 = this.db
+      .prepare('SELECT 1 FROM schema_migrations WHERE version = 10')
+      .get();
+    if (!hasV10) {
+      this.db
+        .prepare(
+          'INSERT INTO schema_migrations(version, applied_at) VALUES(?, ?)',
+        )
+        .run(10, isoNow());
     }
   }
 
@@ -365,8 +423,8 @@ export class SqliteService implements OnModuleInit {
 
     this.transaction(() => {
       const insertUser = this.db.prepare(
-        `INSERT INTO users(id, username, password_hash, created_at, last_used_at, plan, role, credit_balance)
-         VALUES(@id, @username, @password_hash, @created_at, @last_used_at, @plan, @role, @credit_balance)`,
+        `INSERT INTO users(id, username, password_hash, created_at, last_used_at, plan, role, status, credit_balance)
+         VALUES(@id, @username, @password_hash, @created_at, @last_used_at, @plan, @role, @status, @credit_balance)`,
       );
       for (const u of users) {
         insertUser.run({
@@ -377,6 +435,7 @@ export class SqliteService implements OnModuleInit {
           last_used_at: String(u.lastUsedAt || u.last_used_at || ''),
           plan: String(u.plan || 'free'),
           role: String(u.role || 'user'),
+          status: String(u.status || 'active'),
           credit_balance: Number.isFinite(Number(u.creditBalance))
             ? Number(u.creditBalance)
             : 0,

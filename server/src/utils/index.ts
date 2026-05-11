@@ -52,6 +52,7 @@ export function publicUser(user: any) {
         username: user.username,
         plan: user.plan,
         role: user.role,
+        status: user.status || 'active',
         creditBalance: user.creditBalance,
       }
     : null;

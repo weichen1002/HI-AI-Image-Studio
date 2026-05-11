@@ -72,6 +72,10 @@
           <p class="text-muted" style="font-size: 14px;">
             {{ mode === 'login' ? `登录你的 ${siteSettings.siteName} 账户，继续你的 AI 创造之旅` : '加入我们，开启智能设计新体验' }}
           </p>
+          <div v-if="verifyBanner" class="verify-banner">
+            <AlertCircleIcon :size="16" aria-hidden="true" />
+            <span>{{ verifyBanner }}</span>
+          </div>
         </div>
 
         <form @submit.prevent="submitAuth" class="auth-form flex-col" style="flex: 1; display: flex;">
@@ -208,7 +212,7 @@
 
 <script setup>
 import { ref, reactive, watch, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useSiteStore } from '../stores/site'
 import { AlertCircleIcon, ZapIcon, LayoutIcon, ShieldIcon, MailIcon, LockIcon, EyeIcon, EyeOffIcon, SparklesIcon, LibraryIcon, GiftIcon } from 'lucide-vue-next'
@@ -217,6 +221,7 @@ import { apiFetch } from '../utils/api'
 import logoUrl from '../hi-image-logo.png'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const siteStore = useSiteStore()
 const siteSettings = computed(() => siteStore.settings)
@@ -235,6 +240,7 @@ const fieldErrors = reactive({
   password: '',
   captcha: ''
 })
+const verifyBanner = ref('')
 
 const form = reactive({
   username: '',
@@ -324,6 +330,15 @@ async function submitAuth() {
         form.captcha,
         form.redeemCode
       )
+      if (result?.pendingVerification) {
+        toastSuccess(`注册成功，请前往 ${result.email} 查收验证邮件`)
+        mode.value = 'login'
+        form.password = ''
+        form.captcha = ''
+        form.redeemCode = ''
+        verifyBanner.value = `注册成功，请前往 ${result.email} 查收验证邮件并完成激活。`
+        return
+      }
       const redeemCodeResult = result?.redeemCodeResult
       if (redeemCodeResult?.attempted && redeemCodeResult?.success) {
         toastSuccess(`注册成功，兑换码已到账 ${redeemCodeResult.amount || 0} 余额`)
@@ -344,6 +359,13 @@ async function submitAuth() {
 
 onMounted(() => {
   siteStore.fetchSettings()
+  if (route.query.verify === 'success') {
+    verifyBanner.value = '邮箱验证成功，现在可以登录了。'
+    mode.value = 'login'
+  } else if (route.query.verify === 'invalid') {
+    verifyBanner.value = '验证链接无效或已过期，请重新注册或联系管理员。'
+    mode.value = 'login'
+  }
 })
 </script>
 
@@ -477,6 +499,21 @@ onMounted(() => {
 
 .auth-field {
   margin-bottom: 18px;
+}
+
+.verify-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(79, 70, 229, 0.16);
+  background: rgba(79, 70, 229, 0.08);
+  color: #4338ca;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.6;
 }
 
 .auth-options {

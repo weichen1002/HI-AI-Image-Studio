@@ -2,6 +2,7 @@ import {
   Injectable,
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Request } from 'express';
@@ -32,6 +33,9 @@ export class AuthGuard implements CanActivate {
 
     if (!user) {
       throw new UnauthorizedException('用户不存在');
+    }
+    if (user.status === 'banned') {
+      throw new ForbiddenException('该账号已被封禁，请联系管理员');
     }
 
     request.user = user;

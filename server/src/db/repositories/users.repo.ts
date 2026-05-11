@@ -4,6 +4,7 @@ import { SqliteService } from '../sqlite.service';
 
 export type UserPlan = 'free' | 'pro';
 export type UserRole = 'user' | 'admin' | 'superadmin';
+export type UserStatus = 'active' | 'banned' | 'pending_verification';
 
 export type UserRow = {
   id: string;
@@ -13,6 +14,7 @@ export type UserRow = {
   lastUsedAt: string;
   plan: UserPlan;
   role: UserRole;
+  status: UserStatus;
   creditBalance: number;
 };
 
@@ -26,6 +28,7 @@ function toUser(row: any): UserRow | null {
     lastUsedAt: String(row.last_used_at || ''),
     plan: (row.plan || 'free') as UserPlan,
     role: (row.role || 'user') as UserRole,
+    status: (row.status || 'active') as UserStatus,
     creditBalance: Number(row.credit_balance || 0),
   };
 }
@@ -52,6 +55,7 @@ export class UsersRepo {
     q?: string;
     plan?: UserPlan;
     role?: UserRole;
+    status?: UserStatus;
     minBalance?: number;
     maxBalance?: number;
     lowBalanceOnly?: boolean;
@@ -76,6 +80,10 @@ export class UsersRepo {
     if (params.role) {
       where.push('role = ?');
       values.push(params.role);
+    }
+    if (params.status) {
+      where.push('status = ?');
+      values.push(params.status);
     }
     if (Number.isFinite(params.minBalance as number)) {
       where.push('credit_balance >= ?');
@@ -111,6 +119,7 @@ export class UsersRepo {
     passwordHash: string;
     plan?: UserPlan;
     role?: UserRole;
+    status?: UserStatus;
     creditBalance?: number;
   }) {
     const user: UserRow = {
@@ -121,6 +130,7 @@ export class UsersRepo {
       lastUsedAt: '',
       plan: params.plan || 'free',
       role: params.role || 'user',
+      status: params.status || 'active',
       creditBalance: Number.isFinite(Number(params.creditBalance))
         ? Number(params.creditBalance)
         : 0,
@@ -128,8 +138,8 @@ export class UsersRepo {
 
     this.sqlite.connection
       .prepare(
-        `INSERT INTO users(id, username, password_hash, created_at, plan, role, credit_balance)
-         VALUES(@id, @username, @password_hash, @created_at, @plan, @role, @credit_balance)`,
+        `INSERT INTO users(id, username, password_hash, created_at, plan, role, status, credit_balance)
+         VALUES(@id, @username, @password_hash, @created_at, @plan, @role, @status, @credit_balance)`,
       )
       .run({
         id: user.id,
@@ -138,6 +148,7 @@ export class UsersRepo {
         created_at: user.createdAt,
         plan: user.plan,
         role: user.role,
+        status: user.status,
         credit_balance: user.creditBalance,
       });
 
@@ -156,6 +167,18 @@ export class UsersRepo {
       .run(role, userId);
   }
 
+  updateStatus(userId: string, status: UserStatus) {
+    this.sqlite.connection
+      .prepare('UPDATE users SET status = ? WHERE id = ?')
+      .run(status, userId);
+  }
+
+  updatePasswordHash(userId: string, passwordHash: string) {
+    this.sqlite.connection
+      .prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+      .run(passwordHash, userId);
+  }
+
   updateCreditBalance(userId: string, creditBalance: number) {
     this.sqlite.connection
       .prepare('UPDATE users SET credit_balance = ? WHERE id = ?')
@@ -166,5 +189,12 @@ export class UsersRepo {
     this.sqlite.connection
       .prepare('UPDATE users SET last_used_at = ? WHERE id = ?')
       .run(lastUsedAt, userId);
+  }
+
+  deleteById(userId: string) {
+    const result = this.sqlite.connection
+      .prepare('DELETE FROM users WHERE id = ?')
+      .run(userId);
+    return Number(result?.changes || 0);
   }
 }

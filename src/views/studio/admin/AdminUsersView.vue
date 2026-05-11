@@ -10,6 +10,7 @@
         <SearchInput v-model="q" placeholder="搜索用户名、ID..." @keydown.enter.prevent="search" />
         <SelectMenu v-model="planFilter" size="sm" :options="planOptions" placeholder="全部 plan" class="sel" />
         <SelectMenu v-model="roleFilter" size="sm" :options="roleOptions" placeholder="全部 role" class="sel" />
+        <SelectMenu v-model="statusFilter" size="sm" :options="statusOptions" placeholder="全部状态" class="sel" />
         <Input v-model="minBalance" size="sm" placeholder="余额≥" class="num" />
         <Input v-model="maxBalance" size="sm" placeholder="余额≤" class="num" />
         <Toggle v-model="lowBalanceOnly" size="sm" label="仅余额不足" class="toggle" />
@@ -51,6 +52,12 @@
             <span class="chip" :class="row.role">{{ row.role }}</span>
           </template>
 
+          <template #cell-status="{ row }">
+            <span class="chip" :class="statusClass(row.status)">
+              {{ statusLabel(row.status) }}
+            </span>
+          </template>
+
           <template #cell-creditBalance="{ row }">
             <span class="balance" :class="{ low: Number(row.creditBalance) <= 0 }">{{ row.creditBalance }}</span>
           </template>
@@ -86,6 +93,9 @@
           <div class="drawer-meta">
             <span class="pill">{{ selected?.plan }}</span>
             <span class="pill">{{ selected?.role }}</span>
+            <span class="pill" :class="statusPillClass(selected?.status)">
+              {{ statusLabel(selected?.status) }}
+            </span>
             <span class="pill">余额 {{ selected?.creditBalance ?? 0 }}</span>
           </div>
         </div>
@@ -128,6 +138,12 @@
                 <div class="info-k">当前 Role</div>
                 <div class="info-v">
                   <span class="info-main">{{ selected?.role }}</span>
+                </div>
+              </div>
+              <div class="info-item">
+                <div class="info-k">账号状态</div>
+                <div class="info-v">
+                  <span class="info-main">{{ statusLabel(selected?.status) }}</span>
                 </div>
               </div>
               <div class="info-item">
@@ -192,6 +208,37 @@
                   </Button>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <div v-if="isSuperAdmin" class="kv">
+            <div class="kv-label">账号操作</div>
+            <div class="muted edit-hint">支持直接封禁、改密码和删除；超级管理员不可操作。</div>
+            <div class="actions actions-wrap">
+              <Button
+                size="sm"
+                :variant="selected?.status === 'banned' ? 'primary' : 'danger'"
+                :disabled="saving.status || selected?.role === 'superadmin'"
+                @click="toggleStatus"
+              >
+                {{ saving.status ? '处理中...' : selected?.status === 'banned' ? '解除封禁' : '封禁用户' }}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                :disabled="selected?.role === 'superadmin'"
+                @click="openPasswordModal"
+              >
+                修改密码
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                :disabled="saving.delete || selected?.role === 'superadmin'"
+                @click="openDeleteModal"
+              >
+                删除用户
+              </Button>
             </div>
           </div>
         </div>
@@ -263,13 +310,48 @@
         </div>
       </div>
   </Drawer>
+
+  <Modal v-model:open="passwordModalOpen" title="修改密码" size="sm">
+    <div class="modal-form">
+      <div class="muted">将直接覆盖该用户当前密码。</div>
+      <Input v-model="newPassword" type="password" placeholder="至少 6 位" />
+      <Input v-model="confirmPassword" type="password" placeholder="再次输入新密码" />
+    </div>
+    <template #footer>
+      <div class="modal-actions">
+        <Button variant="ghost" @click="passwordModalOpen = false">取消</Button>
+        <Button :disabled="saving.password" @click="submitPassword">
+          {{ saving.password ? '保存中...' : '确认修改' }}
+        </Button>
+      </div>
+    </template>
+  </Modal>
+
+  <Modal v-model:open="deleteModalOpen" title="删除用户" size="sm">
+    <div class="modal-form">
+      <div class="danger-copy">删除后将移除该用户、历史图片、对话记录和积分流水，此操作不可恢复。</div>
+      <Input v-model="deleteConfirmText" placeholder="输入 DELETE 确认" />
+    </div>
+    <template #footer>
+      <div class="modal-actions">
+        <Button variant="ghost" @click="deleteModalOpen = false">取消</Button>
+        <Button
+          variant="danger"
+          :disabled="saving.delete || deleteConfirmText !== 'DELETE'"
+          @click="submitDelete"
+        >
+          {{ saving.delete ? '删除中...' : '确认删除' }}
+        </Button>
+      </div>
+    </template>
+  </Modal>
 </template>
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useAuthStore } from '../../../stores/auth'
 import { RefreshCcwIcon } from 'lucide-vue-next'
-import { Button, DataTable, Drawer, Input, Pagination, SearchInput, SelectMenu, Toggle, toastError, toastSuccess } from '../../../components/common'
+import { Button, DataTable, Drawer, Input, Modal, Pagination, SearchInput, SelectMenu, Toggle, toastError, toastSuccess } from '../../../components/common'
 import { AdminListLayout, TablePageLayout } from '../../../components/layout'
 import { apiFetch } from '../../../utils/api'
 
@@ -287,13 +369,20 @@ const roleOptions = [
   { label: 'superadmin', value: 'superadmin', disabled: true }
 ]
 
+const statusOptions = [
+  { label: '正常', value: 'active' },
+  { label: '待验证', value: 'pending_verification' },
+  { label: '已封禁', value: 'banned' }
+]
+
 const columns = [
-  { key: 'user', title: '用户', width: '34%', nowrap: true, ellipsis: true },
+  { key: 'user', title: '用户', width: '28%', nowrap: true, ellipsis: true },
   { key: 'plan', title: 'Plan', width: '10%', align: 'left', nowrap: true },
   { key: 'role', title: 'Role', width: '10%', align: 'left', nowrap: true },
+  { key: 'status', title: '状态', width: '10%', align: 'left', nowrap: true },
   { key: 'creditBalance', title: '余额', width: '8%', align: 'left', nowrap: true },
-  { key: 'createdAt', title: '创建时间', width: '19%', align: 'left', nowrap: true },
-  { key: 'lastUsedAt', title: '最后使用', width: '19%', align: 'left', nowrap: true }
+  { key: 'createdAt', title: '创建时间', width: '17%', align: 'left', nowrap: true },
+  { key: 'lastUsedAt', title: '最后使用', width: '17%', align: 'left', nowrap: true }
 ]
 
 const q = ref('')
@@ -307,9 +396,28 @@ const pageSize = ref(20)
 
 const planFilter = ref('')
 const roleFilter = ref('')
+const statusFilter = ref('')
 const minBalance = ref('')
 const maxBalance = ref('')
 const lowBalanceOnly = ref(false)
+
+function statusLabel(status) {
+  if (status === 'banned') return '已封禁'
+  if (status === 'pending_verification') return '待验证'
+  return '正常'
+}
+
+function statusClass(status) {
+  if (status === 'banned') return 'banned'
+  if (status === 'pending_verification') return 'pending'
+  return 'active'
+}
+
+function statusPillClass(status) {
+  if (status === 'banned') return 'pill-danger'
+  if (status === 'pending_verification') return 'pill-warn'
+  return 'pill-ok'
+}
 
 async function api(url, options) {
   return apiFetch(url, options)
@@ -325,6 +433,7 @@ async function load() {
     params.set('limit', String(pageSize.value))
     if (planFilter.value) params.set('plan', String(planFilter.value))
     if (roleFilter.value) params.set('role', String(roleFilter.value))
+    if (statusFilter.value) params.set('status', String(statusFilter.value))
     if (String(minBalance.value || '').trim() !== '') params.set('minBalance', String(minBalance.value))
     if (String(maxBalance.value || '').trim() !== '') params.set('maxBalance', String(maxBalance.value))
     if (lowBalanceOnly.value) params.set('lowBalanceOnly', '1')
@@ -377,7 +486,7 @@ function scheduleFilterLoad() {
   }, 400)
 }
 
-watch([planFilter, roleFilter, lowBalanceOnly], () => {
+watch([planFilter, roleFilter, statusFilter, lowBalanceOnly], () => {
   page.value = 1
   load()
 })
@@ -414,7 +523,12 @@ const tab = ref('overview')
 
 const editPlan = ref('free')
 const editRole = ref('user')
-const saving = ref({ plan: false, role: false })
+const saving = ref({ plan: false, role: false, status: false, password: false, delete: false })
+const passwordModalOpen = ref(false)
+const deleteModalOpen = ref(false)
+const newPassword = ref('')
+const confirmPassword = ref('')
+const deleteConfirmText = ref('')
 
 function openDrawer(user) {
   selected.value = { ...user }
@@ -428,10 +542,21 @@ function closeDrawer() {
   drawerOpen.value = false
   selected.value = null
   ledger.value = []
+  passwordModalOpen.value = false
+  deleteModalOpen.value = false
+  newPassword.value = ''
+  confirmPassword.value = ''
+  deleteConfirmText.value = ''
 }
 
 function updateLocalUser(id, patch) {
   users.value = (users.value || []).map((u) => (u.id === id ? { ...u, ...patch } : u))
+}
+
+function applyUserPatch(nextUser) {
+  if (!nextUser?.id) return
+  selected.value = { ...(selected.value || {}), ...nextUser }
+  updateLocalUser(nextUser.id, nextUser)
 }
 
 async function savePlan() {
@@ -475,6 +600,79 @@ async function saveRole() {
 async function setRole(role) {
   editRole.value = role
   await saveRole()
+}
+
+async function toggleStatus() {
+  if (!selected.value?.id) return
+  const nextStatus = selected.value.status === 'banned' ? 'active' : 'banned'
+  saving.value = { ...saving.value, status: true }
+  try {
+    const data = await api(`/api/admin/users/${selected.value.id}/status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: nextStatus })
+    })
+    applyUserPatch(data.user)
+    toastSuccess(nextStatus === 'banned' ? '已封禁用户' : '已解除封禁')
+  } catch (e) {
+    await load()
+  } finally {
+    saving.value = { ...saving.value, status: false }
+  }
+}
+
+function openPasswordModal() {
+  newPassword.value = ''
+  confirmPassword.value = ''
+  passwordModalOpen.value = true
+}
+
+async function submitPassword() {
+  if (!selected.value?.id) return
+  if (String(newPassword.value || '').length < 6) {
+    toastError('密码至少 6 位')
+    return
+  }
+  if (newPassword.value !== confirmPassword.value) {
+    toastError('两次输入密码不一致')
+    return
+  }
+  saving.value = { ...saving.value, password: true }
+  try {
+    await api(`/api/admin/users/${selected.value.id}/password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: newPassword.value })
+    })
+    passwordModalOpen.value = false
+    newPassword.value = ''
+    confirmPassword.value = ''
+    toastSuccess('密码已更新')
+  } finally {
+    saving.value = { ...saving.value, password: false }
+  }
+}
+
+function openDeleteModal() {
+  deleteConfirmText.value = ''
+  deleteModalOpen.value = true
+}
+
+async function submitDelete() {
+  if (!selected.value?.id || deleteConfirmText.value !== 'DELETE') return
+  const id = selected.value.id
+  saving.value = { ...saving.value, delete: true }
+  try {
+    await api(`/api/admin/users/${id}`, { method: 'DELETE' })
+    users.value = (users.value || []).filter((item) => item.id !== id)
+    total.value = Math.max(0, Number(total.value || 0) - 1)
+    deleteModalOpen.value = false
+    closeDrawer()
+    toastSuccess('用户已删除')
+    await load()
+  } finally {
+    saving.value = { ...saving.value, delete: false }
+  }
 }
 
 const adjustAmount = ref('')
@@ -632,6 +830,18 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   border-color: rgba(236, 72, 153, 0.18);
 }
 
+.chip.active {
+  color: #166534;
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.18);
+}
+
+.chip.banned {
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.18);
+}
+
 .balance {
   font-weight: 950;
   color: var(--primary);
@@ -683,6 +893,18 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   font-size: 11px;
   font-weight: 950;
   color: rgba(15, 23, 42, 0.75);
+}
+
+.pill-ok {
+  color: #166534;
+}
+
+.pill-warn {
+  color: #b45309;
+}
+
+.pill-danger {
+  color: #b91c1c;
 }
 
 .drawer-tabs {
@@ -845,6 +1067,11 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   margin-top: 10px;
 }
 
+.actions-wrap {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .edit-actions .btn,
 .actions .btn {
   min-width: 140px;
@@ -853,6 +1080,24 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .muted {
   color: var(--muted);
   font-size: 13px;
+  line-height: 1.6;
+}
+
+.modal-form {
+  display: grid;
+  gap: 12px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.danger-copy {
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 800;
   line-height: 1.6;
 }
 

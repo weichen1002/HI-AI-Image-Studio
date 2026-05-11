@@ -6,6 +6,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { config } from '../config';
+import { logError, toErrorDetails } from '../logging/logger';
 
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {
@@ -50,6 +51,17 @@ export class ApiExceptionFilter implements ExceptionFilter {
     const msg = Array.isArray(msgRaw)
       ? msgRaw.filter(Boolean).join('；')
       : String(msgRaw || '');
+
+    logError('Exception', `${req.method} ${req.originalUrl || req.url} failed`, {
+      status,
+      message:
+        msg || (status >= 500 ? '服务器开小差了，请稍后重试' : '请求失败'),
+      userId: String(req?.user?.id || '').trim() || undefined,
+      body: req?.body,
+      query: req?.query,
+      params: req?.params,
+      error: toErrorDetails(exception),
+    });
 
     res.status(status).json({
       code: status,

@@ -6,6 +6,8 @@ import * as path from 'path';
 import { config } from './config';
 import { ApiExceptionFilter } from './filters/api-exception.filter';
 import { ApiResponseInterceptor } from './interceptors/api-response.interceptor';
+import { requestLoggingMiddleware } from './logging/request-logging.middleware';
+import { logError, logInfo } from './logging/logger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -14,6 +16,7 @@ async function bootstrap() {
   app.use(express.urlencoded({ limit: config.BODY_LIMIT, extended: true }));
   app.use(cookieParser());
   app.enableCors();
+  app.use(requestLoggingMiddleware);
   app.useGlobalFilters(new ApiExceptionFilter());
   app.useGlobalInterceptors(new ApiResponseInterceptor());
   app.use(
@@ -24,9 +27,15 @@ async function bootstrap() {
   );
 
   await app.listen(config.PORT, config.HOST);
-  console.log(
-    `NestJS Image2 Create API running at http://${config.HOST}:${config.PORT}`,
-  );
-  console.log(`HiAPI key: ${config.HIAPI_API_KEY ? 'configured' : 'missing'}`);
+  logInfo('Bootstrap', 'Server started', {
+    url: `http://${config.HOST}:${config.PORT}`,
+    bodyLimit: config.BODY_LIMIT,
+    dataDir: config.DATA_DIR,
+    hiapiKey: config.HIAPI_API_KEY ? 'configured' : 'missing',
+  });
 }
-bootstrap();
+
+bootstrap().catch((error) => {
+  logError('Bootstrap', 'Server failed to start', error);
+  process.exit(1);
+});

@@ -6,6 +6,8 @@ import { AnnouncementsRepo } from './repositories/announcements.repo';
 import { RedeemCodesRepo } from './repositories/redeem-codes.repo';
 import { SystemSettingsRepo } from './repositories/system-settings.repo';
 import { DialogueRepo } from './repositories/dialogue.repo';
+import { AuditLogsRepo } from './repositories/audit-logs.repo';
+import { EmailVerificationRepo } from './repositories/email-verification.repo';
 import { CreditsRepo } from '../credits/credits.repo';
 
 @Module({
@@ -17,6 +19,8 @@ import { CreditsRepo } from '../credits/credits.repo';
     RedeemCodesRepo,
     SystemSettingsRepo,
     DialogueRepo,
+    AuditLogsRepo,
+    EmailVerificationRepo,
     CreditsRepo,
   ],
   exports: [
@@ -27,6 +31,8 @@ import { CreditsRepo } from '../credits/credits.repo';
     RedeemCodesRepo,
     SystemSettingsRepo,
     DialogueRepo,
+    AuditLogsRepo,
+    EmailVerificationRepo,
     CreditsRepo,
   ],
 })

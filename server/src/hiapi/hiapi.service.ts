@@ -2,6 +2,7 @@ import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { config } from '../config';
 import * as fs from 'fs/promises';
 import { SystemSettingsRepo } from '../db/repositories/system-settings.repo';
+import { logWarn, toErrorDetails } from '../logging/logger';
 
 const HIAPI_RETRY_DELAYS_MS = [400, 1200];
 
@@ -192,10 +193,11 @@ async function withHiapiRetry<T>(
       }
 
       const delay = HIAPI_RETRY_DELAYS_MS[attempt - 1];
-      console.warn(
-        `[HiAPI] ${operation} failed on attempt ${attempt}, retrying in ${delay}ms`,
-        error,
-      );
+      logWarn('HiAPI', `${operation} failed, retry scheduled`, {
+        attempt,
+        delayMs: delay,
+        error: toErrorDetails(error, { includeStack: false }),
+      });
       await sleep(delay);
     }
   }

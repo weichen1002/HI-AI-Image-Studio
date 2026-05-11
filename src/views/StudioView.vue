@@ -44,6 +44,10 @@
           <GiftIcon :size="18" />
           兑换
         </router-link>
+        <router-link v-if="isAdmin" to="/studio/admin/audit-logs" class="nav-link nav-link-admin-mobile">
+          <AlertCircleIcon :size="18" />
+          审计
+        </router-link>
         
         <div style="flex: 1"></div>
 
@@ -68,6 +72,10 @@
           <router-link to="/studio/admin/redeem-codes" class="nav-link">
             <GiftIcon :size="18" />
             兑换码
+          </router-link>
+          <router-link to="/studio/admin/audit-logs" class="nav-link">
+            <AlertCircleIcon :size="18" />
+            审计日志
           </router-link>
         </div>
         
@@ -309,7 +317,8 @@ const routeNames = {
   'studio-admin-users': '管理中心 / 用户管理',
   'studio-admin-ledger': '管理中心 / 账务流水',
   'studio-admin-announcements': '管理中心 / 公告中心',
-  'studio-admin-redeem-codes': '管理中心 / 兑换码'
+  'studio-admin-redeem-codes': '管理中心 / 兑换码',
+  'studio-admin-audit-logs': '管理中心 / 审计日志'
 }
 
 const routeDescs = {
@@ -324,7 +333,8 @@ const routeDescs = {
   'studio-admin-users': '管理用户套餐、余额与权限。',
   'studio-admin-ledger': '查看充值、扣费等账务流水记录。',
   'studio-admin-announcements': '创建/发布公告，支持全站可见与自动弹窗（读过不弹 / 每次必读）。',
-  'studio-admin-redeem-codes': '创建和管理单次码、活动码。'
+  'studio-admin-redeem-codes': '创建和管理单次码、活动码。',
+  'studio-admin-audit-logs': '查看注册、登录、封禁、删号等关键安全与管理操作记录。'
 }
 
 const currentRouteName = computed(() => {

@@ -67,6 +67,49 @@
               <Switch v-model="forms.general.allowRegistration" :disabled="loading || saving" />
             </div>
           </div>
+
+          <div class="section-card">
+            <div class="section-row">
+              <div>
+                <div class="section-title">邮箱验证激活</div>
+                <div class="field-help">开启后，用户注册成功不会立即激活，需点邮件里的验证链接后才能登录。</div>
+              </div>
+              <Switch v-model="forms.general.requireEmailVerification" :disabled="loading || saving" />
+            </div>
+
+            <div class="field-grid compact-top">
+              <div class="field">
+                <div class="field-label">邮件提供方</div>
+                <select v-model="forms.general.mailProvider" class="native-select" :disabled="loading || saving">
+                  <option value="mock">mock</option>
+                  <option value="resend">resend</option>
+                  <option value="smtp-http">smtp-http</option>
+                </select>
+                <div class="field-help">`mock` 只打印到服务端日志，适合先联调。</div>
+              </div>
+              <div class="field">
+                <div class="field-label">发件人</div>
+                <Input v-model="forms.general.mailFrom" :disabled="loading || saving" />
+              </div>
+              <div class="field field-span-2">
+                <div class="field-label">站点地址</div>
+                <Input v-model="forms.general.appBaseUrl" :disabled="loading || saving" />
+                <div class="field-help">用于拼接验证链接，例如 `https://studio.hiapis.cloud`。</div>
+              </div>
+              <div class="field">
+                <div class="field-label">邮件接口地址</div>
+                <Input v-model="forms.general.mailApiUrl" :disabled="loading || saving" />
+              </div>
+              <div class="field">
+                <div class="field-label">邮件接口 Key</div>
+                <Input v-model="forms.general.mailApiKey" :disabled="loading || saving" />
+              </div>
+              <div class="field field-span-2">
+                <div class="field-label">邮件标题</div>
+                <Input v-model="forms.general.mailSubject" :disabled="loading || saving" />
+              </div>
+            </div>
+          </div>
         </div>
 
         <div v-else-if="activeTab === 'credits'" class="settings-body">
@@ -220,6 +263,13 @@ const forms = reactive({
     siteSubtitle: '',
     supportContact: '',
     allowRegistration: true,
+    requireEmailVerification: false,
+    mailFrom: '',
+    mailProvider: 'mock',
+    mailApiUrl: '',
+    mailApiKey: '',
+    mailSubject: '',
+    appBaseUrl: '',
     footerCopyright: ''
   },
   signupBonus: {
@@ -257,6 +307,13 @@ function applyBootstrap(data) {
   forms.general.siteSubtitle = String(data?.general?.siteSubtitle || '')
   forms.general.supportContact = String(data?.general?.supportContact || '')
   forms.general.allowRegistration = data?.general?.allowRegistration !== false
+  forms.general.requireEmailVerification = data?.general?.requireEmailVerification === true
+  forms.general.mailFrom = String(data?.general?.mailFrom || '')
+  forms.general.mailProvider = String(data?.general?.mailProvider || 'mock')
+  forms.general.mailApiUrl = String(data?.general?.mailApiUrl || '')
+  forms.general.mailApiKey = String(data?.general?.mailApiKey || '')
+  forms.general.mailSubject = String(data?.general?.mailSubject || '')
+  forms.general.appBaseUrl = String(data?.general?.appBaseUrl || '')
   forms.general.footerCopyright = String(data?.general?.footerCopyright || '')
 
   forms.signupBonus.enabled = data?.signupBonus?.enabled !== false
@@ -328,6 +385,13 @@ async function saveGeneral() {
       siteSubtitle: forms.general.siteSubtitle,
       supportContact: forms.general.supportContact,
       allowRegistration: forms.general.allowRegistration,
+      requireEmailVerification: forms.general.requireEmailVerification,
+      mailFrom: forms.general.mailFrom,
+      mailProvider: forms.general.mailProvider,
+      mailApiUrl: forms.general.mailApiUrl,
+      mailApiKey: forms.general.mailApiKey,
+      mailSubject: forms.general.mailSubject,
+      appBaseUrl: forms.general.appBaseUrl,
       footerCopyright: forms.general.footerCopyright
     })
   })

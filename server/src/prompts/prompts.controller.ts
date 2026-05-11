@@ -14,6 +14,7 @@ import { CreditsRepo } from '../credits/credits.repo';
 import { costFor } from '../credits/pricing';
 import * as crypto from 'crypto';
 import { SystemSettingsRepo } from '../db/repositories/system-settings.repo';
+import { logError, toErrorDetails } from '../logging/logger';
 
 function normalizePrompt(value: any) {
   const prompt = String(value || '').trim();
@@ -94,7 +95,12 @@ export class PromptsController {
             refId,
           });
         } catch (refundError) {
-          console.error(refundError);
+          logError('PromptsController', 'Refund failed after prompt enhance error', {
+            userId,
+            refId,
+            cost,
+            error: toErrorDetails(refundError),
+          });
         }
       }
       throw error;

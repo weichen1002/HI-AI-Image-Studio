@@ -150,4 +150,11 @@ export class DialogueRepo {
       .run(params.chainId, params.userId);
     return Number(result?.changes || 0);
   }
+
+  deleteAllByUser(params: { userId: string }) {
+    const result = this.sqlite.connection
+      .prepare('DELETE FROM dialogue_messages WHERE user_id = ?')
+      .run(params.userId);
+    return Number(result?.changes || 0);
+  }
 }
