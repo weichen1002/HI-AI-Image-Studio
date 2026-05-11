@@ -19,8 +19,16 @@ function getReloadPath(targetPath) {
   return `${window.location.pathname}${window.location.search}${window.location.hash}`
 }
 
+function shouldReloadOnDynamicImportError() {
+  return import.meta.env.PROD
+}
+
 export function reloadOnDynamicImportError(error, targetPath) {
-  if (typeof window === 'undefined' || !isDynamicImportError(error)) {
+  if (
+    typeof window === 'undefined' ||
+    !shouldReloadOnDynamicImportError() ||
+    !isDynamicImportError(error)
+  ) {
     return false
   }
 

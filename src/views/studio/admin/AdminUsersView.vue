@@ -332,6 +332,12 @@ async function load() {
     const data = await api(`/api/admin/users?${params.toString()}`)
     users.value = data.users || []
     total.value = Number(data.total || 0)
+    if (selected.value?.id) {
+      const latest = users.value.find((item) => item.id === selected.value.id)
+      if (latest) {
+        selected.value = { ...latest }
+      }
+    }
 
     const totalPages = Math.max(1, Math.ceil((total.value || 0) / pageSize.value))
     if (page.value > totalPages) {
