@@ -3,6 +3,8 @@ import { config } from '../config';
 import * as fs from 'fs/promises';
 import { SystemSettingsRepo } from '../db/repositories/system-settings.repo';
 
+const HIAPI_RETRY_DELAYS_MS = [400, 1200];
+
 export type SupportedImageSize =
   | 'auto'
   | '1024x1024'
@@ -141,6 +143,64 @@ function normalizeHiapiError(error: any) {
       ? 'HiAPI 请求超时，请稍后重试'
       : `HiAPI 网络请求失败：${error?.cause?.code || error?.message || 'unknown'}`;
   return new HttpException(message, HttpStatus.BAD_GATEWAY);
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableHiapiStatus(status: number) {
+  return [408, 425, 429, 500, 502, 503, 504].includes(status);
+}
+
+function isRetryableHiapiError(error: any) {
+  const status = Number(error?.getStatus?.() || error?.status || 0);
+  const message = String(error?.message || '').toLowerCase();
+
+  if (isRetryableHiapiStatus(status)) {
+    return true;
+  }
+
+  return (
+    message.includes('upstream request failed') ||
+    message.includes('timeout') ||
+    message.includes('timed out') ||
+    message.includes('network') ||
+    message.includes('fetch failed') ||
+    message.includes('econnreset') ||
+    message.includes('etimedout') ||
+    message.includes('socket hang up')
+  );
+}
+
+async function withHiapiRetry<T>(
+  operation: string,
+  task: (attempt: number) => Promise<T>,
+) {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= HIAPI_RETRY_DELAYS_MS.length + 1; attempt += 1) {
+    try {
+      return await task(attempt);
+    } catch (error) {
+      lastError = error;
+      if (
+        attempt > HIAPI_RETRY_DELAYS_MS.length ||
+        !isRetryableHiapiError(error)
+      ) {
+        throw error;
+      }
+
+      const delay = HIAPI_RETRY_DELAYS_MS[attempt - 1];
+      console.warn(
+        `[HiAPI] ${operation} failed on attempt ${attempt}, retrying in ${delay}ms`,
+        error,
+      );
+      await sleep(delay);
+    }
+  }
+
+  throw lastError;
 }
 
 function collectMessageText(output: any[]) {
@@ -304,53 +364,55 @@ export class HiapiService {
     background?: SupportedBackground;
     moderation?: SupportedModeration;
   }) {
-    const modelSettings = this.settingsRepo.getModelSettings();
-    const imageModel = String(modelSettings.imageModel || '').trim();
-    const responseFormat = normalizeResponseFormat(
-      imageModel,
-      modelSettings.responseFormat,
-    );
-    const controller = new AbortController();
-    const timeout = setTimeout(
-      () => controller.abort(),
-      modelSettings.timeoutMs,
-    );
-    let response: Response;
+    return withHiapiRetry('images/generations', async () => {
+      const modelSettings = this.settingsRepo.getModelSettings();
+      const imageModel = String(modelSettings.imageModel || '').trim();
+      const responseFormat = normalizeResponseFormat(
+        imageModel,
+        modelSettings.responseFormat,
+      );
+      const controller = new AbortController();
+      const timeout = setTimeout(
+        () => controller.abort(),
+        modelSettings.timeoutMs,
+      );
+      let response: Response;
 
-    try {
-      response = await fetch(`${modelSettings.baseUrl}/images/generations`, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          Authorization: `Bearer ${config.HIAPI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: imageModel,
-          prompt: params.prompt,
-          n: 1,
-          size: params.size,
-          quality: params.quality,
-          output_format: params.outputFormat,
-          ...(params.outputFormat !== 'png' &&
-          Number.isFinite(params.outputCompression)
-            ? { output_compression: params.outputCompression }
-            : {}),
-          background: params.background || 'auto',
-          moderation: params.moderation || 'auto',
-          ...(responseFormat ? { response_format: responseFormat } : {}),
-        }),
-      });
-    } catch (error: any) {
-      throw normalizeHiapiError(error);
-    } finally {
-      clearTimeout(timeout);
-    }
+      try {
+        response = await fetch(`${modelSettings.baseUrl}/images/generations`, {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            Authorization: `Bearer ${config.HIAPI_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: imageModel,
+            prompt: params.prompt,
+            n: 1,
+            size: params.size,
+            quality: params.quality,
+            output_format: params.outputFormat,
+            ...(params.outputFormat !== 'png' &&
+            Number.isFinite(params.outputCompression)
+              ? { output_compression: params.outputCompression }
+              : {}),
+            background: params.background || 'auto',
+            moderation: params.moderation || 'auto',
+            ...(responseFormat ? { response_format: responseFormat } : {}),
+          }),
+        });
+      } catch (error: any) {
+        throw normalizeHiapiError(error);
+      } finally {
+        clearTimeout(timeout);
+      }
 
-    return parseHiapiResponse(
-      response,
-      mimeTypeForOutputFormat(params.outputFormat),
-    );
+      return parseHiapiResponse(
+        response,
+        mimeTypeForOutputFormat(params.outputFormat),
+      );
+    });
   }
 
   async generateImage(
@@ -455,68 +517,70 @@ export class HiapiService {
       modelSettings.responseFormat,
     );
     const results = await Promise.all(
-      Array.from({ length: count }, async () => {
-        const currentModelSettings = this.settingsRepo.getModelSettings();
-        const controller = new AbortController();
-        const timeout = setTimeout(
-          () => controller.abort(),
-          currentModelSettings.timeoutMs,
-        );
-        let response: Response;
+      Array.from({ length: count }, async () =>
+        withHiapiRetry('images/edits', async () => {
+          const currentModelSettings = this.settingsRepo.getModelSettings();
+          const controller = new AbortController();
+          const timeout = setTimeout(
+            () => controller.abort(),
+            currentModelSettings.timeoutMs,
+          );
+          let response: Response;
 
-        try {
-          const form = new FormData();
-          form.set('model', effectiveModel || currentModelSettings.imageModel);
-          form.set('prompt', params.prompt);
-          form.set('n', '1');
-          form.set('size', size);
-          form.set('quality', quality);
-          form.set('output_format', outputFormat);
-          if (outputFormat !== 'png') {
-            form.set('output_compression', String(outputCompression));
-          }
-          form.set('background', background);
-          form.set('moderation', moderation);
-          if (responseFormat) {
-            form.set('response_format', responseFormat);
-          }
-          // 多参考图时按顺序逐个 append，第一张作为主参考图。
-          for (const imageFile of params.imageFiles) {
-            const buffer = await fs.readFile(imageFile.filePath);
-            form.append(
-              'image',
-              new Blob([buffer], { type: imageFile.fileType }),
-              imageFile.fileName,
-            );
-          }
-          if (params.maskFilePath) {
-            const maskBuffer = await fs.readFile(params.maskFilePath);
-            form.set(
-              'mask',
-              new Blob([maskBuffer], { type: params.maskFileType || 'image/png' }),
-              params.maskFileName || 'mask.png',
-            );
+          try {
+            const form = new FormData();
+            form.set('model', effectiveModel || currentModelSettings.imageModel);
+            form.set('prompt', params.prompt);
+            form.set('n', '1');
+            form.set('size', size);
+            form.set('quality', quality);
+            form.set('output_format', outputFormat);
+            if (outputFormat !== 'png') {
+              form.set('output_compression', String(outputCompression));
+            }
+            form.set('background', background);
+            form.set('moderation', moderation);
+            if (responseFormat) {
+              form.set('response_format', responseFormat);
+            }
+            // 多参考图时按顺序逐个 append，第一张作为主参考图。
+            for (const imageFile of params.imageFiles) {
+              const buffer = await fs.readFile(imageFile.filePath);
+              form.append(
+                'image',
+                new Blob([buffer], { type: imageFile.fileType }),
+                imageFile.fileName,
+              );
+            }
+            if (params.maskFilePath) {
+              const maskBuffer = await fs.readFile(params.maskFilePath);
+              form.set(
+                'mask',
+                new Blob([maskBuffer], { type: params.maskFileType || 'image/png' }),
+                params.maskFileName || 'mask.png',
+              );
+            }
+
+            response = await fetch(`${currentModelSettings.baseUrl}/images/edits`, {
+              method: 'POST',
+              signal: controller.signal,
+              headers: {
+                Authorization: `Bearer ${config.HIAPI_API_KEY}`,
+              },
+              body: form as any,
+            });
+          } catch (error: any) {
+            throw normalizeHiapiError(error);
+          } finally {
+            clearTimeout(timeout);
           }
 
-          response = await fetch(`${currentModelSettings.baseUrl}/images/edits`, {
-            method: 'POST',
-            signal: controller.signal,
-            headers: {
-              Authorization: `Bearer ${config.HIAPI_API_KEY}`,
-            },
-            body: form as any,
-          });
-        } catch (error: any) {
-          throw normalizeHiapiError(error);
-        } finally {
-          clearTimeout(timeout);
-        }
-
-        return parseHiapiResponse(
-          response,
-          mimeTypeForOutputFormat(outputFormat),
-        );
-      }),
+          return parseHiapiResponse(
+            response,
+            mimeTypeForOutputFormat(outputFormat),
+          );
+        }),
+      ),
     );
 
     return {
@@ -584,11 +648,6 @@ export class HiapiService {
       );
     }
 
-    const controller = new AbortController();
-    const timeout = setTimeout(
-      () => controller.abort(),
-      modelSettings.timeoutMs,
-    );
     const toolBackground =
       params.background === 'transparent' ? 'auto' : params.background || 'auto';
     const toolSize = sizeForSub2api(params.aspectRatio, modelSettings.sizeFormat);
@@ -619,79 +678,87 @@ export class HiapiService {
       action: 'auto' | 'generate' | 'edit';
       previousResponseId?: string;
     }) => {
-      let response: Response;
-      try {
-        response = await fetch(`${modelSettings.baseUrl}/responses`, {
-          method: 'POST',
-          signal: controller.signal,
-          headers: {
-            Authorization: `Bearer ${config.HIAPI_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: modelSettings.textModel,
-            store: true,
-            ...(params.userId ? { user: params.userId } : {}),
-            ...(request.previousResponseId
-              ? { previous_response_id: request.previousResponseId }
-              : {}),
-            input: request.input,
-            tool_choice: { type: 'image_generation' },
-            tools: [
-              {
-                type: 'image_generation',
-                action: request.action,
-                size: toolSize,
-                quality: toolQuality,
-                background: toolBackground,
-              },
-            ],
-          }),
-        });
-      } catch (error: any) {
-        throw normalizeHiapiError(error);
-      }
-      return parseResponsesImageResponse(response);
+      return withHiapiRetry('responses', async () => {
+        const currentModelSettings = this.settingsRepo.getModelSettings();
+        const controller = new AbortController();
+        const timeout = setTimeout(
+          () => controller.abort(),
+          currentModelSettings.timeoutMs,
+        );
+        let response: Response;
+
+        try {
+          response = await fetch(`${currentModelSettings.baseUrl}/responses`, {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+              Authorization: `Bearer ${config.HIAPI_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: currentModelSettings.textModel,
+              store: true,
+              ...(params.userId ? { user: params.userId } : {}),
+              ...(request.previousResponseId
+                ? { previous_response_id: request.previousResponseId }
+                : {}),
+              input: request.input,
+              tool_choice: { type: 'image_generation' },
+              tools: [
+                {
+                  type: 'image_generation',
+                  action: request.action,
+                  size: toolSize,
+                  quality: toolQuality,
+                  background: toolBackground,
+                },
+              ],
+            }),
+          });
+        } catch (error: any) {
+          throw normalizeHiapiError(error);
+        } finally {
+          clearTimeout(timeout);
+        }
+
+        return parseResponsesImageResponse(response);
+      });
     };
 
     try {
-      try {
-        if (params.previousResponseId) {
-          const responseChainInput = [
-            createUserTurn(params.prompt, params.inputImageUrls || []),
-          ];
-          const hasEditContext =
-            Boolean(params.previousResponseId) ||
-            Boolean((params.inputImageUrls || []).length);
-          return await createRequest({
-            input: responseChainInput,
-            action: hasEditContext ? 'edit' : 'generate',
-            previousResponseId: params.previousResponseId,
-          });
-        }
-      } catch (error: any) {
-        if (!shouldFallbackToReplay(error)) {
-          throw error;
-        }
+      if (params.previousResponseId) {
+        const responseChainInput = [
+          createUserTurn(params.prompt, params.inputImageUrls || []),
+        ];
+        const hasEditContext =
+          Boolean(params.previousResponseId) ||
+          Boolean((params.inputImageUrls || []).length);
+        return await createRequest({
+          input: responseChainInput,
+          action: hasEditContext ? 'edit' : 'generate',
+          previousResponseId: params.previousResponseId,
+        });
       }
-
-      const replayInput: any[] = [];
-      for (const turn of params.historyTurns || []) {
-        const prompt = String(turn.prompt || '').trim();
-        if (!prompt) continue;
-        replayInput.push(createUserTurn(prompt));
+    } catch (error: any) {
+      if (!shouldFallbackToReplay(error)) {
+        throw error;
       }
-      const replayImages =
-        params.fallbackInputImageUrls || params.inputImageUrls || [];
-      replayInput.push(createUserTurn(params.prompt, replayImages));
-
-      return await createRequest({
-        input: replayInput,
-        action: replayImages.length ? 'edit' : 'generate',
-      });
-    } finally {
-      clearTimeout(timeout);
     }
+
+    const replayInput: any[] = [];
+    for (const turn of params.historyTurns || []) {
+      const prompt = String(turn.prompt || '').trim();
+      if (!prompt) continue;
+      replayInput.push(createUserTurn(prompt));
+    }
+    const replayImages =
+      params.fallbackInputImageUrls || params.inputImageUrls || [];
+    replayInput.push(createUserTurn(params.prompt, replayImages));
+
+    return await createRequest({
+      input: replayInput,
+      action: replayImages.length ? 'edit' : 'generate',
+    });
   }
 
   async enhancePrompt(input: string, direction: string = 'ecommerce') {
@@ -722,42 +789,45 @@ export class HiapiService {
       }[direction] ||
       '你是提示词工程师。把用户的简短描述润色成 gpt-image-2 可直接使用的高质量中文提示词。输出仅包含最终提示词，不要加解释，不要加编号，不要用代码块。';
 
-    const controller = new AbortController();
-    const timeout = setTimeout(
-      () => controller.abort(),
-      modelSettings.timeoutMs,
-    );
-    let response: Response;
+    return withHiapiRetry('chat/completions', async () => {
+      const currentModelSettings = this.settingsRepo.getModelSettings();
+      const controller = new AbortController();
+      const timeout = setTimeout(
+        () => controller.abort(),
+        currentModelSettings.timeoutMs,
+      );
+      let response: Response;
 
-    try {
-      response = await fetch(`${modelSettings.baseUrl}/chat/completions`, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          Authorization: `Bearer ${config.HIAPI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: modelSettings.textModel,
-          temperature: 0.7,
-          messages: [
-            {
-              role: 'system',
-              content: systemPrompt,
-            },
-            {
-              role: 'user',
-              content: String(input || '').trim(),
-            },
-          ],
-        }),
-      });
-    } catch (error: any) {
-      throw normalizeHiapiError(error);
-    } finally {
-      clearTimeout(timeout);
-    }
+      try {
+        response = await fetch(`${currentModelSettings.baseUrl}/chat/completions`, {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            Authorization: `Bearer ${config.HIAPI_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: currentModelSettings.textModel,
+            temperature: 0.7,
+            messages: [
+              {
+                role: 'system',
+                content: systemPrompt,
+              },
+              {
+                role: 'user',
+                content: String(input || '').trim(),
+              },
+            ],
+          }),
+        });
+      } catch (error: any) {
+        throw normalizeHiapiError(error);
+      } finally {
+        clearTimeout(timeout);
+      }
 
-    return parseChatResponse(response);
+      return parseChatResponse(response);
+    });
   }
 }

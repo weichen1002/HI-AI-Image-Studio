@@ -1,11 +1,46 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import LandingView from '../views/LandingView.vue'
+
+const DYNAMIC_IMPORT_ERROR_RELOAD_KEY = 'router:dynamic-import-reload'
+
+export function isDynamicImportError(error) {
+  const message = String(error?.message || error || '')
+  return (
+    message.includes('Failed to fetch dynamically imported module') ||
+    message.includes('Importing a module script failed') ||
+    message.includes('error loading dynamically imported module')
+  )
+}
+
+function getReloadPath(targetPath) {
+  if (targetPath) return targetPath
+  if (typeof window === 'undefined') return '/'
+  return `${window.location.pathname}${window.location.search}${window.location.hash}`
+}
+
+export function reloadOnDynamicImportError(error, targetPath) {
+  if (typeof window === 'undefined' || !isDynamicImportError(error)) {
+    return false
+  }
+
+  const reloadPath = getReloadPath(targetPath)
+  const lastReloadPath = window.sessionStorage.getItem(DYNAMIC_IMPORT_ERROR_RELOAD_KEY)
+  if (lastReloadPath === reloadPath) {
+    window.sessionStorage.removeItem(DYNAMIC_IMPORT_ERROR_RELOAD_KEY)
+    return false
+  }
+
+  window.sessionStorage.setItem(DYNAMIC_IMPORT_ERROR_RELOAD_KEY, reloadPath)
+  window.location.assign(reloadPath)
+  return true
+}
 
 const routes = [
   {
     path: '/',
     name: 'home',
-    component: () => import('../views/LandingView.vue')
+    component: LandingView
   },
   {
     path: '/login',
@@ -93,7 +128,18 @@ const router = createRouter({
   routes
 })
 
+router.onError((error, to) => {
+  reloadOnDynamicImportError(error, to?.fullPath)
+})
+
 router.beforeEach(async (to) => {
+  if (typeof window !== 'undefined') {
+    const lastReloadPath = window.sessionStorage.getItem(DYNAMIC_IMPORT_ERROR_RELOAD_KEY)
+    if (lastReloadPath === to.fullPath) {
+      window.sessionStorage.removeItem(DYNAMIC_IMPORT_ERROR_RELOAD_KEY)
+    }
+  }
+
   const authStore = useAuthStore()
   if (!authStore.isInitialized) {
     await authStore.fetchUser()
