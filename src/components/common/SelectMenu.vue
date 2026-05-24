@@ -43,7 +43,7 @@
         >
           <div ref="optionsListRef" class="selectmenu-options">
             <button
-              v-if="placeholder && placeholderSelectable"
+              v-if="showPlaceholderOption"
               type="button"
               role="option"
               class="selectmenu-option"
@@ -144,8 +144,6 @@ const triggerRef = ref(null)
 const dropdownRef = ref(null)
 const optionsListRef = ref(null)
 
-const optionIndexOffset = computed(() => (props.placeholder && props.placeholderSelectable ? 1 : 0))
-
 const sizeClass = computed(() => {
   if (props.size === 'sm') return 'input-sm'
   if (props.size === 'xs') return 'input-xs'
@@ -178,6 +176,16 @@ const selectedLabel = computed(() => {
 function isSelected(option) {
   return getOptionValue(option) === props.modelValue
 }
+
+const showPlaceholderOption = computed(() => {
+  if (!props.placeholder || !props.placeholderSelectable) return false
+  return !props.options.some((opt) => {
+    const value = getOptionValue(opt)
+    return value === '' || getOptionLabel(opt) === props.placeholder
+  })
+})
+
+const optionIndexOffset = computed(() => (showPlaceholderOption.value ? 1 : 0))
 
 const dropdownStyle = computed(() => {
   if (!triggerRect.value) return {}
@@ -420,4 +428,3 @@ onUnmounted(() => {
   transform: translateY(-8px);
 }
 </style>
-

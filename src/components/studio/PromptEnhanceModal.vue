@@ -134,7 +134,7 @@ async function preview() {
     })
     enhancedPrompt.value = String(data?.prompt || '').trim()
     hasPreviewed.value = true
-    await authStore.fetchUser()
+    await authStore.refreshUser()
   } catch (e) {
     errorMsg.value = e.message || '润色失败'
   } finally {

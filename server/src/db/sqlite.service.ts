@@ -79,9 +79,12 @@ export class SqliteService implements OnModuleInit {
         operation_type TEXT NOT NULL DEFAULT 'generate',
         prompt TEXT NOT NULL,
         aspect_ratio TEXT NOT NULL,
+        generation_params TEXT NOT NULL DEFAULT '{}',
         content TEXT NOT NULL,
         image_urls TEXT NOT NULL,
         input_image_urls TEXT,
+        folder TEXT NOT NULL DEFAULT '',
+        tags TEXT NOT NULL DEFAULT '[]',
         source_image_id TEXT,
         continuation_chain_id TEXT,
         created_at TEXT NOT NULL
@@ -284,6 +287,21 @@ export class SqliteService implements OnModuleInit {
         .prepare('ALTER TABLE images ADD COLUMN continuation_chain_id TEXT')
         .run();
     }
+    if (!imageColumns.some((column) => column.name === 'folder')) {
+      this.db
+        .prepare(`ALTER TABLE images ADD COLUMN folder TEXT NOT NULL DEFAULT ''`)
+        .run();
+    }
+    if (!imageColumns.some((column) => column.name === 'tags')) {
+      this.db
+        .prepare(`ALTER TABLE images ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'`)
+        .run();
+    }
+    if (!imageColumns.some((column) => column.name === 'generation_params')) {
+      this.db
+        .prepare(`ALTER TABLE images ADD COLUMN generation_params TEXT NOT NULL DEFAULT '{}'`)
+        .run();
+    }
 
     const hasV5 = this.db
       .prepare('SELECT 1 FROM schema_migrations WHERE version = 5')
@@ -443,8 +461,8 @@ export class SqliteService implements OnModuleInit {
       }
 
       const insertImage = this.db.prepare(
-        `INSERT INTO images(id, user_id, mode, operation_type, prompt, aspect_ratio, content, image_urls, input_image_urls, source_image_id, continuation_chain_id, created_at)
-         VALUES(@id, @user_id, @mode, @operation_type, @prompt, @aspect_ratio, @content, @image_urls, @input_image_urls, @source_image_id, @continuation_chain_id, @created_at)`,
+        `INSERT INTO images(id, user_id, mode, operation_type, prompt, aspect_ratio, generation_params, content, image_urls, input_image_urls, folder, tags, source_image_id, continuation_chain_id, created_at)
+         VALUES(@id, @user_id, @mode, @operation_type, @prompt, @aspect_ratio, @generation_params, @content, @image_urls, @input_image_urls, @folder, @tags, @source_image_id, @continuation_chain_id, @created_at)`,
       );
       for (const im of images) {
         const mode = String(im.mode || 'text');
@@ -459,11 +477,16 @@ export class SqliteService implements OnModuleInit {
           operation_type: mode === 'image' ? 'image_to_image' : 'generate',
           prompt: String(im.prompt || ''),
           aspect_ratio: String(im.aspectRatio || im.aspect_ratio || '1:1'),
+          generation_params: JSON.stringify(
+            im.generationParams || im.generation_params || {},
+          ),
           content: String(im.content || ''),
           image_urls: JSON.stringify(imageUrls),
           input_image_urls: inputImageUrls.length
             ? JSON.stringify(inputImageUrls)
             : null,
+          folder: String(im.folder || ''),
+          tags: JSON.stringify(Array.isArray(im.tags) ? im.tags : []),
           source_image_id: im.sourceImageId ? String(im.sourceImageId) : null,
           continuation_chain_id: im.continuationChainId
             ? String(im.continuationChainId)

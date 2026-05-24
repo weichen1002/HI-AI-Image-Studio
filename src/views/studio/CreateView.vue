@@ -9,12 +9,272 @@
       />
     </div>
 
-    <div class="creator-grid">
+    <form v-if="primaryMode === 'dialogue'" class="dialogue-workspace" @submit.prevent="submitCurrentMode">
+      <aside class="dialogue-rail">
+        <div class="dialogue-rail-head">
+          <button type="button" class="dialogue-new-btn" @click="startBlankDialogue">
+            <PlusSquareIcon :size="16" />
+            <span>新建对话</span>
+          </button>
+          <button
+            type="button"
+            class="dialogue-clear-btn"
+            :disabled="!activeDialogueSession"
+            aria-label="删除当前会话"
+            title="删除当前会话"
+            @click="deleteActiveDialogueSession"
+          >
+            <Trash2Icon :size="16" />
+          </button>
+        </div>
+
+        <div class="dialogue-rail-list custom-scrollbar">
+          <button
+            v-for="session in dialogueSessions"
+            :key="session.chainId"
+            type="button"
+            class="dialogue-session-card"
+            :class="{ active: session.chainId === dialogueChainId }"
+            @click="selectDialogueSession(session)"
+          >
+            <span v-if="session.coverUrl" class="dialogue-session-thumb">
+              <img :src="session.coverUrl" alt="" />
+            </span>
+            <span v-else class="dialogue-session-thumb empty">
+              <ImageIcon :size="15" />
+            </span>
+            <span class="dialogue-session-content">
+              <span class="dialogue-session-title">{{ session.title }}</span>
+              <span class="dialogue-session-meta">{{ session.roundCount }} 轮 · {{ formatDialogueTime(session.updatedAt) }}</span>
+            </span>
+          </button>
+          <div v-if="!dialogueSessions.length" class="dialogue-rail-empty">
+            还没有会话。
+          </div>
+        </div>
+      </aside>
+
+      <section class="dialogue-main">
+        <div class="dialogue-main-head">
+          <div class="dialogue-main-meta">{{ dialogueRoundLabel }} · {{ generationForm.aspectRatio }}</div>
+          <div class="dialogue-main-actions">
+            <button
+              v-if="canResetPreview"
+              type="button"
+              class="btn btn-ghost btn-xs preview-reset-btn"
+              :disabled="loading"
+              @click="clearPreview"
+            >
+              <RefreshCcwIcon :size="15" />
+              <span>重置预览</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="dialogue-thread custom-scrollbar">
+          <template v-if="dialogueThreadItems.length">
+            <div
+              v-for="(item, index) in dialogueThreadItems"
+              :key="item.id || `${item.imageId}-${index}`"
+              class="dialogue-turn"
+            >
+              <div class="dialogue-message user">
+                <div class="dialogue-message-bubble">{{ item.prompt }}</div>
+              </div>
+
+              <div v-if="item.imageUrls.length" class="dialogue-result-card">
+                <div class="dialogue-preview-box" :style="{ aspectRatio: item.aspectRatioValue }">
+                  <div v-if="item.imageUrls.length > 1" class="preview-grid">
+                    <img
+                      v-for="(url, resultIndex) in item.imageUrls"
+                      :key="`${url}-${resultIndex}`"
+                      :src="url"
+                      :alt="`第 ${index + 1} 轮结果 ${resultIndex + 1}`"
+                    />
+                  </div>
+                  <img v-else :src="item.imageUrls[0]" :alt="`第 ${index + 1} 轮结果`" />
+                </div>
+                <div class="dialogue-result-footer">
+                  <span>第 {{ index + 1 }} 轮结果</span>
+                  <button
+                    v-if="index === dialogueThreadItems.length - 1"
+                    type="button"
+                    class="dialogue-pill-btn"
+                    @click="useDialogueResultAsSource(item.image)"
+                  >
+                    <SparklesIcon :size="15" />
+                    <span>继续编辑</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <div v-if="dialoguePendingPrompt" class="dialogue-turn">
+            <div class="dialogue-message user">
+              <div class="dialogue-message-bubble">{{ dialoguePendingPrompt }}</div>
+            </div>
+            <div v-if="loading" class="dialogue-result-card">
+              <div class="dialogue-preview-box" :style="{ aspectRatio: previewAspectRatio }">
+                <div class="loading-state">
+                  <div class="loader-core">
+                    <SparklesIcon :size="32" class="pulse-icon" />
+                  </div>
+                  <span class="loading-text">{{ loadingText }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="!dialogueThreadItems.length && !dialoguePendingPrompt" class="dialogue-result-card">
+            <div class="dialogue-preview-box" :style="{ aspectRatio: previewAspectRatio }">
+              <div v-if="displayPreviewUrls.length > 1" class="preview-grid">
+                <img
+                  v-for="(url, index) in displayPreviewUrls"
+                  :key="`${url}-${index}`"
+                  :src="url"
+                  :alt="`对话结果 ${index + 1}`"
+                />
+              </div>
+              <img v-else-if="displayPreviewUrls[0]" :src="displayPreviewUrls[0]" alt="对话结果预览" />
+              <div v-else-if="loading" class="loading-state">
+                <div class="loader-core">
+                  <SparklesIcon :size="32" class="pulse-icon" />
+                </div>
+                <span class="loading-text">{{ loadingText }}</span>
+              </div>
+              <div v-else class="dialogue-empty-state">
+                输入描述开始创作
+              </div>
+            </div>
+            <div v-if="displayPreviewUrls[0]" class="dialogue-result-footer">
+              <span>{{ hasDialogueSource ? '起始图片' : '预览' }}</span>
+              <button
+                v-if="currentImage?.imageUrls?.[0]"
+                type="button"
+                class="dialogue-pill-btn"
+                @click="adoptActiveResultAsDialogueSource"
+              >
+                <SparklesIcon :size="15" />
+                <span>加入编辑</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="dialogue-composer">
+          <textarea
+            v-model="dialoguePrompt"
+            class="dialogue-composer-input custom-scrollbar"
+            required
+            maxlength="4000"
+            :placeholder="dialoguePromptPlaceholder"
+            @keydown.meta.enter.prevent="submitDialogueShortcut"
+            @keydown.ctrl.enter.prevent="submitDialogueShortcut"
+          ></textarea>
+          <div class="dialogue-composer-footer">
+            <div class="dialogue-composer-tools">
+              <button type="button" class="dialogue-upload-btn" @click="openDialoguePicker">
+                <ImageIcon :size="16" />
+                <span>{{ dialogueInputFiles.length ? '已上传' : '上传' }}</span>
+              </button>
+              <SelectMenu
+                v-model="generationForm.aspectRatio"
+                class="dialogue-compact-select"
+                size="xs"
+                :options="ratioOptions"
+                placeholder="比例"
+              />
+              <SelectMenu
+                v-model="generationForm.qualityTier"
+                class="dialogue-compact-select"
+                size="xs"
+                :options="qualityTierOptions"
+                placeholder="质量"
+              />
+              <SelectMenu
+                v-model="generationForm.count"
+                class="dialogue-compact-select"
+                size="xs"
+                :options="countOptions"
+                placeholder="张数"
+              />
+              <SelectMenu
+                v-model="generationForm.outputFormat"
+                class="dialogue-compact-select"
+                size="xs"
+                :options="outputFormatOptions"
+                placeholder="格式"
+              />
+              <SelectMenu
+                v-model="generationForm.background"
+                class="dialogue-compact-select"
+                size="xs"
+                :options="backgroundOptions"
+                placeholder="背景"
+              />
+              <SelectMenu
+                v-model="generationForm.moderation"
+                class="dialogue-compact-select"
+                size="xs"
+                :options="moderationOptions"
+                placeholder="审核"
+              />
+              <label v-if="supportsCompression" class="dialogue-compression-control">
+                <span>{{ generationForm.outputCompression }}%</span>
+                <input
+                  v-model.number="generationForm.outputCompression"
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="5"
+                  aria-label="输出压缩率"
+                />
+              </label>
+            </div>
+            <div class="dialogue-composer-status">
+              <span>{{ dialoguePrompt.length }} / 4000</span>
+              <button type="submit" class="btn btn-primary dialogue-send-btn" :disabled="submitDisabled">
+                <SparklesIcon v-if="!loading" :size="17" />
+                <LoaderIcon v-else class="animate-spin" :size="17" />
+                <span>{{ submitButtonText }}</span>
+              </button>
+            </div>
+          </div>
+          <p v-if="errorMsg" class="error-text">{{ errorMsg }}</p>
+        </div>
+      </section>
+    </form>
+
+    <div v-else class="creator-grid">
       <div class="panel flex flex-col gap-4 creator-left">
         <form @submit.prevent="submitCurrentMode" class="flex flex-col gap-4">
           <Transition name="mode-panel" mode="out-in">
             <div :key="primaryMode" class="mode-panel-body">
           <template v-if="primaryMode === 'text' || primaryMode === 'image'">
+            <div v-if="projectBoardOptions.length" class="project-board-card">
+              <div class="prompt-label-row">
+                <label class="label">项目风格板</label>
+                <button
+                  v-if="activeProjectBoard"
+                  type="button"
+                  class="btn btn-ghost btn-xs"
+                  @click="clearProjectBoard"
+                >
+                  清除
+                </button>
+              </div>
+              <SelectMenu
+                v-model="selectedProjectBoardId"
+                size="sm"
+                :options="projectBoardOptions"
+                placeholder="选择项目风格板"
+              />
+              <div v-if="activeProjectBoard" class="project-board-summary">
+                {{ activeProjectBoard.description || activeProjectBoard.stylePrompt || '已带入项目默认风格。' }}
+              </div>
+            </div>
+
             <div v-if="primaryMode === 'text'">
               <label class="label">快捷预设</label>
               <QuickPresetsBar
@@ -175,7 +435,7 @@
                     <span class="range-value">{{ supportsCompression ? `${generationForm.outputCompression}%` : 'PNG 无损' }}</span>
                   </div>
                   <input
-                    v-model="generationForm.outputCompression"
+                    v-model.number="generationForm.outputCompression"
                     class="field-range"
                     type="range"
                     min="0"
@@ -209,135 +469,6 @@
                   />
                   <div class="field-hint">默认推荐自动；测试可用低限制。</div>
                 </div>
-              </div>
-            </div>
-          </template>
-
-          <template v-else-if="primaryMode === 'dialogue'">
-            <div class="source-card dialogue-context-card">
-              <div class="section-head">
-                <div>
-                  <div class="section-title">上下文</div>
-                  <div class="section-desc">{{ dialogueSourceHint }}</div>
-                </div>
-                <div class="dialogue-source-actions">
-                  <button
-                    v-if="currentImage?.imageUrls?.[0]"
-                    type="button"
-                    class="btn btn-ghost btn-xs"
-                    @click="adoptActiveResultAsDialogueSource"
-                  >
-                    用结果继续
-                  </button>
-                  <button type="button" class="btn btn-ghost btn-xs" @click="startBlankDialogue">
-                    新建
-                  </button>
-                  <button
-                    v-if="hasDialogueSource"
-                    type="button"
-                    class="btn btn-ghost btn-xs"
-                    @click="clearDialogueSource"
-                  >
-                    断开
-                  </button>
-                </div>
-              </div>
-              <div class="source-summary" :class="{ empty: !hasDialogueSource }">
-                <span class="source-chip">{{ dialogueSourceTag }}</span>
-                <span class="source-text">{{ dialogueSourceSummary }}</span>
-              </div>
-              <div class="dialogue-context-upload">
-                <div class="dialogue-upload-label-row">
-                  <label class="label">起始图片（选填）</label>
-                  <span class="field-caption">上传后作为新起点</span>
-                </div>
-                <ImageUploadGallery v-model="dialogueInputFiles" :max-count="1" />
-              </div>
-            </div>
-
-            <div class="dialogue-prompt-card">
-              <div class="prompt-label-row">
-                <label class="label">本轮要求</label>
-                <span class="field-caption">逐轮调整，不必一次写完。</span>
-              </div>
-              <div class="textarea-wrapper">
-                <textarea
-                  v-model="dialoguePrompt"
-                  class="textarea custom-scrollbar"
-                  required
-                  maxlength="4000"
-                  :placeholder="dialoguePromptPlaceholder"
-                ></textarea>
-              </div>
-              <div class="prompt-toolbar">
-                <span class="prompt-count">{{ dialoguePrompt.length }} / 4000</span>
-                <div class="prompt-actions">
-                  <button
-                    type="button"
-                    class="btn btn-ghost btn-xs"
-                    :disabled="loading || !dialoguePrompt"
-                    @click="openEnhancePreview('dialogue')"
-                  >
-                    <Wand2Icon :size="16" />
-                    <span>润色预览</span>
-                  </button>
-                  <button
-                    type="button"
-                    class="btn btn-ghost btn-xs"
-                    :disabled="!dialoguePrompt"
-                    @click="dialoguePrompt = ''"
-                  >
-                    <Trash2Icon :size="16" />
-                    <span>清空</span>
-                  </button>
-                  <Popover v-model:open="moreOpen" placement="bottom-end" :offset="10">
-                    <template #trigger>
-                      <button type="button" class="btn btn-ghost btn-icon" aria-label="更多操作" title="更多">
-                        <MoreHorizontalIcon :size="16" />
-                      </button>
-                    </template>
-                    <div class="more-menu">
-                      <button
-                        type="button"
-                        class="more-item"
-                        :disabled="!displayPreviewUrls[0] && !loading"
-                        @click="clearPreviewFromMenu"
-                      >
-                        <RefreshCcwIcon :size="16" />
-                        <span>重置预览</span>
-                      </button>
-                    </div>
-                  </Popover>
-                </div>
-              </div>
-            </div>
-
-            <div class="dialogue-history-card">
-              <div class="section-head">
-                <div>
-                  <div class="section-title">历史</div>
-                  <div class="section-desc">保留最近几轮，点击复用。</div>
-                </div>
-              </div>
-              <div v-if="dialogueTimelineMessages.length" class="dialogue-history-list">
-                <button
-                  v-for="(item, index) in dialogueTimelineMessages"
-                  :key="item.id"
-                  type="button"
-                  class="dialogue-history-item"
-                  @click="dialoguePrompt = item.prompt"
-                >
-                  <div class="dialogue-history-content">
-                    <div class="dialogue-history-meta">
-                      <span>第 {{ index + 1 }} 轮</span>
-                      <span>{{ formatDialogueTime(item.createdAt) }}</span>
-                    </div>
-                    <div class="dialogue-history-text">{{ item.prompt }}</div>
-                  </div>
-                </button>
-              </div>
-              <div v-else class="dialogue-history-empty">
-                暂无记录。生成后会保留在这里。
               </div>
             </div>
           </template>
@@ -519,9 +650,10 @@
 <script setup>
 import { computed, reactive, ref, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { SparklesIcon, LoaderIcon, Wand2Icon, Trash2Icon, RefreshCcwIcon, ImageIcon, MoreHorizontalIcon, InfoIcon } from 'lucide-vue-next'
+import { SparklesIcon, LoaderIcon, Wand2Icon, Trash2Icon, RefreshCcwIcon, ImageIcon, MoreHorizontalIcon, InfoIcon, PlusSquareIcon } from 'lucide-vue-next'
 import { useImagesStore } from '../../stores/images'
 import { useSiteStore } from '../../stores/site'
+import { usePreferencesStore } from '../../stores/preferences'
 import ModeSwitch from '../../components/ModeSwitch.vue'
 import ImageUploadGallery from '../../components/ImageUploadGallery.vue'
 import QuickPresetsBar from '../../components/studio/QuickPresetsBar.vue'
@@ -532,6 +664,7 @@ import { quickPresets } from './create.presets'
 
 const imagesStore = useImagesStore()
 const siteStore = useSiteStore()
+const preferencesStore = usePreferencesStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -556,6 +689,7 @@ const toolOptions = [
   }
 ]
 const ratios = ['1:1', '16:9', '9:16', '4:3', '3:4']
+const ratioOptions = ratios.map((ratio) => ({ label: `比例 ${ratio}`, value: ratio }))
 const qualityTierOptions = [
   { label: '1K 标准', value: '1k' },
   { label: '2K 高清', value: '2k' },
@@ -597,9 +731,12 @@ const dialogueInputFiles = ref([])
 const dialogueInputPreviewUrl = ref('')
 
 const dialoguePrompt = ref('')
+const dialoguePendingPrompt = ref('')
 const dialogueChainId = ref('')
 const dialogueMessages = ref([])
+const dialogueChainImages = ref([])
 const dialogueSourceImage = ref(null)
+const selectedProjectBoardId = ref('')
 
 const selectedTool = ref('inpaint')
 const toolPrompt = ref('')
@@ -613,13 +750,20 @@ const toolSourcePreviewUrl = ref('')
 
 const generationForm = reactive({
   prompt: '',
-  aspectRatio: '1:1',
-  qualityTier: '1k',
-  count: 1,
-  outputFormat: 'png',
-  outputCompression: 100,
-  background: 'auto',
-  moderation: 'auto'
+  aspectRatio: preferencesStore.createSettings.aspectRatio,
+  qualityTier: preferencesStore.createSettings.qualityTier,
+  count: preferencesStore.createSettings.count,
+  outputFormat: preferencesStore.createSettings.outputFormat,
+  outputCompression: preferencesStore.createSettings.outputCompression,
+  background: preferencesStore.createSettings.background,
+  moderation: preferencesStore.createSettings.moderation
+})
+const activeProjectBoard = computed(() => preferencesStore.projectBoard(selectedProjectBoardId.value))
+const projectBoardOptions = computed(() => {
+  return preferencesStore.projectBoards.map((item) => ({
+    label: item.name,
+    value: item.id
+  }))
 })
 
 function getRatioValue(ratio) {
@@ -662,6 +806,30 @@ function generationOptions(extra = {}) {
     moderation: generationForm.moderation,
     ...extra
   }
+}
+
+function withDefaultStylePrompt(prompt) {
+  const base = String(prompt || '').trim()
+  const styleParts = [
+    String(preferencesStore.createSettings.stylePrompt || '').trim(),
+    String(activeProjectBoard.value?.stylePrompt || '').trim()
+  ].filter(Boolean)
+  const tagHint = (activeProjectBoard.value?.tags || []).length
+    ? `项目标签：${activeProjectBoard.value.tags.join('、')}`
+    : ''
+  const style = [...styleParts, tagHint].filter(Boolean).join('\n')
+  if (!style) return base
+  if (!base) return style
+  return `${base}\n\n默认风格要求：${style}`
+}
+
+function applyProjectBoardDefaults(board) {
+  if (!board) return
+  if (board.aspectRatio) generationForm.aspectRatio = board.aspectRatio
+}
+
+function clearProjectBoard() {
+  selectedProjectBoardId.value = ''
 }
 
 function clearPreview() {
@@ -709,6 +877,11 @@ function openSourcePicker(target) {
   sourceInputRef.value?.click()
 }
 
+function openDialoguePicker() {
+  sourcePickerTarget.value = 'dialogue'
+  sourceInputRef.value?.click()
+}
+
 function resetEditorSource() {
   editorSourceUrl.value = ''
   editorSourceFile.value = null
@@ -723,15 +896,7 @@ function clearToolSource() {
 
 function adoptActiveResultAsDialogueSource() {
   if (!currentImage.value?.imageUrls?.[0]) return
-  dialogueSourceImage.value = currentImage.value
-  dialogueInputFiles.value = []
-  revokeObjectUrl(dialogueInputPreviewUrl.value)
-  dialogueInputPreviewUrl.value = ''
-  dialogueChainId.value = currentImage.value.continuationChainId || ''
-  void fetchDialogueMessages({
-    chainId: dialogueChainId.value,
-    imageId: currentImage.value.id || ''
-  })
+  useDialogueResultAsSource(currentImage.value)
 }
 
 function clearDialogueSource() {
@@ -741,6 +906,8 @@ function clearDialogueSource() {
   dialogueInputPreviewUrl.value = ''
   dialogueChainId.value = ''
   dialogueMessages.value = []
+  dialogueChainImages.value = []
+  dialoguePendingPrompt.value = ''
   clearPreview()
 }
 
@@ -761,14 +928,56 @@ function startBlankDialogue() {
   moreOpen.value = false
 }
 
-async function fetchDialogueMessages(params = {}) {
-  const data = await imagesStore.fetchDialogueHistory({
+async function loadDialogueChain(params = {}) {
+  const data = await imagesStore.fetchDialogueChain({
     chainId: params.chainId || '',
-    imageId: params.imageId || '',
-    limit: 5
+    imageId: params.imageId || ''
   })
   dialogueChainId.value = data.chainId || dialogueChainId.value
   dialogueMessages.value = Array.isArray(data.messages) ? data.messages : []
+  dialogueChainImages.value = Array.isArray(data.images) ? data.images : []
+  const latestImage = dialogueChainImages.value[dialogueChainImages.value.length - 1]
+  dialogueSourceImage.value = latestImage || null
+  dialogueInputFiles.value = []
+  revokeObjectUrl(dialogueInputPreviewUrl.value)
+  dialogueInputPreviewUrl.value = ''
+  return data
+}
+
+async function selectDialogueSession(session) {
+  if (!session?.chainId || session.chainId === dialogueChainId.value) return
+  errorMsg.value = ''
+  dialoguePrompt.value = ''
+  dialoguePendingPrompt.value = ''
+  await loadDialogueChain({ chainId: session.chainId })
+  clearPreview()
+}
+
+function useDialogueResultAsSource(image) {
+  if (!image?.imageUrls?.[0]) return
+  dialogueSourceImage.value = image
+  dialogueInputFiles.value = []
+  revokeObjectUrl(dialogueInputPreviewUrl.value)
+  dialogueInputPreviewUrl.value = ''
+  dialogueChainId.value = image.continuationChainId || dialogueChainId.value || ''
+  if (dialogueChainId.value) {
+    void loadDialogueChain({ chainId: dialogueChainId.value, imageId: image.id || '' })
+  }
+}
+
+async function deleteActiveDialogueSession() {
+  if (!activeDialogueSession.value?.chainId) return
+  const ok = window.confirm('确定删除当前会话吗？该操作会删除这条会话下的所有结果。')
+  if (!ok) return
+  const ids = activeDialogueSession.value.images.map((image) => image.id).filter(Boolean)
+  await imagesStore.deleteDialogueChain(activeDialogueSession.value.chainId)
+  preferencesStore.removeImagePreferences(ids)
+  clearDialogueSource()
+  dialoguePrompt.value = ''
+}
+
+function isDialogueImage(image) {
+  return image?.mode === 'dialogue' || image?.mode === 'continuous'
 }
 
 function currentDialogueSource() {
@@ -809,7 +1018,7 @@ function resolveToolSource() {
 async function submitGenerateMode() {
   if (primaryMode.value === 'text') {
     await imagesStore.generate(
-      generationForm.prompt,
+      withDefaultStylePrompt(generationForm.prompt),
       generationForm.aspectRatio,
       generationOptions({ mode: 'text' })
     )
@@ -823,16 +1032,18 @@ async function submitGenerateMode() {
   }
   await imagesStore.generateFromImages(
     validFiles,
-    generationForm.prompt,
+    withDefaultStylePrompt(generationForm.prompt),
     generationForm.aspectRatio,
     generationOptions({ mode: 'image' })
   )
 }
 
 async function submitDialogueMode() {
+  const prompt = withDefaultStylePrompt(dialoguePrompt.value)
   const source = currentDialogueSource()
+  dialoguePendingPrompt.value = prompt
   const result = await imagesStore.continueDialogue({
-    prompt: dialoguePrompt.value,
+    prompt,
     aspectRatio: generationForm.aspectRatio,
     chainId:
       source?.type === 'reference'
@@ -841,11 +1052,21 @@ async function submitDialogueMode() {
     sourceImageId: source?.type === 'result' ? source.imageId || '' : '',
     imageFile: source?.type === 'reference' ? source.file : null,
     qualityTier: generationForm.qualityTier,
-    background: generationForm.background
+    count: generationForm.count,
+    outputFormat: generationForm.outputFormat,
+    outputCompression: generationForm.outputCompression,
+    background: generationForm.background,
+    moderation: generationForm.moderation
   })
   dialogueChainId.value = result.chainId || result.image?.continuationChainId || ''
   dialogueSourceImage.value = result.image || null
   dialogueMessages.value = Array.isArray(result.messages) ? result.messages : []
+  dialoguePrompt.value = ''
+  dialoguePendingPrompt.value = ''
+  if (dialogueChainId.value) {
+    await loadDialogueChain({ chainId: dialogueChainId.value, imageId: result.image?.id || '' })
+  }
+  void imagesStore.fetchImages(50)
 }
 
 async function submitToolMode() {
@@ -899,8 +1120,16 @@ async function submitCurrentMode() {
     }
     await submitToolMode()
   } catch (error) {
+    if (primaryMode.value === 'dialogue') {
+      dialoguePendingPrompt.value = ''
+    }
     errorMsg.value = error?.message || '操作失败'
   }
+}
+
+function submitDialogueShortcut() {
+  if (submitDisabled.value) return
+  void submitCurrentMode()
 }
 
 function onSourcePick(event) {
@@ -910,6 +1139,8 @@ function onSourcePick(event) {
   if (sourcePickerTarget.value === 'tool') {
     toolSourceFile.value = file
     setPreviewUrl(toolSourcePreviewUrl, file)
+  } else if (sourcePickerTarget.value === 'dialogue') {
+    dialogueInputFiles.value = [file]
   }
   sourcePickerTarget.value = ''
 }
@@ -931,9 +1162,10 @@ async function hydrateDialogueFromImage(imageId) {
   if (!imageId) return
   const data = await imagesStore.fetchImage(imageId)
   if (!data?.image) return
-  dialogueSourceImage.value = data.image
-  dialogueChainId.value = data.image.continuationChainId || ''
-  dialogueMessages.value = Array.isArray(data.dialogueMessages) ? data.dialogueMessages : []
+  await loadDialogueChain({
+    chainId: data.image.continuationChainId || '',
+    imageId: data.image.id || imageId
+  })
 }
 
 onMounted(async () => {
@@ -955,6 +1187,37 @@ onMounted(async () => {
       }
     }
 
+    if (route.query.ratio && ratios.includes(String(route.query.ratio))) {
+      generationForm.aspectRatio = String(route.query.ratio)
+    }
+
+    if (route.query.qualityTier && qualityTierOptions.some((item) => item.value === route.query.qualityTier)) {
+      generationForm.qualityTier = String(route.query.qualityTier)
+    }
+
+    if (route.query.count && countOptions.some((item) => item.value === Number(route.query.count))) {
+      generationForm.count = Number(route.query.count)
+    }
+
+    if (route.query.outputFormat && outputFormatOptions.some((item) => item.value === route.query.outputFormat)) {
+      generationForm.outputFormat = String(route.query.outputFormat)
+    }
+
+    if (route.query.outputCompression !== undefined) {
+      const compression = Number(route.query.outputCompression)
+      if (Number.isFinite(compression)) {
+        generationForm.outputCompression = Math.max(0, Math.min(100, Math.floor(compression)))
+      }
+    }
+
+    if (route.query.background && backgroundOptions.some((item) => item.value === route.query.background)) {
+      generationForm.background = String(route.query.background)
+    }
+
+    if (route.query.moderation && moderationOptions.some((item) => item.value === route.query.moderation)) {
+      generationForm.moderation = String(route.query.moderation)
+    }
+
     if (route.query.input) {
       if (primaryMode.value === 'dialogue') {
         dialogueSourceImage.value = null
@@ -970,10 +1233,26 @@ onMounted(async () => {
     if (route.query.imageId) {
       await hydrateDialogueFromImage(String(route.query.imageId))
     }
+
+    if (primaryMode.value === 'dialogue') {
+      void imagesStore.fetchImages(50)
+    }
   } catch (error) {
     errorMsg.value = error?.message || '初始化失败'
   } finally {
-    if (route.query.prompt || route.query.mode || route.query.input || route.query.imageId) {
+    if (
+      route.query.prompt ||
+      route.query.mode ||
+      route.query.input ||
+      route.query.imageId ||
+      route.query.ratio ||
+      route.query.qualityTier ||
+      route.query.count ||
+      route.query.outputFormat ||
+      route.query.outputCompression !== undefined ||
+      route.query.background ||
+      route.query.moderation
+    ) {
       router.replace({ query: {} })
     }
   }
@@ -995,6 +1274,8 @@ watch(
       dialogueSourceImage.value = null
       dialogueChainId.value = ''
       dialogueMessages.value = []
+      dialogueChainImages.value = []
+      dialoguePendingPrompt.value = ''
     }
   },
   { immediate: true }
@@ -1019,10 +1300,17 @@ watch(
   }
 )
 
-watch(primaryMode, () => {
+watch(activeProjectBoard, (board) => {
+  applyProjectBoardDefaults(board)
+})
+
+watch(primaryMode, (mode) => {
   moreOpen.value = false
   promptHelpOpen.value = false
   errorMsg.value = ''
+  if (mode === 'dialogue') {
+    void imagesStore.fetchImages(50)
+  }
 })
 
 onBeforeUnmount(() => {
@@ -1041,8 +1329,77 @@ const enhanceOriginalPrompt = computed(() => {
 })
 const supportsCompression = computed(() => generationForm.outputFormat === 'jpeg' || generationForm.outputFormat === 'webp')
 const hasDialogueSource = computed(() => Boolean(currentDialogueSource()))
-const dialogueTimelineMessages = computed(() => {
-  return Array.isArray(dialogueMessages.value) ? dialogueMessages.value.slice().reverse() : []
+const dialogueSessions = computed(() => {
+  const groups = new Map()
+  const list = Array.isArray(imagesStore.images) ? imagesStore.images.slice() : []
+  list
+    .filter((image) => isDialogueImage(image) && image.continuationChainId)
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+    .forEach((image) => {
+      const chainId = image.continuationChainId
+      const existing = groups.get(chainId)
+      if (existing) {
+        existing.images.push(image)
+        existing.roundCount += 1
+        return
+      }
+      groups.set(chainId, {
+        chainId,
+        title: `会话 ${formatDialogueTime(image.createdAt)}`,
+        updatedAt: image.createdAt,
+        roundCount: 1,
+        coverUrl: image.imageUrls?.[0] || '',
+        images: [image]
+      })
+    })
+  return Array.from(groups.values())
+})
+const activeDialogueSession = computed(() => {
+  if (!dialogueChainId.value) return null
+  const session = dialogueSessions.value.find((item) => item.chainId === dialogueChainId.value)
+  if (session) return session
+  if (!dialogueChainImages.value.length) return null
+  const latestImage = dialogueChainImages.value[dialogueChainImages.value.length - 1]
+  return {
+    chainId: dialogueChainId.value,
+    title: `会话 ${formatDialogueTime(latestImage?.createdAt)}`,
+    updatedAt: latestImage?.createdAt || new Date().toISOString(),
+    roundCount: dialogueChainImages.value.length,
+    coverUrl: latestImage?.imageUrls?.[0] || '',
+    images: dialogueChainImages.value.slice()
+  }
+})
+const dialogueImagesById = computed(() => {
+  return new Map(dialogueChainImages.value.map((image) => [String(image.id || ''), image]))
+})
+const dialogueThreadItems = computed(() => {
+  const messages = Array.isArray(dialogueMessages.value) ? dialogueMessages.value.slice() : []
+  if (messages.length) {
+    return messages.map((message, index) => {
+      const image = dialogueImagesById.value.get(String(message.imageId || '')) || dialogueChainImages.value[index] || null
+      return {
+        ...message,
+        image,
+        imageUrls: (image?.imageUrls || []).filter(Boolean),
+        aspectRatioValue: getRatioValue(image?.aspectRatio || generationForm.aspectRatio)
+      }
+    })
+  }
+  return dialogueChainImages.value.map((image) => ({
+    id: image.id,
+    imageId: image.id,
+    prompt: image.prompt || '继续生成',
+    createdAt: image.createdAt,
+    image,
+    imageUrls: (image.imageUrls || []).filter(Boolean),
+    aspectRatioValue: getRatioValue(image.aspectRatio || generationForm.aspectRatio)
+  }))
+})
+const dialogueRoundCount = computed(() => dialogueThreadItems.value.length)
+const dialogueRoundLabel = computed(() => {
+  if (loading.value) return '正在生成新版本'
+  if (dialogueRoundCount.value) return `第 ${dialogueRoundCount.value} 轮结果`
+  return hasDialogueSource.value ? '已有起始图' : '空白开始'
 })
 const toolSource = computed(() => resolveToolSource())
 const hasToolSource = computed(() => Boolean(toolSource.value))
@@ -1176,22 +1533,6 @@ const previewEmptySubtitle = computed(() => {
   }
   return '输入提示词后生成。'
 })
-const dialogueSourceTag = computed(() => {
-  const source = currentDialogueSource()
-  if (source?.type === 'reference') return '参考图起点'
-  if (source?.type === 'result') return dialogueChainId.value ? '当前对话链' : '已有结果'
-  return '空白开始'
-})
-const dialogueSourceSummary = computed(() => {
-  const source = currentDialogueSource()
-  if (source?.type === 'reference') return '从这张图开始，后续会保留为同一条对话。'
-  if (source?.type === 'result') return '沿这张结果继续。'
-  return '直接从文字开始。'
-})
-const dialogueSourceHint = computed(() => {
-  if (dialogueChainId.value) return '沿当前对话继续。'
-  return '空白开始，或选择图片起点。'
-})
 const dialoguePromptPlaceholder = computed(() => {
   return '例如：方向正确，表情更自然，背景层次更丰富，不要多余文字。'
 })
@@ -1311,6 +1652,411 @@ function formatDialogueTime(val) {
   user-select: none;
 }
 
+.dialogue-workspace {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 14px;
+  min-height: min(660px, calc(100dvh - 188px));
+  flex: 1;
+  min-width: 0;
+}
+
+.dialogue-rail,
+.dialogue-main {
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 18px;
+  background: var(--bg-card);
+  box-shadow: none;
+}
+
+.dialogue-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  overflow: hidden;
+}
+
+.dialogue-rail-head,
+.dialogue-main-head,
+.dialogue-composer-footer,
+.dialogue-composer-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dialogue-new-btn {
+  flex: 1;
+  height: 38px;
+  border: 0;
+  border-radius: 12px;
+  background: #111827;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.dialogue-new-btn:hover {
+  background: #020617;
+}
+
+.dialogue-clear-btn {
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--muted);
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.dialogue-clear-btn:hover:not(:disabled) {
+  border-color: rgba(15, 23, 42, 0.16);
+  color: var(--text);
+}
+
+.dialogue-clear-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.dialogue-rail-list {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: auto;
+  padding-right: 1px;
+}
+
+.dialogue-session-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.18s;
+}
+
+.dialogue-session-card:hover,
+.dialogue-session-card.active {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.dialogue-session-thumb {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.05);
+  color: var(--muted);
+}
+
+.dialogue-session-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.dialogue-session-content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.dialogue-session-title {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 750;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dialogue-session-meta {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.dialogue-rail-empty {
+  padding: 16px 8px;
+  border: 1px dashed rgba(15, 23, 42, 0.14);
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.55;
+  text-align: center;
+}
+
+.dialogue-main {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 14px;
+  overflow: hidden;
+}
+
+.dialogue-main-head {
+  min-height: 32px;
+}
+
+.dialogue-main-meta {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dialogue-main-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dialogue-thread {
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 16px;
+  padding: 4px 4px 8px;
+}
+
+.dialogue-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dialogue-message {
+  max-width: min(560px, 88%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dialogue-message.user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.dialogue-message-bubble {
+  padding: 9px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #fff;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  box-shadow: none;
+}
+
+.dialogue-result-card {
+  width: 100%;
+  max-width: 460px;
+  align-self: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.dialogue-preview-box {
+  width: 100%;
+  min-height: 190px;
+  max-height: 340px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+.dialogue-preview-box > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 12px;
+  box-shadow: none;
+  animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.dialogue-preview-box .loading-state,
+.dialogue-empty-state {
+  min-height: 190px;
+  border-radius: 14px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.dialogue-empty-state {
+  width: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.dialogue-result-footer {
+  min-height: 32px;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dialogue-pill-btn,
+.dialogue-upload-btn {
+  height: 30px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.dialogue-pill-btn:hover,
+.dialogue-upload-btn:hover {
+  border-color: rgba(15, 23, 42, 0.16);
+  background: rgba(15, 23, 42, 0.03);
+}
+
+.dialogue-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+}
+
+.dialogue-composer-input {
+  width: 100%;
+  min-height: 62px;
+  max-height: 120px;
+  resize: vertical;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.55;
+}
+
+.dialogue-composer-input::placeholder {
+  color: rgba(100, 116, 139, 0.78);
+}
+
+.dialogue-composer-tools {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dialogue-compact-select {
+  width: auto;
+  min-width: 86px;
+  flex: 0 0 auto;
+}
+
+.dialogue-compact-select :deep(.input-xs) {
+  height: 30px;
+  min-height: 30px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.dialogue-compression-control {
+  height: 30px;
+  min-width: 124px;
+  padding: 0 10px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.dialogue-compression-control input {
+  width: 68px;
+  accent-color: var(--primary);
+}
+
+.dialogue-composer-status {
+  flex: none;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dialogue-send-btn {
+  min-width: 38px;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: 999px;
+  box-shadow: none;
+}
+
+.dialogue-send-btn span {
+  display: none;
+}
+
 .submode-switch {
   max-width: 420px;
 }
@@ -1357,11 +2103,21 @@ function formatDialogueTime(val) {
   min-width: 0;
 }
 
-.dialogue-source-actions {
-  display: flex;
-  align-items: center;
+.project-board-card {
+  display: grid;
   gap: 8px;
-  flex-wrap: wrap;
+  padding: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.project-board-summary {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .section-title {
@@ -1547,8 +2303,7 @@ function formatDialogueTime(val) {
 
 .source-card,
 .tool-card,
-.tool-prompt-card,
-.dialogue-history-card {
+.tool-prompt-card {
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.58);
@@ -1566,45 +2321,6 @@ function formatDialogueTime(val) {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-}
-
-.dialogue-context-card {
-  padding: 12px;
-}
-
-.dialogue-context-card .section-head,
-.dialogue-history-card .section-head {
-  margin-bottom: 10px;
-}
-
-.dialogue-context-upload {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(15, 23, 42, 0.07);
-}
-
-.dialogue-upload-label-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-
-.dialogue-upload-label-row .label {
-  margin-bottom: 0;
-}
-
-.dialogue-prompt-card {
-  padding: 14px;
-  border-radius: 16px;
-  border: 1px solid rgba(99, 102, 241, 0.16);
-  background: rgba(255, 255, 255, 0.74);
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.04);
-}
-
-.dialogue-prompt-card .textarea {
-  min-height: 150px;
 }
 
 .source-summary {
@@ -1644,60 +2360,6 @@ function formatDialogueTime(val) {
   line-height: 1.5;
   font-weight: 700;
   overflow-wrap: anywhere;
-}
-
-.dialogue-history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 260px;
-  overflow: auto;
-  padding-right: 2px;
-}
-
-.dialogue-history-item {
-  width: 100%;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.72);
-  padding: 10px 11px;
-  text-align: left;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.dialogue-history-item:hover {
-  border-color: rgba(99, 102, 241, 0.28);
-  background: rgba(99, 102, 241, 0.04);
-}
-
-.dialogue-history-text {
-  color: var(--text);
-  font-size: 13px;
-  line-height: 1.5;
-  font-weight: 700;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.dialogue-history-meta {
-  margin-bottom: 6px;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.dialogue-history-empty {
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.6;
-  font-weight: 700;
 }
 
 .tool-grid {
@@ -2154,6 +2816,62 @@ function formatDialogueTime(val) {
     max-width: none;
   }
 
+  .dialogue-workspace {
+    grid-template-columns: 1fr;
+    min-height: auto;
+    gap: 14px;
+  }
+
+  .dialogue-rail {
+    max-height: none;
+    overflow: visible;
+    padding: 12px;
+  }
+
+  .dialogue-main-head,
+  .dialogue-composer-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dialogue-main {
+    min-height: 520px;
+    padding: 14px;
+  }
+
+  .dialogue-main-actions,
+  .dialogue-composer-status {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .dialogue-thread {
+    overflow: visible;
+  }
+
+  .dialogue-preview-box,
+  .dialogue-preview-box .loading-state,
+  .dialogue-empty-state {
+    min-height: 190px;
+  }
+
+  .dialogue-message {
+    max-width: 100%;
+  }
+
+  .dialogue-composer-tools {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .dialogue-upload-btn {
+    justify-content: center;
+  }
+
+  .dialogue-send-btn {
+    flex: none;
+  }
+
   .creator-grid {
     gap: 14px;
   }
@@ -2204,7 +2922,6 @@ function formatDialogueTime(val) {
     max-height: 46dvh;
   }
 
-  .dialogue-prompt-card .textarea,
   .tool-prompt-card .textarea {
     min-height: 126px;
   }
@@ -2234,7 +2951,6 @@ function formatDialogueTime(val) {
     min-width: 0;
   }
 
-  .dialogue-source-actions,
   .prompt-actions {
     justify-content: flex-start;
   }
@@ -2253,9 +2969,7 @@ function formatDialogueTime(val) {
   .advanced-card,
   .source-card,
   .tool-card,
-  .tool-prompt-card,
-  .dialogue-history-card,
-  .dialogue-prompt-card {
+  .tool-prompt-card {
     border-radius: 14px;
     padding: 12px;
   }

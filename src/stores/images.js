@@ -7,6 +7,8 @@ import { compressImage } from '../utils/imageCompressor'
 
 export const useImagesStore = defineStore('images', () => {
   const images = ref([])
+  const total = ref(0)
+  const lastQuery = ref({ limit: 12, offset: 0, mode: 'all', q: '' })
   const isLoading = ref(false)
   const activeJob = ref(null)
   const isGenerating = computed(() => activeJob.value?.status === 'running')
@@ -49,7 +51,7 @@ export const useImagesStore = defineStore('images', () => {
     const balance = Number(user.creditBalance ?? 0)
     if (balance >= cost) return
 
-    await authStore.fetchUser()
+    await authStore.refreshUser()
     const refreshed = authStore.user
     const refreshedBalance = Number(refreshed?.creditBalance ?? 0)
     const refreshedCost = costFor(refreshed?.plan, action)
@@ -67,18 +69,52 @@ export const useImagesStore = defineStore('images', () => {
         .filter(Boolean),
       mode: image.mode || 'text',
       operationType: image.operationType || (image.mode === 'image' ? 'image_to_image' : 'generate'),
+      generationParams: image.generationParams && typeof image.generationParams === 'object'
+        ? image.generationParams
+        : {},
       sourceImageId: image.sourceImageId || '',
-      continuationChainId: image.continuationChainId || ''
+      continuationChainId: image.continuationChainId || '',
+      folder: String(image.folder || ''),
+      tags: Array.isArray(image.tags)
+        ? Array.from(new Set(image.tags.map((item) => String(item || '').trim()).filter(Boolean)))
+        : []
     }
   }
 
-  async function fetchImages(limit = 12) {
+  async function fetchImages(options = 12) {
+    const params = typeof options === 'number'
+      ? { limit: options }
+      : { ...(options || {}) }
+    const limit = Number(params.limit || 12)
+    const offset = Number(params.offset || 0)
+    const mode = params.mode || 'all'
+    const q = String(params.q || '').trim()
+
     isLoading.value = true
     try {
-      const data = await apiFetch(`/api/images?limit=${limit}`)
+      const search = new URLSearchParams()
+      search.set('limit', String(limit))
+      search.set('offset', String(offset))
+      if (mode && mode !== 'all') search.set('mode', mode)
+      if (q) search.set('q', q)
+      const data = await apiFetch(`/api/images?${search.toString()}`)
       images.value = (data?.images || []).map(toListImage)
+      total.value = Number(data?.total ?? images.value.length)
+      lastQuery.value = { limit, offset, mode, q }
+      return {
+        images: images.value,
+        total: total.value,
+        limit: Number(data?.limit ?? limit),
+        offset: Number(data?.offset ?? offset)
+      }
     } catch {
       images.value = images.value || []
+      return {
+        images: images.value,
+        total: total.value,
+        limit,
+        offset
+      }
     } finally {
       isLoading.value = false
     }
@@ -234,7 +270,19 @@ export const useImagesStore = defineStore('images', () => {
     }
   }
 
-  async function continueDialogue({ prompt, aspectRatio, chainId = '', sourceImageId = '', imageFile = null, qualityTier = '1k', background = 'auto' } = {}) {
+  async function continueDialogue({
+    prompt,
+    aspectRatio,
+    chainId = '',
+    sourceImageId = '',
+    imageFile = null,
+    qualityTier = '1k',
+    count = 1,
+    outputFormat = 'png',
+    outputCompression = 100,
+    background = 'auto',
+    moderation = 'auto'
+  } = {}) {
     if (isGenerating.value) {
       throw new Error('已有图片正在生成，请等待当前任务完成')
     }
@@ -262,7 +310,11 @@ export const useImagesStore = defineStore('images', () => {
       form.append('prompt', String(prompt).trim())
       form.append('aspectRatio', aspectRatio)
       form.append('qualityTier', qualityTier)
+      form.append('count', String(count || 1))
+      form.append('outputFormat', outputFormat)
+      form.append('outputCompression', String(outputCompression ?? 100))
       form.append('background', background)
+      form.append('moderation', moderation)
       if (chainId) form.append('chainId', chainId)
       if (sourceImageId) form.append('sourceImageId', sourceImageId)
       if (imageFile instanceof File) form.append('image', imageFile)
@@ -365,20 +417,38 @@ export const useImagesStore = defineStore('images', () => {
     await apiFetch(`/api/images/${id}`, { method: 'DELETE' })
     const idx = images.value.findIndex((im) => String(im.id) === String(id))
     if (idx >= 0) images.value.splice(idx, 1)
+    total.value = Math.max(0, total.value - 1)
     toastSuccess('已删除')
+  }
+
+  async function updateImageMeta(id, meta = {}) {
+    const data = await apiFetch(`/api/images/${encodeURIComponent(id)}/meta`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(meta)
+    })
+    const nextImage = data?.image ? toListImage(data.image) : null
+    if (nextImage) {
+      const idx = images.value.findIndex((im) => String(im.id) === String(id))
+      if (idx >= 0) images.value.splice(idx, 1, nextImage)
+    }
+    return nextImage
   }
 
   async function deleteDialogueChain(chainId) {
     await apiFetch(`/api/images/dialogue/chain/${encodeURIComponent(chainId)}`, { method: 'DELETE' })
+    const removedCount = images.value.filter((im) => String(im.continuationChainId || '') === String(chainId || '')).length
     images.value = images.value.filter((im) => String(im.continuationChainId || '') !== String(chainId || ''))
+    total.value = Math.max(0, total.value - removedCount)
     toastSuccess('已删除对话')
   }
 
   async function clearImages() {
     await apiFetch('/api/images', { method: 'DELETE' })
     images.value = []
+    total.value = 0
     toastSuccess('已清空')
   }
 
-  return { images, isLoading, activeJob, isGenerating, fetchImages, fetchImage, fetchDialogueHistory, fetchDialogueChain, generate, generateFromImages, continueDialogue, editImage, clearJob, deleteImage, deleteDialogueChain, clearImages }
+  return { images, total, lastQuery, isLoading, activeJob, isGenerating, fetchImages, fetchImage, fetchDialogueHistory, fetchDialogueChain, generate, generateFromImages, continueDialogue, editImage, clearJob, updateImageMeta, deleteImage, deleteDialogueChain, clearImages }
 })

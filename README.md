@@ -1,13 +1,14 @@
-# Image2 Create
+# HI Image Studio
 
-一个轻量的 GPT Image 2 生图网站，使用 HiAPI 的 OpenAI 兼容中转接口。
+一个轻量的 AI 图片创作工作台，使用 HiAPI 的 OpenAI 兼容中转接口。前端基于 Vue 3 + Vite，后端基于 NestJS + SQLite。
 
 ## 功能
 
 - 注册 / 登录 / 退出
-- 服务端保存用户和生成历史
+- 服务端保存用户、积分、公告、兑换码和生成历史
 - 服务端代理 HiAPI，API Key 不暴露给浏览器
-- 支持 `gpt-image-2` 和常用图片比例
+- 支持文生图、参考图生图、连续对话、局部编辑和抠图工具
+- 支持后台用户、积分、公告、审计日志和兑换码管理
 
 ## 启动
 
@@ -20,6 +21,8 @@ cp .env.example .env
 ```bash
 HIAPI_API_KEY=你的_HiAPI_Key
 SESSION_SECRET=一段足够长的随机字符串
+ADMIN_TOKEN=一段足够长的后台初始化令牌
+SQLITE_FILE=data/app.db
 ```
 
 开发模式需要同时启动后端和 Vite 前端：
@@ -72,4 +75,22 @@ HIAPI_SIZE_FORMAT=ratio
 
 ## 数据存储
 
-本地数据保存在 `data/db.json`，该目录已加入 `.gitignore`。生产环境建议替换为 SQLite、PostgreSQL 或托管数据库。
+本地数据默认保存在 SQLite 文件 `data/app.db`，上传和生成后的图片保存在 `data/uploads/`。`data/` 目录已加入 `.gitignore`。
+
+旧版本的 `data/db.json` 会在空 SQLite 数据库首次启动时自动导入，并重命名为 `data/db.json.bak`。
+
+## 测试
+
+后端测试：
+
+```bash
+npm test --prefix server
+npm run test:e2e --prefix server
+```
+
+当前优化建议见：
+
+```text
+docs/architecture-optimization.md
+docs/performance-optimization.md
+```

@@ -8,34 +8,85 @@
         <div class="route-loading-pill">加载中...</div>
       </div>
     </Transition>
+    <Transition name="app-loading-fade">
+      <div
+        v-if="routeLoadingOverlay"
+        class="app-loading-screen app-loading-screen-overlay"
+        role="status"
+        aria-live="polite"
+        aria-label="页面切换中"
+      >
+        <div class="app-loading-ambient"></div>
+        <div class="app-loading-grid"></div>
+        <div class="app-loading-content">
+          <div class="app-loading-mark">
+            <div class="app-loading-ring app-loading-ring-outer"></div>
+            <div class="app-loading-ring app-loading-ring-inner"></div>
+            <div class="app-loading-core"></div>
+          </div>
+          <div class="app-loading-eyebrow">SWITCHING WORKSPACE</div>
+          <h1 class="app-loading-title">正在切换页面</h1>
+          <p class="app-loading-copy">正在同步当前工作区状态，准备好后立即进入。</p>
+        </div>
+      </div>
+    </Transition>
   </div>
-  <div v-else class="loading-app">
-    <div class="spinner"></div>
+  <div v-else class="app-loading-screen" role="status" aria-live="polite" aria-label="应用初始化中">
+    <div class="app-loading-ambient"></div>
+    <div class="app-loading-grid"></div>
+    <div class="app-loading-content">
+      <div class="app-loading-mark">
+        <div class="app-loading-ring app-loading-ring-outer"></div>
+        <div class="app-loading-ring app-loading-ring-inner"></div>
+        <div class="app-loading-core"></div>
+      </div>
+      <div class="app-loading-eyebrow">SYNCING GALLERY STATE</div>
+      <h1 class="app-loading-title">正在唤醒艺术引擎</h1>
+      <p class="app-loading-copy">正在同步身份、额度与画廊数据，准备稳定状态后一并入场。</p>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { onBeforeUnmount, ref } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { useAuthStore } from './stores/auth'
+import { usePreferencesStore } from './stores/preferences'
 import { Toast } from './components/common'
 import router from './router'
 
 const authStore = useAuthStore()
+const preferencesStore = usePreferencesStore()
 authStore.fetchUser()
 
+watch(
+  () => authStore.user?.id,
+  (userId) => {
+    preferencesStore.loadScope(userId ? `user:${userId}` : 'anonymous')
+  },
+  { immediate: true },
+)
+
 const routeLoading = ref(false)
+const routeLoadingOverlay = ref(false)
 let loadingTimer = 0
+let overlayTimer = 0
 
 function startRouteLoading() {
   window.clearTimeout(loadingTimer)
+  window.clearTimeout(overlayTimer)
   loadingTimer = window.setTimeout(() => {
     routeLoading.value = true
   }, 120)
+  overlayTimer = window.setTimeout(() => {
+    routeLoadingOverlay.value = true
+  }, 420)
 }
 
 function stopRouteLoading() {
   window.clearTimeout(loadingTimer)
+  window.clearTimeout(overlayTimer)
   routeLoading.value = false
+  routeLoadingOverlay.value = false
 }
 
 const removeBeforeEach = router.beforeEach((to, from) => {
@@ -50,6 +101,7 @@ const removeOnError = router.onError(() => {
 
 onBeforeUnmount(() => {
   window.clearTimeout(loadingTimer)
+  window.clearTimeout(overlayTimer)
   removeBeforeEach?.()
   removeAfterEach?.()
   removeOnError?.()
@@ -57,23 +109,133 @@ onBeforeUnmount(() => {
 </script>
 
 <style>
-.loading-app {
-  height: 100vh;
+.app-loading-screen {
+  position: fixed;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg);
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(255, 214, 179, 0.42), transparent 32%),
+    radial-gradient(circle at top right, rgba(153, 224, 255, 0.2), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 249, 255, 0.98));
 }
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid rgba(0, 0, 0, 0.1);
+
+.app-loading-screen-overlay {
+  z-index: 99999999;
+  backdrop-filter: blur(18px);
+}
+
+.app-loading-ambient {
+  position: absolute;
+  inset: -10%;
+  background:
+    radial-gradient(circle at 22% 24%, rgba(255, 208, 171, 0.34), transparent 22%),
+    radial-gradient(circle at 78% 20%, rgba(127, 207, 255, 0.18), transparent 18%),
+    radial-gradient(circle at 50% 82%, rgba(154, 175, 255, 0.12), transparent 24%);
+  filter: blur(32px);
+  opacity: 0.95;
+}
+
+.app-loading-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.26) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.26) 1px, transparent 1px);
+  background-size: 52px 52px;
+  mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 0.9), transparent 80%);
+  opacity: 0.42;
+  transform: perspective(900px) rotateX(67deg) scale(1.7) translateY(14%);
+  transform-origin: center;
+}
+
+.app-loading-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: min(720px, calc(100vw - 48px));
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.app-loading-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 224px;
+  height: 224px;
+  margin-bottom: 30px;
   border-radius: 50%;
-  border-top-color: var(--primary);
-  animation: spin 1s ease-in-out infinite;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.2) 68%, transparent 72%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.4),
+    0 30px 70px rgba(148, 163, 184, 0.14);
 }
-@keyframes spin {
-  to { transform: rotate(360deg); }
+
+.app-loading-ring {
+  position: absolute;
+  border-radius: 50%;
+  border-style: solid;
+  border-color: transparent;
+}
+
+.app-loading-ring-outer {
+  width: 140px;
+  height: 140px;
+  border-width: 2px;
+  border-top-color: rgba(255, 191, 74, 0.95);
+  border-right-color: rgba(255, 191, 74, 0.95);
+  animation: app-loading-spin 2.6s linear infinite;
+}
+
+.app-loading-ring-inner {
+  width: 104px;
+  height: 104px;
+  border-width: 2px;
+  border-bottom-color: rgba(102, 199, 255, 0.95);
+  border-left-color: rgba(102, 199, 255, 0.95);
+  animation: app-loading-spin-reverse 1.8s linear infinite;
+}
+
+.app-loading-core {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.96) 0 20%, rgba(255, 242, 235, 0.92) 20% 58%, rgba(255, 219, 197, 0.8) 58% 100%);
+  box-shadow:
+    0 0 0 22px rgba(255, 238, 230, 0.42),
+    0 0 50px rgba(255, 198, 159, 0.34);
+  animation: app-loading-pulse 2.4s ease-in-out infinite;
+}
+
+.app-loading-eyebrow {
+  margin-bottom: 16px;
+  color: #a0aec0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.62em;
+  text-transform: uppercase;
+  padding-left: 0.62em;
+}
+
+.app-loading-title {
+  margin: 0;
+  color: #0f172a;
+  font-size: clamp(32px, 3.2vw, 50px);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.app-loading-copy {
+  max-width: 560px;
+  margin-top: 22px;
+  color: #64748b;
+  font-size: clamp(15px, 1.6vw, 20px);
+  line-height: 1.75;
 }
 
 .route-loading {
@@ -129,12 +291,106 @@ onBeforeUnmount(() => {
   opacity: 0;
 }
 
+@keyframes app-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes app-loading-spin-reverse {
+  to { transform: rotate(-360deg); }
+}
+
+@keyframes app-loading-pulse {
+  0%, 100% {
+    transform: scale(0.96);
+    box-shadow:
+      0 0 0 22px rgba(255, 238, 230, 0.34),
+      0 0 36px rgba(255, 198, 159, 0.24);
+  }
+  50% {
+    transform: scale(1);
+    box-shadow:
+      0 0 0 28px rgba(255, 238, 230, 0.48),
+      0 0 60px rgba(255, 198, 159, 0.36);
+  }
+}
+
+@keyframes app-loading-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(1.02);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes app-loading-fade-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.99);
+  }
+}
+
+.app-loading-fade-enter-active {
+  animation: app-loading-fade-in 0.24s ease-out;
+}
+
+.app-loading-fade-leave-active {
+  animation: app-loading-fade-out 0.18s ease-in forwards;
+}
+
 @keyframes route-loading-slide {
   0% { transform: translateX(-110%); }
   100% { transform: translateX(250%); }
 }
 
 @media (max-width: 760px) {
+  .app-loading-content {
+    width: min(100vw - 32px, 520px);
+  }
+
+  .app-loading-mark {
+    width: 188px;
+    height: 188px;
+    margin-bottom: 22px;
+  }
+
+  .app-loading-ring-outer {
+    width: 122px;
+    height: 122px;
+  }
+
+  .app-loading-ring-inner {
+    width: 92px;
+    height: 92px;
+  }
+
+  .app-loading-core {
+    width: 62px;
+    height: 62px;
+  }
+
+  .app-loading-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.42em;
+    padding-left: 0.42em;
+  }
+
+  .app-loading-title {
+    font-size: 30px;
+  }
+
+  .app-loading-copy {
+    margin-top: 16px;
+    font-size: 15px;
+    line-height: 1.65;
+  }
+
   .route-loading-pill {
     top: calc(10px + env(safe-area-inset-top, 0px));
     height: 28px;

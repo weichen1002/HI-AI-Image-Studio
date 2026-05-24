@@ -24,6 +24,13 @@ const ANSI = {
 } as const;
 
 const COLOR_ENABLED = Boolean(process.stdout?.isTTY);
+const REDACTED = '[REDACTED]';
+
+function isSensitiveKey(key: string) {
+  return /password|secret|token|authorization|cookie|session|captcha|redeemcode|api[_-]?key|apikey|ciphertext/i.test(
+    key,
+  );
+}
 
 function colorize(text: string, color: string) {
   if (!COLOR_ENABLED) return text;
@@ -60,16 +67,20 @@ function durationColor(durationMs: number) {
   return ANSI.gray;
 }
 
-function normalizeValue(value: unknown): unknown {
+function normalizeValue(value: unknown, key = ''): unknown {
+  if (key && isSensitiveKey(key)) {
+    return REDACTED;
+  }
   if (value instanceof Error) {
     return toErrorDetails(value);
   }
   if (Array.isArray(value)) {
-    return value.map(normalizeValue);
+    return value.map((item) => normalizeValue(item, key));
   }
   if (value && typeof value === 'object') {
     const entries = Object.entries(value as Record<string, unknown>).map(
-      ([key, current]) => [key, normalizeValue(current)] as const,
+      ([currentKey, current]) =>
+        [currentKey, normalizeValue(current, currentKey)] as const,
     );
     return Object.fromEntries(entries);
   }
@@ -79,9 +90,13 @@ function normalizeValue(value: unknown): unknown {
   return value;
 }
 
+export function sanitizeLogMeta(meta: unknown) {
+  return normalizeValue(meta);
+}
+
 function formatMeta(meta?: unknown) {
   if (meta == null) return '';
-  const normalized = normalizeValue(meta);
+  const normalized = sanitizeLogMeta(meta);
   const formatted = JSON.stringify(normalized, null, 2);
   if (!formatted) return '';
   return colorize(formatted, ANSI.gray);

@@ -346,7 +346,7 @@ async function submitAuth() {
         toastError(`注册成功，兑换码未生效：${redeemCodeResult.message}`)
       }
     }
-    router.push('/studio')
+    router.push(safeRedirectTarget(route.query.redirect))
   } catch (e) {
     toastError(e.message || '操作失败')
     if (mode.value === 'register' && String(e.message || '').includes('验证码')) {
@@ -355,6 +355,14 @@ async function submitAuth() {
   } finally {
     loading.value = false
   }
+}
+
+function safeRedirectTarget(value) {
+  const target = String(value || '').trim()
+  if (!target.startsWith('/') || target.startsWith('//') || target.startsWith('/login')) {
+    return '/studio'
+  }
+  return target
 }
 
 onMounted(() => {

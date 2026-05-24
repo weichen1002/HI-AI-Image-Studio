@@ -478,7 +478,7 @@ watch(
   () => imagesStore.activeJob?.status,
   async (status) => {
     if (status === 'success') {
-      await authStore.fetchUser()
+      await authStore.refreshUser()
     }
   }
 )

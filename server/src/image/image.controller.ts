@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Delete,
   Body,
   Req,
@@ -43,7 +44,32 @@ import { logError, toErrorDetails } from '../logging/logger';
 function normalizeLimit(value: string | undefined) {
   const limit = Number(value || 12);
   if (!Number.isFinite(limit)) return 12;
-  return Math.max(1, Math.min(50, Math.floor(limit)));
+  return Math.max(1, Math.min(100, Math.floor(limit)));
+}
+
+function normalizeOffset(value: string | undefined) {
+  const offset = Number(value || 0);
+  if (!Number.isFinite(offset)) return 0;
+  return Math.max(0, Math.floor(offset));
+}
+
+function normalizeImageModeFilter(value: string | undefined): ImageMode | 'all' {
+  const mode = String(value || 'all').trim();
+  if (
+    mode === 'all' ||
+    mode === 'text' ||
+    mode === 'image' ||
+    mode === 'dialogue' ||
+    mode === 'continuous' ||
+    mode === 'tools'
+  ) {
+    return mode;
+  }
+  return 'all';
+}
+
+function normalizeSearchQuery(value: string | undefined) {
+  return String(value || '').trim().slice(0, 120);
 }
 
 function normalizePrompt(value: any) {
@@ -196,14 +222,58 @@ function normalizeImageCount(value: any) {
   return normalizedCount;
 }
 
+function normalizeAssetFolder(value: any) {
+  const folder = String(value || '').trim();
+  if (folder.length > 60) {
+    throw new HttpException('文件夹名称不能超过 60 字符', HttpStatus.BAD_REQUEST);
+  }
+  return folder;
+}
+
+function normalizeAssetTags(value: any) {
+  const source = Array.isArray(value) ? value : [];
+  const tags = Array.from(
+    new Set(source.map((item) => String(item || '').trim()).filter(Boolean)),
+  );
+  if (tags.some((tag) => tag.length > 30)) {
+    throw new HttpException('标签不能超过 30 字符', HttpStatus.BAD_REQUEST);
+  }
+  if (tags.length > 20) {
+    throw new HttpException('标签最多 20 个', HttpStatus.BAD_REQUEST);
+  }
+  return tags;
+}
+
 function toListImage(image: any) {
   return {
     ...image,
     mode: image.mode || 'text',
     imageUrls: (image.imageUrls || []).filter(Boolean),
     inputImageUrls: (image.inputImageUrls || []).filter(Boolean),
+    generationParams:
+      image.generationParams && typeof image.generationParams === 'object'
+        ? image.generationParams
+        : {},
+    folder: String(image.folder || ''),
+    tags: Array.isArray(image.tags) ? image.tags.filter(Boolean) : [],
     continuationChainId: image.continuationChainId || '',
   };
+}
+
+function createGenerationParams(params: {
+  qualityTier?: string;
+  count?: number;
+  outputFormat?: string;
+  outputCompression?: number;
+  background?: string;
+  moderation?: string;
+  size?: string;
+  quality?: string;
+  operationType?: string;
+}) {
+  return Object.fromEntries(
+    Object.entries(params).filter(([, value]) => value !== undefined && value !== ''),
+  );
 }
 
 function toPublicDialogueMessage(message: any) {
@@ -437,14 +507,29 @@ export class ImageController {
   }
 
   @Get()
-  async getImages(@Req() req: RequestWithUser, @Query('limit') limitValue?: string) {
+  async getImages(
+    @Req() req: RequestWithUser,
+    @Query('limit') limitValue?: string,
+    @Query('offset') offsetValue?: string,
+    @Query('mode') modeValue?: string,
+    @Query('q') qValue?: string,
+  ) {
     const limit = normalizeLimit(limitValue);
+    const offset = normalizeOffset(offsetValue);
+    const mode = normalizeImageModeFilter(modeValue);
+    const q = normalizeSearchQuery(qValue);
+    const page = this.imagesRepo.listByUserPaged({
+      userId: req.user.id,
+      limit,
+      offset,
+      mode,
+      q,
+    });
     const images = await Promise.all(
-      this.imagesRepo
-        .listByUser({ userId: req.user.id, limit })
+      page.items
         .map((item) => this.materializeImageAssets(item, req.user.id)),
     );
-    return { images };
+    return { images, total: page.total, limit, offset };
   }
 
   @Get('dialogue/history')
@@ -507,6 +592,41 @@ export class ImageController {
       chainId,
       images,
       messages: messages.map(toPublicDialogueMessage),
+    };
+  }
+
+  @Put(':id/meta')
+  updateImageMeta(
+    @Req() req: RequestWithUser,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    const image = this.imagesRepo.findById({ id, userId: req.user.id });
+    if (!image) {
+      throw new HttpException('记录不存在', HttpStatus.NOT_FOUND);
+    }
+
+    const next: { folder?: string; tags?: string[] } = {};
+    if (Object.prototype.hasOwnProperty.call(body || {}, 'folder')) {
+      next.folder = normalizeAssetFolder(body.folder);
+    }
+    if (Object.prototype.hasOwnProperty.call(body || {}, 'tags')) {
+      next.tags = normalizeAssetTags(body.tags);
+    }
+    if (!Object.keys(next).length) {
+      return { image: toListImage(image) };
+    }
+
+    this.imagesRepo.updateAssetMeta({
+      id,
+      userId: req.user.id,
+      ...next,
+    });
+    return {
+      image: toListImage({
+        ...image,
+        ...next,
+      }),
     };
   }
 
@@ -579,7 +699,11 @@ export class ImageController {
     const prompt = normalizePrompt(body.prompt);
     const aspectRatio = normalizeAspectRatio(body.aspectRatio);
     const qualityTier = normalizeQualityTier(body.qualityTier);
+    const outputFormat = normalizeOutputFormat(body.outputFormat);
+    const outputCompression = normalizeOutputCompression(body.outputCompression);
     const background = normalizeBackground(body.background);
+    const moderation = normalizeModeration(body.moderation);
+    const count = normalizeImageCount(body.count);
     const chainIdValue = String(body.chainId || '').trim();
     const sourceImageId = String(body.sourceImageId || '').trim();
     const referenceFile = files?.image?.[0];
@@ -598,6 +722,13 @@ export class ImageController {
           HttpStatus.PAYLOAD_TOO_LARGE,
         );
       }
+    }
+
+    if (background === 'transparent' && outputFormat === 'jpeg') {
+      throw new HttpException(
+        '透明背景仅支持 PNG 或 WEBP 输出',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const sourceImage = sourceImageId
@@ -629,11 +760,12 @@ export class ImageController {
     const usesImageContext = Boolean(
       historyTurns.length || referenceFile || sourceImage?.imageUrls?.[0],
     );
-    const cost = costFor(
-      req.user.plan === 'pro' ? 'pro' : 'free',
-      usesImageContext ? 'image_to_image' : 'text_to_image',
-      pricing,
-    );
+    const cost =
+      costFor(
+        req.user.plan === 'pro' ? 'pro' : 'free',
+        usesImageContext ? 'image_to_image' : 'text_to_image',
+        pricing,
+      ) * count;
     const refId = crypto.randomUUID();
     let charged = false;
     let uploadedReference:
@@ -699,11 +831,15 @@ export class ImageController {
         previousResponseId: latestMessage?.responseId || '',
         aspectRatio,
         qualityTier,
+        count,
+        outputFormat,
+        outputCompression,
         background,
+        moderation,
       });
       const persistedResults = await persistImageAssetsSafely(
         result.imageUrls,
-        'image/png',
+        mimeForFileName(`result.${outputFormat}`),
       );
       persistedResultAssets.push(
         ...persistedResults.persisted.map((item) => ({
@@ -719,6 +855,14 @@ export class ImageController {
           operationType: usesImageContext ? 'image_to_image' : 'generate',
           prompt,
           aspectRatio,
+          generationParams: createGenerationParams({
+            qualityTier,
+            count,
+            outputFormat,
+            outputCompression,
+            background,
+            moderation,
+          }),
           content: result.content,
           imageUrls: persistedResults.urls,
           inputImageUrls: storedInputImageUrls,
@@ -733,7 +877,7 @@ export class ImageController {
           responseId: result.responseId,
           previousResponseId: latestMessage?.responseId || '',
           inputImageUrls: storedInputImageUrls,
-          outputItems: [],
+          outputItems: result.outputItems || [],
           prompt,
         });
         return created;
@@ -932,6 +1076,14 @@ export class ImageController {
           mode,
           prompt,
           aspectRatio,
+          generationParams: createGenerationParams({
+            qualityTier,
+            count,
+            outputFormat,
+            outputCompression,
+            background,
+            moderation,
+          }),
           content: result.content,
           imageUrls: persistedResults.urls,
         });
@@ -1114,6 +1266,14 @@ export class ImageController {
         mode,
         prompt,
         aspectRatio,
+        generationParams: createGenerationParams({
+          qualityTier,
+          count,
+          outputFormat,
+          outputCompression,
+          background,
+          moderation,
+        }),
         content: result.content,
         imageUrls: persistedResults.urls,
         inputImageUrls: uploaded.map((item) => item.url),
@@ -1325,6 +1485,13 @@ export class ImageController {
           operationType,
           prompt,
           aspectRatio,
+          generationParams: createGenerationParams({
+            size,
+            quality,
+            operationType,
+            outputFormat: operationType === 'cutout' ? 'png' : undefined,
+            background: operationType === 'cutout' ? 'transparent' : undefined,
+          }),
           content: result.content,
           imageUrls: persistedResults.urls,
           inputImageUrls: inputUrl ? [inputUrl] : [],

@@ -9,7 +9,8 @@ export type ImageOperationType =
   | 'inpaint'
   | 'outpaint'
   | 'continuous'
-  | 'cutout';
+  | 'cutout'
+  | 'upscale';
 
 export type ImageEntity = {
   id: string;
@@ -18,13 +19,36 @@ export type ImageEntity = {
   operationType: ImageOperationType;
   prompt: string;
   aspectRatio: string;
+  generationParams: Record<string, any>;
   content: string;
   imageUrls: string[];
   inputImageUrls?: string[];
+  folder: string;
+  tags: string[];
   sourceImageId?: string;
   continuationChainId?: string;
   createdAt: string;
 };
+
+function parseJsonList(value: any) {
+  try {
+    const parsed = JSON.parse(String(value || '[]'));
+    return Array.isArray(parsed) ? parsed.map((item) => String(item || '').trim()).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseJsonObject(value: any) {
+  try {
+    const parsed = JSON.parse(String(value || '{}'));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed
+      : {};
+  } catch {
+    return {};
+  }
+}
 
 function toImage(row: any): ImageEntity | null {
   if (!row) return null;
@@ -52,9 +76,12 @@ function toImage(row: any): ImageEntity | null {
     ) as ImageOperationType,
     prompt: String(row.prompt || ''),
     aspectRatio: String(row.aspect_ratio || '1:1'),
+    generationParams: parseJsonObject(row.generation_params),
     content: String(row.content || ''),
     imageUrls: Array.isArray(imageUrls) ? imageUrls : [],
     inputImageUrls: Array.isArray(inputImageUrls) ? inputImageUrls : [],
+    folder: String(row.folder || ''),
+    tags: parseJsonList(row.tags),
     sourceImageId: row.source_image_id ? String(row.source_image_id) : '',
     continuationChainId: row.continuation_chain_id
       ? String(row.continuation_chain_id)
@@ -75,6 +102,54 @@ export class ImagesRepo {
       )
       .all(params.userId, limit);
     return rows.map(toImage).filter(Boolean) as ImageEntity[];
+  }
+
+  listByUserPaged(params: {
+    userId: string;
+    limit: number;
+    offset?: number;
+    mode?: ImageMode | 'all';
+    q?: string;
+  }) {
+    const limit = Math.max(1, Math.min(100, Math.floor(params.limit)));
+    const offset = Math.max(0, Math.floor(params.offset || 0));
+    const where = ['user_id = ?'];
+    const values: any[] = [params.userId];
+
+    if (params.mode && params.mode !== 'all') {
+      if (params.mode === 'dialogue') {
+        where.push('(mode = ? OR mode = ?)');
+        values.push('dialogue', 'continuous');
+      } else {
+        where.push('mode = ?');
+        values.push(params.mode);
+      }
+    }
+
+    const keyword = String(params.q || '').trim();
+    if (keyword) {
+      where.push('(prompt LIKE ? OR content LIKE ? OR aspect_ratio LIKE ? OR operation_type LIKE ? OR folder LIKE ? OR tags LIKE ?)');
+      const likeValue = `%${keyword}%`;
+      values.push(likeValue, likeValue, likeValue, likeValue, likeValue, likeValue);
+    }
+
+    const whereSql = where.join(' AND ');
+    const totalRow = this.sqlite.connection
+      .prepare(`SELECT COUNT(*) as total FROM images WHERE ${whereSql}`)
+      .get(...values) as { total?: number } | undefined;
+    const rows = this.sqlite.connection
+      .prepare(
+        `SELECT * FROM images
+         WHERE ${whereSql}
+         ORDER BY created_at DESC
+         LIMIT ? OFFSET ?`,
+      )
+      .all(...values, limit, offset);
+
+    return {
+      items: rows.map(toImage).filter(Boolean) as ImageEntity[],
+      total: Number(totalRow?.total || 0),
+    };
   }
 
   findById(params: { id: string; userId: string }) {
@@ -213,12 +288,41 @@ export class ImagesRepo {
     return Number(result?.changes || 0);
   }
 
+  updateAssetMeta(params: {
+    id: string;
+    userId: string;
+    folder?: string;
+    tags?: string[];
+  }) {
+    const updates: string[] = [];
+    const values: any[] = [];
+    if (Object.prototype.hasOwnProperty.call(params, 'folder')) {
+      updates.push('folder = ?');
+      values.push(String(params.folder || '').trim());
+    }
+    if (Object.prototype.hasOwnProperty.call(params, 'tags')) {
+      updates.push('tags = ?');
+      values.push(JSON.stringify(Array.isArray(params.tags) ? params.tags : []));
+    }
+    if (!updates.length) return 0;
+
+    const result = this.sqlite.connection
+      .prepare(
+        `UPDATE images
+         SET ${updates.join(', ')}
+         WHERE id = ? AND user_id = ?`,
+      )
+      .run(...values, params.id, params.userId);
+    return Number(result?.changes || 0);
+  }
+
   create(params: {
     userId: string;
     mode: ImageMode;
     operationType?: ImageOperationType;
     prompt: string;
     aspectRatio: string;
+    generationParams?: Record<string, any>;
     content: string;
     imageUrls: string[];
     inputImageUrls?: string[];
@@ -234,9 +338,12 @@ export class ImagesRepo {
         (params.mode === 'image' ? 'image_to_image' : 'generate'),
       prompt: params.prompt,
       aspectRatio: params.aspectRatio,
+      generationParams: params.generationParams || {},
       content: params.content,
       imageUrls: params.imageUrls,
       inputImageUrls: params.inputImageUrls || [],
+      folder: '',
+      tags: [],
       sourceImageId: params.sourceImageId || '',
       continuationChainId: params.continuationChainId || '',
       createdAt: new Date().toISOString(),
@@ -244,8 +351,8 @@ export class ImagesRepo {
 
     this.sqlite.connection
       .prepare(
-        `INSERT INTO images(id, user_id, mode, operation_type, prompt, aspect_ratio, content, image_urls, input_image_urls, source_image_id, continuation_chain_id, created_at)
-         VALUES(@id, @user_id, @mode, @operation_type, @prompt, @aspect_ratio, @content, @image_urls, @input_image_urls, @source_image_id, @continuation_chain_id, @created_at)`,
+        `INSERT INTO images(id, user_id, mode, operation_type, prompt, aspect_ratio, generation_params, content, image_urls, input_image_urls, source_image_id, continuation_chain_id, created_at)
+         VALUES(@id, @user_id, @mode, @operation_type, @prompt, @aspect_ratio, @generation_params, @content, @image_urls, @input_image_urls, @source_image_id, @continuation_chain_id, @created_at)`,
       )
       .run({
         id: image.id,
@@ -254,6 +361,7 @@ export class ImagesRepo {
         operation_type: image.operationType,
         prompt: image.prompt,
         aspect_ratio: image.aspectRatio,
+        generation_params: JSON.stringify(image.generationParams || {}),
         content: image.content,
         image_urls: JSON.stringify(image.imageUrls || []),
         input_image_urls: (image.inputImageUrls || []).length

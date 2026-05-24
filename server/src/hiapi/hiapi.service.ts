@@ -640,7 +640,11 @@ export class HiapiService {
     previousResponseId?: string;
     aspectRatio: string;
     qualityTier?: '1k' | '2k' | '4k';
+    count?: number;
+    outputFormat?: SupportedOutputFormat;
+    outputCompression?: number;
     background?: SupportedBackground;
+    moderation?: SupportedModeration;
   }) {
     const modelSettings = this.settingsRepo.getModelSettings();
     if (!modelSettings.textModel) {
@@ -654,6 +658,12 @@ export class HiapiService {
       params.background === 'transparent' ? 'auto' : params.background || 'auto';
     const toolSize = sizeForSub2api(params.aspectRatio, modelSettings.sizeFormat);
     const toolQuality = qualityForTier(params.qualityTier || '1k');
+    const count = Math.max(1, Math.min(4, Math.floor(params.count || 1)));
+    const outputFormat = params.outputFormat || 'png';
+    const outputCompression = Number.isFinite(params.outputCompression)
+      ? Math.max(0, Math.min(100, Math.floor(params.outputCompression || 0)))
+      : 100;
+    const moderation = params.moderation || 'auto';
     const createUserTurn = (prompt: string, inputImageUrls: string[] = []) => {
       const content: Array<Record<string, string>> = [
         {
@@ -712,7 +722,12 @@ export class HiapiService {
                   action: request.action,
                   size: toolSize,
                   quality: toolQuality,
+                  output_format: outputFormat,
+                  ...(outputFormat !== 'png'
+                    ? { output_compression: outputCompression }
+                    : {}),
                   background: toolBackground,
+                  moderation,
                 },
               ],
             }),
@@ -723,8 +738,28 @@ export class HiapiService {
           clearTimeout(timeout);
         }
 
-        return parseResponsesImageResponse(response);
+        return parseResponsesImageResponse(
+          response,
+          mimeTypeForOutputFormat(outputFormat),
+        );
       });
+    };
+
+    const createRequests = async (request: {
+      input: any[];
+      action: 'auto' | 'generate' | 'edit';
+      previousResponseId?: string;
+    }) => {
+      const results = await Promise.all(
+        Array.from({ length: count }, () => createRequest(request)),
+      );
+      const latest = results[results.length - 1];
+      return {
+        responseId: latest?.responseId || '',
+        content: results.map((item) => item.content).filter(Boolean).join('\n'),
+        imageUrls: results.flatMap((item) => item.imageUrls),
+        outputItems: results.flatMap((item) => item.outputItems || []),
+      };
     };
 
     try {
@@ -735,7 +770,7 @@ export class HiapiService {
         const hasEditContext =
           Boolean(params.previousResponseId) ||
           Boolean((params.inputImageUrls || []).length);
-        return await createRequest({
+        return await createRequests({
           input: responseChainInput,
           action: hasEditContext ? 'edit' : 'generate',
           previousResponseId: params.previousResponseId,
@@ -757,7 +792,7 @@ export class HiapiService {
       params.fallbackInputImageUrls || params.inputImageUrls || [];
     replayInput.push(createUserTurn(params.prompt, replayImages));
 
-    return await createRequest({
+    return await createRequests({
       input: replayInput,
       action: replayImages.length ? 'edit' : 'generate',
     });

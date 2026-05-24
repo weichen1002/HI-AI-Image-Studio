@@ -12,7 +12,9 @@ export function signSession(userId: string): string {
 
 export function verifySession(token: string): string | null {
   if (!token || !token.includes('.')) return null;
-  const [payload, signature] = token.split('.');
+  const parts = token.split('.');
+  if (parts.length !== 2) return null;
+  const [payload, signature] = parts;
   const expected = crypto
     .createHmac('sha256', config.SESSION_SECRET)
     .update(payload)
@@ -42,6 +44,7 @@ export function verifyPassword(password: string, stored: string): boolean {
   const actual = crypto
     .pbkdf2Sync(password, salt, 120000, 32, 'sha256')
     .toString('hex');
+  if (actual.length !== hash.length) return false;
   return crypto.timingSafeEqual(Buffer.from(actual), Buffer.from(hash));
 }
 

@@ -1,23 +1,24 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import LandingView from '../views/LandingView.vue'
-import AuthView from '../views/AuthView.vue'
-import StudioView from '../views/StudioView.vue'
-import CreateView from '../views/studio/CreateView.vue'
-import HistoryView from '../views/studio/HistoryView.vue'
-import HistoryDetailView from '../views/studio/HistoryDetailView.vue'
-import ModelsView from '../views/studio/ModelsView.vue'
-import SettingsView from '../views/studio/SettingsView.vue'
-import ProfileView from '../views/studio/ProfileView.vue'
-import AnnouncementsView from '../views/studio/AnnouncementsView.vue'
-import AdminUsersView from '../views/studio/admin/AdminUsersView.vue'
-import AdminAnnouncementsView from '../views/studio/admin/AdminAnnouncementsView.vue'
-import AdminSettingsView from '../views/studio/admin/AdminSettingsView.vue'
-import AdminLedgerView from '../views/studio/admin/AdminLedgerView.vue'
-import AdminRedeemCodesView from '../views/studio/admin/AdminRedeemCodesView.vue'
-import AdminAuditLogsView from '../views/studio/admin/AdminAuditLogsView.vue'
 
 const DYNAMIC_IMPORT_ERROR_RELOAD_KEY = 'router:dynamic-import-reload'
+
+const LandingView = () => import('../views/LandingView.vue')
+const AuthView = () => import('../views/AuthView.vue')
+const StudioView = () => import('../views/StudioView.vue')
+const CreateView = () => import('../views/studio/CreateView.vue')
+const HistoryView = () => import('../views/studio/HistoryView.vue')
+const HistoryDetailView = () => import('../views/studio/HistoryDetailView.vue')
+const ModelsView = () => import('../views/studio/ModelsView.vue')
+const SettingsView = () => import('../views/studio/SettingsView.vue')
+const ProfileView = () => import('../views/studio/ProfileView.vue')
+const AnnouncementsView = () => import('../views/studio/AnnouncementsView.vue')
+const AdminUsersView = () => import('../views/studio/admin/AdminUsersView.vue')
+const AdminAnnouncementsView = () => import('../views/studio/admin/AdminAnnouncementsView.vue')
+const AdminSettingsView = () => import('../views/studio/admin/AdminSettingsView.vue')
+const AdminLedgerView = () => import('../views/studio/admin/AdminLedgerView.vue')
+const AdminRedeemCodesView = () => import('../views/studio/admin/AdminRedeemCodesView.vue')
+const AdminAuditLogsView = () => import('../views/studio/admin/AdminAuditLogsView.vue')
 
 export function isDynamicImportError(error) {
   const message = String(error?.message || error || '')
@@ -57,6 +58,14 @@ export function reloadOnDynamicImportError(error, targetPath) {
   window.sessionStorage.setItem(DYNAMIC_IMPORT_ERROR_RELOAD_KEY, reloadPath)
   window.location.assign(reloadPath)
   return true
+}
+
+function safeRedirectTarget(value, fallback = '/studio') {
+  const target = String(value || '').trim()
+  if (!target.startsWith('/') || target.startsWith('//') || target.startsWith('/login')) {
+    return fallback
+  }
+  return target
 }
 
 const routes = [
@@ -183,11 +192,11 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.requiresAuth && !isAuthenticated) {
-    return { name: 'login' }
+    return { name: 'login', query: { redirect: to.fullPath } }
   }
 
   if (to.meta.guestOnly && isAuthenticated) {
-    return { name: 'studio-create' }
+    return safeRedirectTarget(to.query.redirect)
   }
 
   if (to.meta.requiresRole) {

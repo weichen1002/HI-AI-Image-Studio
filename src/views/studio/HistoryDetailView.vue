@@ -9,44 +9,25 @@
           返回
         </Button>
 
-        <div class="chips" v-if="image">
-          <span class="chip chip-primary">{{ modeLabel }}</span>
-          <span class="chip">{{ image.aspectRatio }}</span>
-          <span class="chip chip-muted">{{ formatTime(image.createdAt) }}</span>
+        <div class="hero-copy">
+          <div class="hero-kicker">作品详情</div>
+          <div class="chips" v-if="image">
+            <span class="chip chip-primary">{{ modeLabel }}</span>
+            <span class="chip">{{ image.aspectRatio }}</span>
+            <span class="chip chip-muted">{{ formatTime(image.createdAt) }}</span>
+          </div>
         </div>
       </div>
 
-      <div class="hero-actions">
-        <Button class="hero-action" @click="reuse">
-          <template #icon>
-            <Wand2Icon :size="16" />
-          </template>
-          再次创作
-        </Button>
-        <Button v-if="image?.imageUrls?.[0]" variant="ghost" class="hero-action" @click="openEditor('inpaint')">
-          <template #icon>
-            <Wand2Icon :size="16" />
-          </template>
-          局部重绘
-        </Button>
-        <Button v-if="image?.imageUrls?.[0]" variant="ghost" class="hero-action" @click="openEditor('outpaint')">
-          <template #icon>
-            <ExpandIcon :size="16" />
-          </template>
-          扩图
-        </Button>
-        <Button v-if="activeUrl" variant="ghost" class="hero-action" @click="downloadActive">
-          <template #icon>
-            <DownloadIcon :size="16" />
-          </template>
-          下载{{ tabLabel }}
-        </Button>
-        <Button v-if="image" variant="ghost" class="hero-action" @click="remove">
-          <template #icon>
-            <Trash2Icon :size="16" />
-          </template>
-          {{ isDialogueDetail ? '删除对话' : '删除' }}
-        </Button>
+      <div v-if="image" class="hero-summary">
+        <div class="summary-item">
+          <span class="summary-label">操作</span>
+          <strong>{{ operationLabel }}</strong>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">图片</span>
+          <strong>{{ image.imageUrls?.length || 0 }}</strong>
+        </div>
       </div>
     </div>
 
@@ -61,14 +42,35 @@
     <div v-else-if="image" class="detail-grid">
       <section class="preview-panel" aria-label="图片预览">
         <div class="preview-topbar">
-          <div class="segmented" v-if="hasInput">
-            <button type="button" class="seg-btn" :class="{ active: tab === 'result' }" @click="tab = 'result'">结果图</button>
-            <button type="button" class="seg-btn" :class="{ active: tab === 'input' }" @click="tab = 'input'">参考图</button>
+          <div class="preview-context">
+            <div class="preview-title-block">
+              <div class="preview-title">{{ tabLabel }}</div>
+              <div class="preview-subtitle">
+                {{ currentGallery.length > 1 ? `${currentIndex + 1} / ${currentGallery.length}` : operationLabel }}
+              </div>
+            </div>
+            <div class="segmented" v-if="hasInput">
+              <button type="button" class="seg-btn" :class="{ active: tab === 'result' }" @click="tab = 'result'">结果</button>
+              <button type="button" class="seg-btn" :class="{ active: tab === 'input' }" @click="tab = 'input'">参考</button>
+            </div>
           </div>
-          <div class="preview-meta">
-            <span class="preview-kicker">{{ tabLabel }}</span>
-            <span class="preview-dot">·</span>
-            <span class="preview-kicker">{{ formatTime(image.createdAt) }}</span>
+          <div class="preview-toolbar" aria-label="图片操作">
+            <button type="button" class="toolbar-primary" @click="reuse">
+              <Wand2Icon :size="15" />
+              <span>再次创作</span>
+            </button>
+            <button v-if="image?.imageUrls?.[0]" type="button" class="icon-action" title="局部重绘" aria-label="局部重绘" @click="openEditor('inpaint')">
+              <Wand2Icon :size="15" />
+            </button>
+            <button v-if="image?.imageUrls?.[0]" type="button" class="icon-action" title="扩图" aria-label="扩图" @click="openEditor('outpaint')">
+              <ExpandIcon :size="15" />
+            </button>
+            <button v-if="activeUrl" type="button" class="icon-action" :title="`下载${tabLabel}`" :aria-label="`下载${tabLabel}`" @click="downloadActive">
+              <DownloadIcon :size="15" />
+            </button>
+            <button v-if="image" type="button" class="icon-action danger" :title="isDialogueDetail ? '删除对话' : '删除记录'" :aria-label="isDialogueDetail ? '删除对话' : '删除记录'" @click="remove">
+              <Trash2Icon :size="15" />
+            </button>
           </div>
         </div>
 
@@ -97,6 +99,12 @@
           <div class="meta-head">
             <div class="meta-title">提示词</div>
             <div class="meta-actions">
+              <Button variant="ghost" size="xs" @click="copyParams">
+                <template #icon>
+                  <CopyIcon :size="14" />
+                </template>
+                复制参数
+              </Button>
               <Button variant="ghost" size="xs" @click="copyPrompt">
                 <template #icon>
                   <CopyIcon :size="14" />
@@ -106,6 +114,22 @@
             </div>
           </div>
           <div class="prompt-box">{{ image.prompt }}</div>
+        </div>
+
+        <div v-if="image.folder || image.tags?.length" class="meta-card">
+          <div class="meta-head">
+            <div class="meta-title">整理信息</div>
+          </div>
+          <div class="asset-lines">
+            <div v-if="image.folder" class="asset-line">
+              <FolderOpenIcon :size="15" />
+              <span class="asset-chip folder">{{ image.folder }}</span>
+            </div>
+            <div v-if="image.tags?.length" class="asset-line">
+              <TagIcon :size="15" />
+              <span v-for="tag in image.tags" :key="tag" class="asset-chip">{{ tag }}</span>
+            </div>
+          </div>
         </div>
 
         <div v-if="isDialogueDetail" class="meta-card">
@@ -130,6 +154,11 @@
                   <span>{{ formatTime(round.createdAt) }}</span>
                 </div>
                 <div class="chain-round-prompt">{{ round.prompt }}</div>
+                <div v-if="round.paramSummary" class="chain-round-params">{{ round.paramSummary }}</div>
+                <div class="chain-round-actions">
+                  <span>查看</span>
+                  <span @click.stop="continueFromRound(round)">从此继续</span>
+                </div>
               </div>
             </button>
           </div>
@@ -193,7 +222,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeftIcon, CopyIcon, DownloadIcon, ExpandIcon, Wand2Icon, Trash2Icon } from 'lucide-vue-next'
+import { ArrowLeftIcon, CopyIcon, DownloadIcon, ExpandIcon, FolderOpenIcon, TagIcon, Trash2Icon, Wand2Icon } from 'lucide-vue-next'
 import { useImagesStore } from '../../stores/images'
 import { Button, toastError, toastSuccess } from '../../components/common'
 import ImageEditModal from '../../components/studio/ImageEditModal.vue'
@@ -244,7 +273,8 @@ const dialogueRounds = computed(() => {
         image: roundImage,
         prompt: message.prompt || roundImage?.prompt || '',
         createdAt: message.createdAt || roundImage?.createdAt || '',
-        coverUrl: roundImage?.imageUrls?.[0] || ''
+        coverUrl: roundImage?.imageUrls?.[0] || '',
+        paramSummary: paramSummaryForImage(roundImage)
       }
     })
   }
@@ -253,7 +283,8 @@ const dialogueRounds = computed(() => {
     image: roundImage,
     prompt: roundImage.prompt || '',
     createdAt: roundImage.createdAt || '',
-    coverUrl: roundImage.imageUrls?.[0] || ''
+    coverUrl: roundImage.imageUrls?.[0] || '',
+    paramSummary: paramSummaryForImage(roundImage)
   }))
 })
 
@@ -282,6 +313,25 @@ const operationLabel = computed(() => {
   if (op === 'continuous') return '对话创作'
   if (op === 'image_to_image') return '图生图'
   return '生成'
+})
+const generationParamLines = computed(() => {
+  const params = image.value?.generationParams && typeof image.value.generationParams === 'object'
+    ? image.value.generationParams
+    : {}
+  const labels = {
+    qualityTier: '质量',
+    count: '张数',
+    outputFormat: '格式',
+    outputCompression: '压缩率',
+    background: '背景',
+    moderation: '审核',
+    size: '尺寸',
+    quality: '质量',
+    operationType: '工具'
+  }
+  return Object.entries(params)
+    .filter(([, value]) => value !== undefined && value !== '')
+    .map(([key, value]) => `${labels[key] || key}：${value}`)
 })
 
 onMounted(async () => {
@@ -322,10 +372,52 @@ function reuse() {
     return
   }
   if (image.value.mode === 'image' && image.value.inputImageUrls?.[0]) {
-    router.push({ path: '/studio', query: { mode: 'image', prompt: image.value.prompt, input: encodeURIComponent(image.value.inputImageUrls[0]) } })
+    router.push({
+      path: '/studio',
+      query: {
+        ...reuseQueryForImage(image.value, 'image'),
+        mode: 'image',
+        input: encodeURIComponent(image.value.inputImageUrls[0])
+      }
+    })
     return
   }
-  router.push({ path: '/studio', query: { prompt: image.value.prompt } })
+  router.push({ path: '/studio', query: reuseQueryForImage(image.value, 'text') })
+}
+
+function reuseQueryForImage(source, mode = 'text') {
+  const params = source?.generationParams && typeof source.generationParams === 'object'
+    ? source.generationParams
+    : {}
+  const query = {
+    mode,
+    prompt: source?.prompt || '',
+    ratio: source?.aspectRatio || '1:1'
+  }
+  for (const key of ['qualityTier', 'count', 'outputFormat', 'outputCompression', 'background', 'moderation']) {
+    if (params[key] !== undefined && params[key] !== '') {
+      query[key] = String(params[key])
+    }
+  }
+  return query
+}
+
+function paramSummaryForImage(source) {
+  const params = source?.generationParams && typeof source.generationParams === 'object'
+    ? source.generationParams
+    : {}
+  const parts = [
+    source?.aspectRatio,
+    params.qualityTier,
+    params.count ? `${params.count}张` : '',
+    params.outputFormat ? String(params.outputFormat).toUpperCase() : ''
+  ].filter(Boolean)
+  return parts.join(' · ')
+}
+
+function continueFromRound(round) {
+  if (!round?.image?.id) return
+  router.push({ path: '/studio', query: { mode: 'dialogue', imageId: round.image.id } })
 }
 
 function resetGalleryIndex() {
@@ -421,6 +513,25 @@ async function copyPrompt() {
     toastError('复制失败')
   }
 }
+
+async function copyParams() {
+  if (!image.value) return
+  const lines = [
+    `提示词：${image.value.prompt || ''}`,
+    `模式：${modeLabel.value}`,
+    `比例：${image.value.aspectRatio || '1:1'}`,
+    `操作：${operationLabel.value}`,
+    ...generationParamLines.value,
+    `结果图：${(image.value.imageUrls || []).filter(Boolean).join(', ')}`,
+    `参考图：${(image.value.inputImageUrls || []).filter(Boolean).join(', ')}`
+  ]
+  try {
+    await navigator.clipboard.writeText(lines.join('\n'))
+    toastSuccess('已复制参数')
+  } catch {
+    toastError('复制失败')
+  }
+}
 </script>
 
 <style scoped>
@@ -435,12 +546,9 @@ async function copyPrompt() {
   gap: 18px;
   padding: 16px 18px 14px;
   border-radius: calc(var(--radius-md) + 8px);
-  background:
-    radial-gradient(1200px 400px at 10% 0%, rgba(99, 102, 241, 0.16), transparent 55%),
-    radial-gradient(900px 360px at 95% 10%, rgba(236, 72, 153, 0.14), transparent 55%),
-    rgba(255,255,255,0.55);
-  border: 1px solid rgba(255,255,255,0.7);
-  box-shadow: 0 14px 44px rgba(99, 102, 241, 0.10);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.05);
   backdrop-filter: blur(18px);
 }
 
@@ -456,6 +564,19 @@ async function copyPrompt() {
   padding: 0 14px;
   border-radius: 12px;
   flex: 0 0 auto;
+}
+
+.hero-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hero-kicker {
+  color: rgba(15, 23, 42, 0.92);
+  font-size: 15px;
+  font-weight: 900;
 }
 
 .chips {
@@ -489,18 +610,33 @@ async function copyPrompt() {
   color: var(--muted);
 }
 
-.hero-actions {
+.hero-summary {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: stretch;
+  gap: 8px;
   flex: 0 0 auto;
 }
 
-.hero-action {
-  height: 38px;
-  padding: 0 14px;
+.summary-item {
+  min-width: 96px;
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
   border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(248, 250, 252, 0.86);
+}
+
+.summary-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.summary-item strong {
+  color: var(--text);
   font-size: 14px;
+  font-weight: 900;
 }
 
 .state-shell {
@@ -583,13 +719,35 @@ async function copyPrompt() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 14px;
   padding: 14px 14px 12px;
   border-bottom: 1px solid rgba(15, 23, 42, 0.06);
-  background:
-    radial-gradient(800px 260px at 10% 0%, rgba(99, 102, 241, 0.08), transparent 55%),
-    radial-gradient(700px 220px at 95% 0%, rgba(236, 72, 153, 0.06), transparent 55%),
-    rgba(255,255,255,0.5);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.preview-context {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.preview-title-block {
+  min-width: 0;
+}
+
+.preview-title {
+  color: rgba(15, 23, 42, 0.92);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.preview-subtitle {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .segmented {
@@ -621,21 +779,67 @@ async function copyPrompt() {
   box-shadow: 0 8px 20px rgba(99, 102, 241, 0.14);
 }
 
-.preview-meta {
+.preview-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--muted);
+  justify-content: flex-end;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.toolbar-primary,
+.icon-action {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.74);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.18s, background-color 0.18s, color 0.18s, box-shadow 0.18s;
+}
+
+.toolbar-primary {
+  gap: 7px;
+  padding: 0 12px;
+  color: #ffffff;
+  border-color: transparent;
+  background: var(--primary);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 900;
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.16);
 }
 
-.preview-kicker {
-  white-space: nowrap;
+.icon-action {
+  width: 34px;
+  color: rgba(15, 23, 42, 0.68);
 }
 
-.preview-dot {
-  opacity: 0.6;
+.toolbar-primary:hover,
+.icon-action:hover {
+  border-color: rgba(99, 102, 241, 0.24);
+  background: #ffffff;
+  color: var(--primary);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.toolbar-primary:hover {
+  background: var(--primary);
+  color: #ffffff;
+}
+
+.icon-action.danger {
+  color: #b91c1c;
+  border-color: rgba(239, 68, 68, 0.14);
+  background: rgba(254, 242, 242, 0.62);
+}
+
+.icon-action.danger:hover {
+  border-color: rgba(239, 68, 68, 0.28);
+  background: #fef2f2;
+  color: #991b1b;
 }
 
 .preview-stage {
@@ -683,6 +887,8 @@ async function copyPrompt() {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  position: sticky;
+  top: 16px;
 }
 
 .thumb-strip {
@@ -739,6 +945,46 @@ async function copyPrompt() {
   font-size: 12px;
   font-weight: 900;
   color: var(--muted);
+}
+
+.asset-lines {
+  display: grid;
+  gap: 10px;
+}
+
+.asset-line {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.asset-line svg {
+  flex: 0 0 auto;
+}
+
+.asset-chip {
+  max-width: 100%;
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(99, 102, 241, 0.14);
+  background: rgba(99, 102, 241, 0.06);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.asset-chip.folder {
+  color: #0369a1;
+  border-color: rgba(14, 165, 233, 0.16);
+  background: rgba(240, 249, 255, 0.8);
 }
 
 .prompt-box {
@@ -839,6 +1085,29 @@ async function copyPrompt() {
   overflow: hidden;
 }
 
+.chain-round-params {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chain-round-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 7px;
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.chain-round-actions span {
+  cursor: pointer;
+}
+
 .chain-empty {
   color: var(--muted);
   font-size: 13px;
@@ -880,17 +1149,74 @@ async function copyPrompt() {
   .detail-grid {
     grid-template-columns: 1fr;
   }
-  .hero-actions {
-    width: 100%;
-    justify-content: flex-start;
-  }
+
   .detail-hero {
     flex-direction: column;
+  }
+
+  .hero-summary {
+    width: 100%;
+  }
+
+  .summary-item {
+    flex: 1 1 0;
+  }
+
+  .meta-panel {
+    position: static;
   }
 
   .preview-frame.result {
     width: 100%;
     height: auto;
   }
+}
+
+@media (max-width: 560px) {
+  .hero-left,
+  .meta-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .preview-topbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .preview-context {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .segmented,
+  .preview-toolbar,
+  .meta-actions {
+    width: 100%;
+  }
+
+  .preview-toolbar {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .toolbar-primary {
+    flex: 1 1 150px;
+  }
+
+  .seg-btn,
+  .meta-actions :deep(.btn) {
+    flex: 1 1 0;
+  }
+
+  .hero-summary,
+  .kv-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-summary {
+    display: grid;
+  }
+
 }
 </style>

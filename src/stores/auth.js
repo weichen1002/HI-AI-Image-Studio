@@ -5,8 +5,25 @@ import { apiFetch } from '../utils/api'
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
   const isInitialized = ref(false)
+  let fetchUserPromise = null
 
   async function fetchUser() {
+    if (fetchUserPromise) return fetchUserPromise
+    fetchUserPromise = (async () => {
+      try {
+        const data = await apiFetch('/api/me', undefined, { toast: false, redirectOn401: false })
+        user.value = data?.user || null
+      } catch (e) {
+        user.value = null
+      } finally {
+        isInitialized.value = true
+        fetchUserPromise = null
+      }
+    })()
+    return fetchUserPromise
+  }
+
+  async function refreshUser() {
     try {
       const data = await apiFetch('/api/me', undefined, { toast: false, redirectOn401: false })
       user.value = data?.user || null
@@ -42,5 +59,5 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
   }
 
-  return { user, isInitialized, fetchUser, login, register, logout }
+  return { user, isInitialized, fetchUser, refreshUser, login, register, logout }
 })
