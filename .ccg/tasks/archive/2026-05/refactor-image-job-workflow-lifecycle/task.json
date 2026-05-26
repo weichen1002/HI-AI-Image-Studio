@@ -1,0 +1,12 @@
+{
+  "id": "refactor-image-job-workflow-lifecycle",
+  "title": "抽离图片生成任务生命周期逻辑",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "backend",
+  "currentPhase": "completed",
+  "nextAction": "归档任务",
+  "createdAt": "2026-05-26T13:42:32Z",
+  "branch": "main"
+}
