@@ -1,0 +1,12 @@
+{
+  "id": "server-side-history-filters",
+  "title": "历史资产文件夹和标签筛选服务端化",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "frontend-backend",
+  "currentPhase": "completed",
+  "nextAction": "归档任务",
+  "createdAt": "2026-05-26T13:11:06Z",
+  "branch": "main"
+}
