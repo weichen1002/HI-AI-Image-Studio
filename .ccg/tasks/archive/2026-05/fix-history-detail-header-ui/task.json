@@ -1,0 +1,12 @@
+{
+  "id": "fix-history-detail-header-ui",
+  "title": "修正灵感详情头部布局观感",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已完成头部布局修正并通过构建",
+  "createdAt": "2026-05-26T14:05:00Z",
+  "branch": "main"
+}

@@ -117,9 +117,8 @@ onBeforeUnmount(() => {
   justify-content: center;
   overflow: hidden;
   background:
-    radial-gradient(circle at top left, rgba(255, 214, 179, 0.42), transparent 32%),
-    radial-gradient(circle at top right, rgba(153, 224, 255, 0.2), transparent 30%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 249, 255, 0.98));
+    var(--bg-mesh),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), var(--bg));
 }
 
 .app-loading-screen-overlay {
@@ -131,22 +130,22 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: -10%;
   background:
-    radial-gradient(circle at 22% 24%, rgba(255, 208, 171, 0.34), transparent 22%),
-    radial-gradient(circle at 78% 20%, rgba(127, 207, 255, 0.18), transparent 18%),
-    radial-gradient(circle at 50% 82%, rgba(154, 175, 255, 0.12), transparent 24%);
+    radial-gradient(circle at 22% 24%, rgba(99, 102, 241, 0.16), transparent 24%),
+    radial-gradient(circle at 78% 20%, rgba(236, 72, 153, 0.12), transparent 20%),
+    radial-gradient(circle at 50% 82%, rgba(14, 165, 233, 0.08), transparent 26%);
   filter: blur(32px);
-  opacity: 0.95;
+  opacity: 0.86;
 }
 
 .app-loading-grid {
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.26) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.26) 1px, transparent 1px);
+    linear-gradient(rgba(99, 102, 241, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(99, 102, 241, 0.06) 1px, transparent 1px);
   background-size: 52px 52px;
   mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 0.9), transparent 80%);
-  opacity: 0.42;
+  opacity: 0.32;
   transform: perspective(900px) rotateX(67deg) scale(1.7) translateY(14%);
   transform-origin: center;
 }
@@ -169,10 +168,10 @@ onBeforeUnmount(() => {
   height: 224px;
   margin-bottom: 30px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.75), rgba(255, 255, 255, 0.2) 68%, transparent 72%);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0.34) 66%, transparent 72%);
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.4),
-    0 30px 70px rgba(148, 163, 184, 0.14);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.62),
+    0 30px 70px rgba(99, 102, 241, 0.12);
 }
 
 .app-loading-ring {
@@ -186,8 +185,8 @@ onBeforeUnmount(() => {
   width: 140px;
   height: 140px;
   border-width: 2px;
-  border-top-color: rgba(255, 191, 74, 0.95);
-  border-right-color: rgba(255, 191, 74, 0.95);
+  border-top-color: rgba(99, 102, 241, 0.95);
+  border-right-color: rgba(99, 102, 241, 0.95);
   animation: app-loading-spin 2.6s linear infinite;
 }
 
@@ -195,8 +194,8 @@ onBeforeUnmount(() => {
   width: 104px;
   height: 104px;
   border-width: 2px;
-  border-bottom-color: rgba(102, 199, 255, 0.95);
-  border-left-color: rgba(102, 199, 255, 0.95);
+  border-bottom-color: rgba(236, 72, 153, 0.88);
+  border-left-color: rgba(236, 72, 153, 0.88);
   animation: app-loading-spin-reverse 1.8s linear infinite;
 }
 
@@ -205,16 +204,16 @@ onBeforeUnmount(() => {
   height: 72px;
   border-radius: 50%;
   background:
-    radial-gradient(circle at center, rgba(255, 255, 255, 0.96) 0 20%, rgba(255, 242, 235, 0.92) 20% 58%, rgba(255, 219, 197, 0.8) 58% 100%);
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.98) 0 22%, rgba(238, 242, 255, 0.94) 22% 58%, rgba(224, 231, 255, 0.84) 58% 100%);
   box-shadow:
-    0 0 0 22px rgba(255, 238, 230, 0.42),
-    0 0 50px rgba(255, 198, 159, 0.34);
+    0 0 0 22px rgba(99, 102, 241, 0.08),
+    0 0 50px rgba(99, 102, 241, 0.18);
   animation: app-loading-pulse 2.4s ease-in-out infinite;
 }
 
 .app-loading-eyebrow {
   margin-bottom: 16px;
-  color: #a0aec0;
+  color: var(--primary);
   font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.62em;
@@ -224,7 +223,7 @@ onBeforeUnmount(() => {
 
 .app-loading-title {
   margin: 0;
-  color: #0f172a;
+  color: var(--text);
   font-size: clamp(32px, 3.2vw, 50px);
   font-weight: 800;
   letter-spacing: -0.04em;
@@ -233,7 +232,7 @@ onBeforeUnmount(() => {
 .app-loading-copy {
   max-width: 560px;
   margin-top: 22px;
-  color: #64748b;
+  color: var(--muted);
   font-size: clamp(15px, 1.6vw, 20px);
   line-height: 1.75;
 }
@@ -303,14 +302,14 @@ onBeforeUnmount(() => {
   0%, 100% {
     transform: scale(0.96);
     box-shadow:
-      0 0 0 22px rgba(255, 238, 230, 0.34),
-      0 0 36px rgba(255, 198, 159, 0.24);
+      0 0 0 22px rgba(99, 102, 241, 0.07),
+      0 0 36px rgba(99, 102, 241, 0.16);
   }
   50% {
     transform: scale(1);
     box-shadow:
-      0 0 0 28px rgba(255, 238, 230, 0.48),
-      0 0 60px rgba(255, 198, 159, 0.36);
+      0 0 0 28px rgba(236, 72, 153, 0.08),
+      0 0 60px rgba(99, 102, 241, 0.22);
   }
 }
 

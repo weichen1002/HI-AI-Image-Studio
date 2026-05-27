@@ -1,0 +1,12 @@
+{
+  "id": "align-app-loading-colors",
+  "title": "统一应用初始化加载页颜色",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已完成加载页配色对齐并通过构建",
+  "createdAt": "2026-05-26T14:12:00Z",
+  "branch": "main"
+}

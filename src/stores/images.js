@@ -8,7 +8,7 @@ import { compressImage } from '../utils/imageCompressor'
 export const useImagesStore = defineStore('images', () => {
   const images = ref([])
   const total = ref(0)
-  const lastQuery = ref({ limit: 12, offset: 0, mode: 'all', q: '' })
+  const lastQuery = ref({ limit: 12, offset: 0, mode: 'all', q: '', folder: 'all', tag: 'all' })
   const isLoading = ref(false)
   const activeJob = ref(null)
   const isGenerating = computed(() => activeJob.value?.status === 'running')
@@ -74,6 +74,7 @@ export const useImagesStore = defineStore('images', () => {
         : {},
       sourceImageId: image.sourceImageId || '',
       continuationChainId: image.continuationChainId || '',
+      chainRoundCount: Math.max(0, Math.floor(Number(image.chainRoundCount || 0))),
       folder: String(image.folder || ''),
       tags: Array.isArray(image.tags)
         ? Array.from(new Set(image.tags.map((item) => String(item || '').trim()).filter(Boolean)))
@@ -89,6 +90,8 @@ export const useImagesStore = defineStore('images', () => {
     const offset = Number(params.offset || 0)
     const mode = params.mode || 'all'
     const q = String(params.q || '').trim()
+    const folder = String(params.folder || 'all').trim()
+    const tag = String(params.tag || 'all').trim()
 
     isLoading.value = true
     try {
@@ -97,10 +100,12 @@ export const useImagesStore = defineStore('images', () => {
       search.set('offset', String(offset))
       if (mode && mode !== 'all') search.set('mode', mode)
       if (q) search.set('q', q)
+      if (folder && folder !== 'all') search.set('folder', folder)
+      if (tag && tag !== 'all') search.set('tag', tag)
       const data = await apiFetch(`/api/images?${search.toString()}`)
       images.value = (data?.images || []).map(toListImage)
       total.value = Number(data?.total ?? images.value.length)
-      lastQuery.value = { limit, offset, mode, q }
+      lastQuery.value = { limit, offset, mode, q, folder, tag }
       return {
         images: images.value,
         total: total.value,
@@ -361,7 +366,7 @@ export const useImagesStore = defineStore('images', () => {
 
     activeJob.value = {
       id: Date.now(),
-      mode: operationType === 'cutout' ? 'tools' : 'image',
+      mode: operationType === 'cutout' || operationType === 'upscale' ? 'tools' : 'image',
       operationType,
       status: 'running',
       prompt,

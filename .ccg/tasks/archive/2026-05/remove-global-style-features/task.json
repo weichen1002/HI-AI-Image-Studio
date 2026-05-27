@@ -1,0 +1,12 @@
+{
+  "id": "remove-global-style-features",
+  "title": "移除默认风格和常用风格功能",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已完成并归档",
+  "createdAt": "2026-05-26T13:29:30Z",
+  "branch": "main"
+}

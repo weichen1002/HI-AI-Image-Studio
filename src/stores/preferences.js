@@ -11,8 +11,7 @@ export const DEFAULT_CREATE_SETTINGS = {
   outputFormat: 'png',
   outputCompression: 100,
   background: 'auto',
-  moderation: 'auto',
-  stylePrompt: ''
+  moderation: 'auto'
 }
 
 function storageKeyForScope(scope) {
@@ -59,8 +58,7 @@ function normalizeCreateSettings(value = {}) {
       Math.min(100, Math.floor(Number(raw.outputCompression ?? DEFAULT_CREATE_SETTINGS.outputCompression))),
     ),
     background,
-    moderation: raw.moderation === 'low' ? 'low' : DEFAULT_CREATE_SETTINGS.moderation,
-    stylePrompt: String(raw.stylePrompt || '').trim().slice(0, 500)
+    moderation: raw.moderation === 'low' ? 'low' : DEFAULT_CREATE_SETTINGS.moderation
   }
 }
 
@@ -84,28 +82,6 @@ function normalizeAssetMetaMap(value) {
   return out
 }
 
-function normalizeProjectBoards(value) {
-  return Array.isArray(value)
-    ? value
-        .map((item) => {
-          const id = String(item?.id || '').trim()
-          const name = String(item?.name || '').trim().slice(0, 40)
-          if (!id || !name) return null
-          return {
-            id,
-            name,
-            description: String(item?.description || '').trim().slice(0, 120),
-            aspectRatio: ['1:1', '16:9', '9:16', '4:3', '3:4'].includes(item?.aspectRatio)
-              ? item.aspectRatio
-              : DEFAULT_CREATE_SETTINGS.aspectRatio,
-            tags: normalizeStringList(item?.tags).slice(0, 12),
-            stylePrompt: String(item?.stylePrompt || '').trim().slice(0, 500)
-          }
-        })
-        .filter(Boolean)
-    : []
-}
-
 export const usePreferencesStore = defineStore('preferences', () => {
   const scope = ref(ANONYMOUS_SCOPE)
   const initial = safeRead(scope.value)
@@ -113,7 +89,6 @@ export const usePreferencesStore = defineStore('preferences', () => {
   const favoriteImageIds = ref(normalizeStringList(initial.favoriteImageIds))
   const favoriteTemplateIds = ref(normalizeStringList(initial.favoriteTemplateIds))
   const assetMetaByImageId = ref(normalizeAssetMetaMap(initial.assetMetaByImageId))
-  const projectBoards = ref(normalizeProjectBoards(initial.projectBoards))
 
   const favoriteImageSet = computed(() => new Set(favoriteImageIds.value))
   const favoriteTemplateSet = computed(() => new Set(favoriteTemplateIds.value))
@@ -143,8 +118,7 @@ export const usePreferencesStore = defineStore('preferences', () => {
         createSettings: { ...createSettings },
         favoriteImageIds: favoriteImageIds.value,
         favoriteTemplateIds: favoriteTemplateIds.value,
-        assetMetaByImageId: assetMetaByImageId.value,
-        projectBoards: projectBoards.value
+        assetMetaByImageId: assetMetaByImageId.value
       }),
     )
   }
@@ -158,7 +132,6 @@ export const usePreferencesStore = defineStore('preferences', () => {
     favoriteImageIds.value = normalizeStringList(next.favoriteImageIds)
     favoriteTemplateIds.value = normalizeStringList(next.favoriteTemplateIds)
     assetMetaByImageId.value = normalizeAssetMetaMap(next.assetMetaByImageId)
-    projectBoards.value = normalizeProjectBoards(next.projectBoards)
   }
 
   function updateCreateSettings(next) {
@@ -249,35 +222,8 @@ export const usePreferencesStore = defineStore('preferences', () => {
     assetMetaByImageId.value = current
   }
 
-  function upsertProjectBoard(board = {}) {
-    const normalized = normalizeProjectBoards([
-      {
-        ...board,
-        id: String(board.id || '').trim() || `project-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-      }
-    ])[0]
-    if (!normalized) return null
-    const list = projectBoards.value.slice()
-    const idx = list.findIndex((item) => item.id === normalized.id)
-    if (idx >= 0) list.splice(idx, 1, normalized)
-    else list.unshift(normalized)
-    projectBoards.value = list
-    return normalized
-  }
-
-  function removeProjectBoard(id) {
-    const key = String(id || '').trim()
-    if (!key) return
-    projectBoards.value = projectBoards.value.filter((item) => item.id !== key)
-  }
-
-  function projectBoard(id) {
-    const key = String(id || '').trim()
-    return projectBoards.value.find((item) => item.id === key) || null
-  }
-
   watch(
-    [createSettings, favoriteImageIds, favoriteTemplateIds, assetMetaByImageId, projectBoards],
+    [createSettings, favoriteImageIds, favoriteTemplateIds, assetMetaByImageId],
     persist,
     { deep: true },
   )
@@ -288,7 +234,6 @@ export const usePreferencesStore = defineStore('preferences', () => {
     favoriteImageIds,
     favoriteTemplateIds,
     assetMetaByImageId,
-    projectBoards,
     assetFolders,
     assetTags,
     loadScope,
@@ -302,9 +247,6 @@ export const usePreferencesStore = defineStore('preferences', () => {
     toggleFavoriteTemplate,
     assetMeta,
     updateAssetMeta,
-    removeAssetMeta,
-    upsertProjectBoard,
-    removeProjectBoard,
-    projectBoard
+    removeAssetMeta
   }
 })

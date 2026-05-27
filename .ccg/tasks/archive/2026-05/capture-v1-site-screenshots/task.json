@@ -1,0 +1,12 @@
+{
+  "id": "capture-v1-site-screenshots",
+  "title": "Capture v1 website pages and functional flows",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "low",
+  "domain": "docs",
+  "currentPhase": "completed",
+  "nextAction": "Archived screenshot capture task",
+  "createdAt": "2026-05-26T00:00:00+08:00",
+  "branch": "main"
+}

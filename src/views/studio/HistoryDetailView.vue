@@ -2,33 +2,23 @@
   <div class="detail-shell">
     <div class="detail-hero">
       <div class="hero-left">
-        <Button variant="ghost" class="hero-back" @click="goBack">
-          <template #icon>
-            <ArrowLeftIcon :size="16" />
-          </template>
-          返回
-        </Button>
+        <button type="button" class="hero-back" @click="goBack" aria-label="返回灵感记录">
+          <ArrowLeftIcon :size="17" />
+          <span>返回</span>
+        </button>
 
         <div class="hero-copy">
-          <div class="hero-kicker">作品详情</div>
-          <div class="chips" v-if="image">
-            <span class="chip chip-primary">{{ modeLabel }}</span>
-            <span class="chip">{{ image.aspectRatio }}</span>
-            <span class="chip chip-muted">{{ formatTime(image.createdAt) }}</span>
+          <div class="hero-title-row">
+            <h1 class="hero-kicker">作品详情</h1>
+            <div class="hero-meta" v-if="image">
+              <span>{{ modeLabel }}</span>
+              <span>{{ image.aspectRatio }}</span>
+              <span>{{ formatTime(image.createdAt) }}</span>
+            </div>
           </div>
         </div>
       </div>
 
-      <div v-if="image" class="hero-summary">
-        <div class="summary-item">
-          <span class="summary-label">操作</span>
-          <strong>{{ operationLabel }}</strong>
-        </div>
-        <div class="summary-item">
-          <span class="summary-label">图片</span>
-          <strong>{{ image.imageUrls?.length || 0 }}</strong>
-        </div>
-      </div>
     </div>
 
     <div v-if="loading" class="state-shell">
@@ -54,24 +44,6 @@
               <button type="button" class="seg-btn" :class="{ active: tab === 'input' }" @click="tab = 'input'">参考</button>
             </div>
           </div>
-          <div class="preview-toolbar" aria-label="图片操作">
-            <button type="button" class="toolbar-primary" @click="reuse">
-              <Wand2Icon :size="15" />
-              <span>再次创作</span>
-            </button>
-            <button v-if="image?.imageUrls?.[0]" type="button" class="icon-action" title="局部重绘" aria-label="局部重绘" @click="openEditor('inpaint')">
-              <Wand2Icon :size="15" />
-            </button>
-            <button v-if="image?.imageUrls?.[0]" type="button" class="icon-action" title="扩图" aria-label="扩图" @click="openEditor('outpaint')">
-              <ExpandIcon :size="15" />
-            </button>
-            <button v-if="activeUrl" type="button" class="icon-action" :title="`下载${tabLabel}`" :aria-label="`下载${tabLabel}`" @click="downloadActive">
-              <DownloadIcon :size="15" />
-            </button>
-            <button v-if="image" type="button" class="icon-action danger" :title="isDialogueDetail ? '删除对话' : '删除记录'" :aria-label="isDialogueDetail ? '删除对话' : '删除记录'" @click="remove">
-              <Trash2Icon :size="15" />
-            </button>
-          </div>
         </div>
 
         <div class="preview-stage">
@@ -90,6 +62,36 @@
             >
               <img :src="url" :alt="`${tabLabel} ${index + 1}`" />
             </button>
+          </div>
+          <div class="preview-action-bar" aria-label="图片操作">
+            <div class="preview-action-group">
+              <button type="button" class="preview-action primary" @click="reuse">
+                <Wand2Icon :size="15" />
+                <span>再次创作</span>
+              </button>
+              <button v-if="image?.imageUrls?.[0]" type="button" class="preview-action" @click="openEditor('inpaint')">
+                <Wand2Icon :size="15" />
+                <span>局部重绘</span>
+              </button>
+              <button v-if="image?.imageUrls?.[0]" type="button" class="preview-action" @click="openEditor('outpaint')">
+                <ExpandIcon :size="15" />
+                <span>扩图</span>
+              </button>
+              <button v-if="image?.imageUrls?.[0]" type="button" class="preview-action" @click="openUpscale">
+                <SparklesIcon :size="15" />
+                <span>高清增强</span>
+              </button>
+            </div>
+            <div class="preview-action-group secondary">
+              <button v-if="activeUrl" type="button" class="preview-action" @click="downloadActive">
+                <DownloadIcon :size="15" />
+                <span>下载</span>
+              </button>
+              <button v-if="image" type="button" class="preview-action danger" @click="remove">
+                <Trash2Icon :size="15" />
+                <span>{{ isDialogueDetail ? '删除对话' : '删除记录' }}</span>
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -138,13 +140,16 @@
             <div class="chain-count">{{ dialogueRounds.length }} 轮</div>
           </div>
           <div v-if="dialogueRounds.length" class="chain-list">
-            <button
+            <div
               v-for="(round, index) in dialogueRounds"
               :key="round.key"
-              type="button"
               class="chain-round"
+              role="button"
+              tabindex="0"
               :class="{ active: round.image?.id === image.id }"
               @click="selectDialogueRound(round)"
+              @keydown.enter.prevent="selectDialogueRound(round)"
+              @keydown.space.prevent="selectDialogueRound(round)"
             >
               <img v-if="round.coverUrl" :src="round.coverUrl" :alt="`第 ${index + 1} 轮`" />
               <div v-else class="chain-thumb-empty">{{ index + 1 }}</div>
@@ -156,36 +161,44 @@
                 <div class="chain-round-prompt">{{ round.prompt }}</div>
                 <div v-if="round.paramSummary" class="chain-round-params">{{ round.paramSummary }}</div>
                 <div class="chain-round-actions">
-                  <span>查看</span>
-                  <span @click.stop="continueFromRound(round)">从此继续</span>
+                  <button type="button" class="chain-continue" @click.stop="continueFromRound(round)">
+                    从此继续
+                  </button>
                 </div>
               </div>
-            </button>
+            </div>
           </div>
           <div v-else class="chain-empty">暂无对话链记录</div>
         </div>
 
         <div class="meta-card">
-          <div class="kv-grid">
-            <div class="kv">
-              <div class="kv-label">模式</div>
-              <div class="kv-value">{{ modeLabel }}</div>
+          <div class="meta-head">
+            <div class="meta-title">参数</div>
+          </div>
+          <div class="detail-list">
+            <div class="detail-row">
+              <span>模式</span>
+              <strong>{{ modeLabel }}</strong>
             </div>
-            <div class="kv">
-              <div class="kv-label">比例</div>
-              <div class="kv-value">{{ image.aspectRatio }}</div>
+            <div class="detail-row">
+              <span>操作</span>
+              <strong>{{ operationLabel }}</strong>
             </div>
-            <div class="kv">
-              <div class="kv-label">时间</div>
-              <div class="kv-value">{{ formatTime(image.createdAt) }}</div>
+            <div class="detail-row">
+              <span>比例</span>
+              <strong>{{ image.aspectRatio }}</strong>
             </div>
-            <div class="kv">
-              <div class="kv-label">操作</div>
-              <div class="kv-value">{{ operationLabel }}</div>
+            <div class="detail-row">
+              <span>时间</span>
+              <strong>{{ formatTime(image.createdAt) }}</strong>
             </div>
-            <div class="kv">
-              <div class="kv-label">ID</div>
-              <div class="kv-value mono">{{ image.id }}</div>
+            <div v-for="row in generationParamRows" :key="row.key" class="detail-row">
+              <span>{{ row.label }}</span>
+              <strong>{{ row.value }}</strong>
+            </div>
+            <div class="detail-row id-row">
+              <span>ID</span>
+              <strong class="mono">{{ image.id }}</strong>
             </div>
           </div>
         </div>
@@ -217,12 +230,13 @@
     :initial-mode="editorInitialMode"
     @completed="handleEditorCompleted"
   />
+
 </template>
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeftIcon, CopyIcon, DownloadIcon, ExpandIcon, FolderOpenIcon, TagIcon, Trash2Icon, Wand2Icon } from 'lucide-vue-next'
+import { ArrowLeftIcon, CopyIcon, DownloadIcon, ExpandIcon, FolderOpenIcon, SparklesIcon, TagIcon, Trash2Icon, Wand2Icon } from 'lucide-vue-next'
 import { useImagesStore } from '../../stores/images'
 import { Button, toastError, toastSuccess } from '../../components/common'
 import ImageEditModal from '../../components/studio/ImageEditModal.vue'
@@ -309,6 +323,7 @@ const operationLabel = computed(() => {
   if (op === 'inpaint') return '局部重绘'
   if (op === 'outpaint') return '扩图'
   if (op === 'cutout') return '抠图'
+  if (op === 'upscale') return '高清增强'
   if (op === 'dialogue') return '对话创作'
   if (op === 'continuous') return '对话创作'
   if (op === 'image_to_image') return '图生图'
@@ -332,6 +347,16 @@ const generationParamLines = computed(() => {
   return Object.entries(params)
     .filter(([, value]) => value !== undefined && value !== '')
     .map(([key, value]) => `${labels[key] || key}：${value}`)
+})
+const generationParamRows = computed(() => {
+  return generationParamLines.value.map((line) => {
+    const [label, ...valueParts] = String(line).split('：')
+    return {
+      key: line,
+      label,
+      value: valueParts.join('：') || '-'
+    }
+  })
 })
 
 onMounted(async () => {
@@ -427,6 +452,20 @@ function resetGalleryIndex() {
 function openEditor(nextMode) {
   editorInitialMode.value = nextMode
   editorOpen.value = true
+}
+
+function openUpscale() {
+  if (!image.value?.imageUrls?.[0]) return
+  router.push({
+    path: '/studio',
+    query: {
+      mode: 'tools',
+      tool: 'upscale',
+      input: encodeURIComponent(image.value.imageUrls[0]),
+      sourceImageId: image.value.id,
+      ratio: image.value.aspectRatio || '1:1'
+    }
+  })
 }
 
 function selectDialogueRound(round) {
@@ -541,102 +580,81 @@ async function copyParams() {
 
 .detail-hero {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 18px;
-  padding: 16px 18px 14px;
-  border-radius: calc(var(--radius-md) + 8px);
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.05);
-  backdrop-filter: blur(18px);
+  gap: 12px;
+  padding: 2px 0 12px;
 }
 
 .hero-left {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
+  align-items: center;
+  gap: 14px;
   min-width: 0;
 }
 
 .hero-back {
-  height: 38px;
-  padding: 0 14px;
-  border-radius: 12px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(15, 23, 42, 0.62);
+  font-size: 13px;
+  font-weight: 850;
+  cursor: pointer;
   flex: 0 0 auto;
+}
+
+.hero-back:hover {
+  color: rgba(15, 23, 42, 0.92);
 }
 
 .hero-copy {
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 
-.hero-kicker {
-  color: rgba(15, 23, 42, 0.92);
-  font-size: 15px;
-  font-weight: 900;
-}
-
-.chips {
+.hero-title-row {
+  min-width: 0;
   display: flex;
-  gap: 8px;
-  align-items: center;
+  align-items: baseline;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
-.chip {
-  height: 28px;
-  padding: 0 10px;
+.hero-kicker {
+  margin: 0;
+  color: rgba(15, 23, 42, 0.94);
+  font-size: 17px;
+  line-height: 1.2;
+  font-weight: 900;
+}
+
+.hero-meta {
+  min-width: 0;
   display: inline-flex;
   align-items: center;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 900;
-  color: rgba(15, 23, 42, 0.72);
-  background: rgba(255,255,255,0.72);
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  backdrop-filter: blur(14px);
-}
-
-.chip-primary {
-  color: var(--primary);
-  border-color: rgba(99, 102, 241, 0.22);
-  background: var(--gradient-subtle);
-}
-
-.chip-muted {
-  color: var(--muted);
-}
-
-.hero-summary {
-  display: flex;
-  align-items: stretch;
   gap: 8px;
-  flex: 0 0 auto;
+  color: rgba(100, 116, 139, 0.9);
+  font-size: 12px;
+  font-weight: 800;
 }
 
-.summary-item {
-  min-width: 96px;
-  display: grid;
-  gap: 4px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(248, 250, 252, 0.86);
+.hero-meta span {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
 }
 
-.summary-label {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 900;
-}
-
-.summary-item strong {
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 900;
+.hero-meta span + span::before {
+  content: "";
+  width: 3px;
+  height: 3px;
+  margin-right: 8px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.72);
 }
 
 .state-shell {
@@ -700,29 +718,28 @@ async function copyParams() {
 
 .detail-grid {
   display: grid;
-  grid-template-columns: 1.5fr 1fr;
-  gap: 22px;
+  grid-template-columns: minmax(0, 1.42fr) minmax(320px, 0.88fr);
+  gap: 16px;
   align-items: start;
-  margin-top: 18px;
+  margin-top: 14px;
 }
 
 .preview-panel {
-  border-radius: var(--radius-md);
+  border-radius: 18px;
   overflow: hidden;
-  border: 1px solid rgba(99, 102, 241, 0.14);
-  background: rgba(255,255,255,0.72);
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.07);
-  backdrop-filter: blur(18px);
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  background: rgba(255,255,255,0.76);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.045);
 }
 
 .preview-topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  padding: 14px 14px 12px;
+  gap: 12px;
+  padding: 12px;
   border-bottom: 1px solid rgba(15, 23, 42, 0.06);
-  background: rgba(255, 255, 255, 0.58);
+  background: rgba(255, 255, 255, 0.64);
 }
 
 .preview-context {
@@ -739,12 +756,12 @@ async function copyParams() {
 
 .preview-title {
   color: rgba(15, 23, 42, 0.92);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 900;
 }
 
 .preview-subtitle {
-  margin-top: 3px;
+  margin-top: 2px;
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
@@ -752,18 +769,18 @@ async function copyParams() {
 
 .segmented {
   display: flex;
-  gap: 8px;
-  padding: 4px;
-  border-radius: 999px;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 12px;
   border: 1px solid rgba(15, 23, 42, 0.08);
   background: rgba(255,255,255,0.8);
   backdrop-filter: blur(14px);
 }
 
 .seg-btn {
-  height: 30px;
-  padding: 0 12px;
-  border-radius: 999px;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 9px;
   border: none;
   background: transparent;
   color: var(--muted);
@@ -779,94 +796,27 @@ async function copyParams() {
   box-shadow: 0 8px 20px rgba(99, 102, 241, 0.14);
 }
 
-.preview-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  flex: 0 0 auto;
-}
-
-.toolbar-primary,
-.icon-action {
-  height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.74);
-  color: var(--text);
-  cursor: pointer;
-  transition: border-color 0.18s, background-color 0.18s, color 0.18s, box-shadow 0.18s;
-}
-
-.toolbar-primary {
-  gap: 7px;
-  padding: 0 12px;
-  color: #ffffff;
-  border-color: transparent;
-  background: var(--primary);
-  font-size: 12px;
-  font-weight: 900;
-  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.16);
-}
-
-.icon-action {
-  width: 34px;
-  color: rgba(15, 23, 42, 0.68);
-}
-
-.toolbar-primary:hover,
-.icon-action:hover {
-  border-color: rgba(99, 102, 241, 0.24);
-  background: #ffffff;
-  color: var(--primary);
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
-}
-
-.toolbar-primary:hover {
-  background: var(--primary);
-  color: #ffffff;
-}
-
-.icon-action.danger {
-  color: #b91c1c;
-  border-color: rgba(239, 68, 68, 0.14);
-  background: rgba(254, 242, 242, 0.62);
-}
-
-.icon-action.danger:hover {
-  border-color: rgba(239, 68, 68, 0.28);
-  background: #fef2f2;
-  color: #991b1b;
-}
-
 .preview-stage {
   width: 100%;
-  padding: 12px;
-  background:
-    radial-gradient(900px 360px at 25% 0%, rgba(99, 102, 241, 0.10), transparent 55%),
-    radial-gradient(800px 340px at 90% 20%, rgba(236, 72, 153, 0.08), transparent 55%),
-    var(--bg-subtle);
+  padding: 10px;
+  background: rgba(248, 250, 252, 0.72);
 }
 
 .preview-frame {
   width: 100%;
   max-width: 900px;
   margin: 0 auto;
-  border-radius: 18px;
+  border-radius: 14px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.75), rgba(255,255,255,0.55));
+  background: #ffffff;
   display: grid;
   place-items: center;
   overflow: hidden;
-  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.10);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.055);
 }
 
 .preview-frame.result {
-  height: min(62svh, 680px);
+  height: min(58svh, 620px);
   width: auto;
   max-width: 100%;
 }
@@ -875,7 +825,7 @@ async function copyParams() {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  padding: 8px;
+  padding: 6px;
 }
 
 .fallback-cover {
@@ -886,21 +836,22 @@ async function copyParams() {
 .meta-panel {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
   position: sticky;
-  top: 16px;
+  top: 12px;
 }
 
 .thumb-strip {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .thumb-item {
   padding: 0;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 12px;
+  border-radius: 10px;
   overflow: hidden;
   cursor: pointer;
   background: rgba(255, 255, 255, 0.72);
@@ -918,38 +869,105 @@ async function copyParams() {
   display: block;
 }
 
-.meta-card {
-  border-radius: var(--radius-md);
+.preview-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.preview-action-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.preview-action-group.secondary {
+  justify-content: flex-end;
+}
+
+.preview-action {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(255,255,255,0.75);
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
-  padding: 16px;
-  backdrop-filter: blur(18px);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.76);
+  color: rgba(15, 23, 42, 0.76);
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: border-color 0.18s, background-color 0.18s, color 0.18s, box-shadow 0.18s;
+}
+
+.preview-action:hover {
+  border-color: rgba(99, 102, 241, 0.22);
+  background: #ffffff;
+  color: var(--primary);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+
+.preview-action.primary {
+  color: #ffffff;
+  border-color: transparent;
+  background: var(--primary);
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.16);
+}
+
+.preview-action.danger {
+  color: #b91c1c;
+  border-color: rgba(239, 68, 68, 0.14);
+  background: rgba(254, 242, 242, 0.64);
+}
+
+.preview-action.danger:hover {
+  border-color: rgba(239, 68, 68, 0.28);
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.meta-card {
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  background: rgba(255,255,255,0.76);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.035);
+  padding: 13px;
 }
 
 .meta-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 8px;
+  margin-bottom: 9px;
 }
 
 .meta-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .meta-title {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 900;
   color: var(--muted);
+  letter-spacing: 0.04em;
 }
 
 .asset-lines {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .asset-line {
@@ -966,10 +984,10 @@ async function copyParams() {
 
 .asset-chip {
   max-width: 100%;
-  min-height: 26px;
+  min-height: 24px;
   display: inline-flex;
   align-items: center;
-  padding: 4px 9px;
+  padding: 3px 8px;
   border-radius: 999px;
   border: 1px solid rgba(99, 102, 241, 0.14);
   background: rgba(99, 102, 241, 0.06);
@@ -988,21 +1006,21 @@ async function copyParams() {
 }
 
 .prompt-box {
-  border-radius: 14px;
-  border: 1px solid rgba(99, 102, 241, 0.14);
-  background: rgba(99, 102, 241, 0.03);
-  padding: 12px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  background: rgba(248, 250, 252, 0.72);
+  padding: 11px;
   color: var(--text);
   font-size: 13px;
-  line-height: 1.65;
+  line-height: 1.58;
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 240px;
+  max-height: 220px;
   overflow: auto;
 }
 
 .chain-count {
-  height: 24px;
+  height: 22px;
   display: inline-flex;
   align-items: center;
   padding: 0 9px;
@@ -1016,8 +1034,8 @@ async function copyParams() {
 .chain-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  max-height: 360px;
+  gap: 8px;
+  max-height: 330px;
   overflow: auto;
   padding-right: 2px;
 }
@@ -1025,28 +1043,34 @@ async function copyParams() {
 .chain-round {
   width: 100%;
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
-  gap: 10px;
-  padding: 9px;
-  border-radius: 14px;
+  grid-template-columns: 50px minmax(0, 1fr);
+  gap: 9px;
+  padding: 8px;
+  border-radius: 12px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(255,255,255,0.62);
+  background: rgba(248, 250, 252, 0.66);
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
 }
 
 .chain-round:hover,
 .chain-round.active {
   border-color: rgba(99, 102, 241, 0.28);
-  background: rgba(99, 102, 241, 0.05);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+}
+
+.chain-round:focus-visible {
+  outline: 2px solid rgba(99, 102, 241, 0.48);
+  outline-offset: 2px;
 }
 
 .chain-round img,
 .chain-thumb-empty {
-  width: 58px;
-  height: 58px;
-  border-radius: 10px;
+  width: 50px;
+  height: 50px;
+  border-radius: 9px;
   object-fit: cover;
   background: rgba(15, 23, 42, 0.05);
 }
@@ -1068,7 +1092,7 @@ async function copyParams() {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 5px;
+  margin-bottom: 4px;
   color: var(--muted);
   font-size: 11px;
   font-weight: 800;
@@ -1076,8 +1100,8 @@ async function copyParams() {
 
 .chain-round-prompt {
   color: var(--text);
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: 12px;
+  line-height: 1.42;
   font-weight: 700;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -1086,7 +1110,7 @@ async function copyParams() {
 }
 
 .chain-round-params {
-  margin-top: 6px;
+  margin-top: 5px;
   color: var(--muted);
   font-size: 11px;
   font-weight: 800;
@@ -1097,15 +1121,23 @@ async function copyParams() {
 
 .chain-round-actions {
   display: flex;
-  gap: 10px;
-  margin-top: 7px;
+  margin-top: 6px;
+}
+
+.chain-continue {
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.07);
   color: var(--primary);
   font-size: 11px;
   font-weight: 900;
+  cursor: pointer;
 }
 
-.chain-round-actions span {
-  cursor: pointer;
+.chain-continue:hover {
+  background: rgba(99, 102, 241, 0.12);
 }
 
 .chain-empty {
@@ -1114,30 +1146,40 @@ async function copyParams() {
   font-weight: 700;
 }
 
-.kv-grid {
+.detail-list {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 2px;
 }
 
-.kv {
-  border-radius: 14px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  background: rgba(255,255,255,0.6);
-  padding: 12px;
+.detail-row {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.055);
 }
 
-.kv-label {
-  font-size: 12px;
-  font-weight: 800;
+.detail-row:last-child {
+  border-bottom: 0;
+}
+
+.detail-row span {
   color: var(--muted);
-  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 850;
 }
 
-.kv-value {
-  font-size: 14px;
+.detail-row strong {
+  min-width: 0;
   color: var(--text);
+  font-size: 13px;
+  font-weight: 850;
   word-break: break-word;
+}
+
+.detail-row.id-row strong {
+  color: rgba(15, 23, 42, 0.62);
 }
 
 .mono {
@@ -1154,14 +1196,6 @@ async function copyParams() {
     flex-direction: column;
   }
 
-  .hero-summary {
-    width: 100%;
-  }
-
-  .summary-item {
-    flex: 1 1 0;
-  }
-
   .meta-panel {
     position: static;
   }
@@ -1173,10 +1207,23 @@ async function copyParams() {
 }
 
 @media (max-width: 560px) {
-  .hero-left,
   .meta-head {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .hero-left {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .hero-title-row {
+    gap: 8px;
+  }
+
+  .hero-meta {
+    flex-wrap: wrap;
   }
 
   .preview-topbar {
@@ -1190,32 +1237,23 @@ async function copyParams() {
   }
 
   .segmented,
-  .preview-toolbar,
+  .preview-action-bar,
   .meta-actions {
     width: 100%;
   }
 
-  .preview-toolbar {
-    justify-content: flex-start;
-    flex-wrap: wrap;
+  .preview-action {
+    flex: 1 1 120px;
   }
 
-  .toolbar-primary {
-    flex: 1 1 150px;
+  .preview-action-group,
+  .preview-action-group.secondary {
+    width: 100%;
   }
 
   .seg-btn,
   .meta-actions :deep(.btn) {
     flex: 1 1 0;
-  }
-
-  .hero-summary,
-  .kv-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .hero-summary {
-    display: grid;
   }
 
 }

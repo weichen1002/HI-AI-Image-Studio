@@ -68,7 +68,7 @@
 
             <div class="field-card">
               <div class="field-card-head">
-                <LayersIcon :size="17" />
+                <SlidersHorizontalIcon :size="17" />
                 <label class="label">默认生成张数</label>
               </div>
               <SelectMenu v-model="form.count" :options="countOptions" placeholder="选择张数" />
@@ -134,111 +134,6 @@
           </div>
         </section>
 
-        <section class="settings-section">
-          <div class="section-head">
-            <div class="section-icon">
-              <SparklesIcon :size="18" />
-            </div>
-            <div>
-              <div class="section-title">默认风格</div>
-              <div class="section-desc">保存常用画面风格、品牌调性或禁用要求，创作时自动追加到提示词。</div>
-            </div>
-          </div>
-
-          <div class="field-card style-card">
-            <div class="field-card-head">
-              <SparklesIcon :size="17" />
-              <label class="label">风格要求</label>
-            </div>
-            <textarea
-              v-model="form.stylePrompt"
-              class="style-textarea"
-              maxlength="500"
-              placeholder="例如：干净高级的电商摄影，主体清晰，柔和自然光，不要文字、水印、Logo。"
-            ></textarea>
-            <div class="field-hint">{{ form.stylePrompt.length }} / 500。留空则不追加。</div>
-          </div>
-        </section>
-
-        <section class="settings-section">
-          <div class="section-head">
-            <div class="section-icon">
-              <LayersIcon :size="18" />
-            </div>
-            <div>
-              <div class="section-title">项目风格板</div>
-              <div class="section-desc">把常用项目的比例、标签和风格要求保存成可复用资产。</div>
-            </div>
-          </div>
-
-          <div class="project-board-editor">
-            <div class="settings-grid">
-              <div class="field-card">
-                <div class="field-card-head">
-                  <LayersIcon :size="17" />
-                  <label class="label">项目名称</label>
-                </div>
-                <input v-model="projectForm.name" class="plain-input" maxlength="40" placeholder="例如：夏季新品海报" />
-              </div>
-              <div class="field-card">
-                <div class="field-card-head">
-                  <ImageIcon :size="17" />
-                  <label class="label">默认比例</label>
-                </div>
-                <SelectMenu v-model="projectForm.aspectRatio" :options="ratioOptions" placeholder="选择默认比例" />
-              </div>
-            </div>
-            <div class="field-card">
-              <div class="field-card-head">
-                <FileImageIcon :size="17" />
-                <label class="label">项目说明</label>
-              </div>
-              <input v-model="projectForm.description" class="plain-input" maxlength="120" placeholder="例如：统一用于小红书、电商详情和首图。" />
-            </div>
-            <div class="field-card">
-              <div class="field-card-head">
-                <ShieldCheckIcon :size="17" />
-                <label class="label">默认标签</label>
-              </div>
-              <input v-model="projectForm.tags" class="plain-input" placeholder="多个标签用逗号分隔" />
-            </div>
-            <div class="field-card style-card">
-              <div class="field-card-head">
-                <SparklesIcon :size="17" />
-                <label class="label">项目风格要求</label>
-              </div>
-              <textarea
-                v-model="projectForm.stylePrompt"
-                class="style-textarea"
-                maxlength="500"
-                placeholder="例如：品牌色以白色和浅绿色为主，真实摄影质感，背景简洁，主体突出。"
-              ></textarea>
-            </div>
-            <div class="project-actions">
-              <Button variant="ghost" @click="resetProjectForm">清空</Button>
-              <Button @click="saveProjectBoard">{{ editingProjectId ? '更新风格板' : '保存风格板' }}</Button>
-            </div>
-          </div>
-
-          <div v-if="projectBoards.length" class="project-board-list">
-            <button
-              v-for="board in projectBoards"
-              :key="board.id"
-              type="button"
-              class="project-board-item"
-              @click="editProjectBoard(board)"
-            >
-              <span class="project-board-main">
-                <strong>{{ board.name }}</strong>
-                <span>{{ board.description || board.stylePrompt || '未填写说明' }}</span>
-              </span>
-              <span class="project-board-meta">{{ board.aspectRatio }} · {{ board.tags.length }} 标签</span>
-              <span class="project-board-delete" @click.stop="deleteProjectBoard(board.id)">删除</span>
-            </button>
-          </div>
-          <div v-else class="field-hint">还没有项目风格板。保存后可以在创作页一键带入。</div>
-        </section>
-
         <div class="settings-actions">
           <Button variant="ghost" @click="resetSettings">
             <template #icon>
@@ -290,10 +185,6 @@
             <span>审核</span>
             <strong>{{ selectedModerationLabel }}</strong>
           </div>
-          <div class="preview-row">
-            <span>风格</span>
-            <strong>{{ form.stylePrompt ? '已启用' : '未设置' }}</strong>
-          </div>
         </div>
 
         <div class="preview-note">
@@ -306,12 +197,11 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, reactive, watch } from 'vue'
 import {
   DownloadIcon,
   FileImageIcon,
   ImageIcon,
-  LayersIcon,
   RotateCcwIcon,
   SaveIcon,
   ShieldCheckIcon,
@@ -358,18 +248,8 @@ const moderationOptions = [
   { label: '自动', value: 'auto' },
   { label: '低限制', value: 'low' }
 ]
-
 const form = reactive({ ...preferencesStore.createSettings })
-const editingProjectId = ref('')
-const projectForm = reactive({
-  name: '',
-  description: '',
-  aspectRatio: DEFAULT_CREATE_SETTINGS.aspectRatio,
-  tags: '',
-  stylePrompt: ''
-})
 const supportsCompression = computed(() => form.outputFormat === 'jpeg' || form.outputFormat === 'webp')
-const projectBoards = computed(() => preferencesStore.projectBoards)
 const userInitial = computed(() => {
   const name = String(authStore.user?.username || '').trim()
   return name ? name.charAt(0).toUpperCase() : 'U'
@@ -415,54 +295,6 @@ function labelFor(options, value) {
   return options.find((item) => item.value === value)?.label || String(value || '')
 }
 
-function parseTags(value) {
-  return String(value || '')
-    .split(/[,，、\n]/)
-    .map((item) => item.trim())
-    .filter(Boolean)
-}
-
-function resetProjectForm() {
-  editingProjectId.value = ''
-  Object.assign(projectForm, {
-    name: '',
-    description: '',
-    aspectRatio: form.aspectRatio || DEFAULT_CREATE_SETTINGS.aspectRatio,
-    tags: '',
-    stylePrompt: ''
-  })
-}
-
-function saveProjectBoard() {
-  const board = preferencesStore.upsertProjectBoard({
-    id: editingProjectId.value,
-    name: projectForm.name,
-    description: projectForm.description,
-    aspectRatio: projectForm.aspectRatio,
-    tags: parseTags(projectForm.tags),
-    stylePrompt: projectForm.stylePrompt
-  })
-  if (!board) return
-  editingProjectId.value = board.id
-  toastSuccess('项目风格板已保存')
-}
-
-function editProjectBoard(board) {
-  editingProjectId.value = board.id
-  Object.assign(projectForm, {
-    name: board.name,
-    description: board.description || '',
-    aspectRatio: board.aspectRatio || DEFAULT_CREATE_SETTINGS.aspectRatio,
-    tags: (board.tags || []).join('，'),
-    stylePrompt: board.stylePrompt || ''
-  })
-}
-
-function deleteProjectBoard(id) {
-  preferencesStore.removeProjectBoard(id)
-  if (editingProjectId.value === id) resetProjectForm()
-  toastSuccess('项目风格板已删除')
-}
 </script>
 
 <style scoped>
@@ -763,110 +595,6 @@ function deleteProjectBoard(id) {
   gap: 12px;
 }
 
-.style-textarea {
-  min-height: 112px;
-  width: 100%;
-  resize: vertical;
-  padding: 12px 13px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.76);
-  color: var(--text);
-  font-size: 13px;
-  line-height: 1.6;
-  font-weight: 700;
-  outline: none;
-}
-
-.style-textarea:focus {
-  border-color: rgba(99, 102, 241, 0.34);
-  background: #fff;
-  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.08);
-}
-
-.project-board-editor {
-  display: grid;
-  gap: 12px;
-}
-
-.plain-input {
-  width: 100%;
-  height: 42px;
-  padding: 0 12px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 13px;
-  background: rgba(255, 255, 255, 0.76);
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 750;
-  outline: none;
-}
-
-.plain-input:focus {
-  border-color: rgba(99, 102, 241, 0.34);
-  background: #fff;
-  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.08);
-}
-
-.project-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.project-board-list {
-  display: grid;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.project-board-item {
-  width: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid rgba(15, 23, 42, 0.07);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.62);
-  text-align: left;
-  cursor: pointer;
-}
-
-.project-board-item:hover {
-  border-color: rgba(99, 102, 241, 0.22);
-  background: rgba(255, 255, 255, 0.9);
-}
-
-.project-board-main {
-  min-width: 0;
-  display: grid;
-  gap: 4px;
-}
-
-.project-board-main strong {
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.project-board-main span,
-.project-board-meta {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 750;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.project-board-delete {
-  color: var(--accent);
-  font-size: 12px;
-  font-weight: 900;
-}
-
 .range-label-row {
   display: flex;
   align-items: center;
@@ -1062,7 +790,6 @@ function deleteProjectBoard(id) {
   .settings-grid {
     grid-template-columns: 1fr;
   }
-
   .settings-actions {
     flex-direction: column-reverse;
   }

@@ -110,6 +110,8 @@ export class ImagesRepo {
     offset?: number;
     mode?: ImageMode | 'all';
     q?: string;
+    folder?: string;
+    tag?: string;
   }) {
     const limit = Math.max(1, Math.min(100, Math.floor(params.limit)));
     const offset = Math.max(0, Math.floor(params.offset || 0));
@@ -131,6 +133,26 @@ export class ImagesRepo {
       where.push('(prompt LIKE ? OR content LIKE ? OR aspect_ratio LIKE ? OR operation_type LIKE ? OR folder LIKE ? OR tags LIKE ?)');
       const likeValue = `%${keyword}%`;
       values.push(likeValue, likeValue, likeValue, likeValue, likeValue, likeValue);
+    }
+
+    const folder = String(params.folder || '').trim();
+    if (folder && folder !== 'all') {
+      if (folder === 'unfiled') {
+        where.push("(folder IS NULL OR TRIM(folder) = '')");
+      } else {
+        where.push('folder = ?');
+        values.push(folder);
+      }
+    }
+
+    const tag = String(params.tag || '').trim();
+    if (tag && tag !== 'all') {
+      if (tag === 'untagged') {
+        where.push("(tags IS NULL OR TRIM(tags) = '' OR tags = '[]' OR NOT json_valid(tags))");
+      } else {
+        where.push("EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(images.tags) THEN images.tags ELSE '[]' END) WHERE json_each.value = ?)");
+        values.push(tag);
+      }
     }
 
     const whereSql = where.join(' AND ');
@@ -168,6 +190,25 @@ export class ImagesRepo {
       )
       .all(params.chainId, params.userId);
     return rows.map(toImage).filter(Boolean) as ImageEntity[];
+  }
+
+  countByChains(params: { chainIds: string[]; userId: string }) {
+    const chainIds = Array.from(new Set((params.chainIds || []).map((id) => String(id || '').trim()).filter(Boolean)));
+    if (!chainIds.length) return {};
+    const placeholders = chainIds.map(() => '?').join(', ');
+    const rows = this.sqlite.connection
+      .prepare(
+        `SELECT continuation_chain_id as chain_id, COUNT(*) as count
+         FROM images
+         WHERE user_id = ? AND continuation_chain_id IN (${placeholders})
+         GROUP BY continuation_chain_id`,
+      )
+      .all(params.userId, ...chainIds) as Array<{ chain_id?: string; count?: number }>;
+    return Object.fromEntries(
+      rows
+        .map((row) => [String(row.chain_id || ''), Number(row.count || 0)])
+        .filter(([chainId]) => chainId),
+    );
   }
 
   listInputImageUrlsByUser(params: { userId: string }) {

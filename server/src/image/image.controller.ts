@@ -40,6 +40,7 @@ import { SystemSettingsRepo } from '../db/repositories/system-settings.repo';
 import { DialogueRepo } from '../db/repositories/dialogue.repo';
 import type { ImageMode, ImageOperationType } from '../db/repositories/images.repo';
 import { logError, toErrorDetails } from '../logging/logger';
+import { createImageJobLifecycle } from './image-job-lifecycle';
 
 function normalizeLimit(value: string | undefined) {
   const limit = Number(value || 12);
@@ -70,6 +71,10 @@ function normalizeImageModeFilter(value: string | undefined): ImageMode | 'all' 
 
 function normalizeSearchQuery(value: string | undefined) {
   return String(value || '').trim().slice(0, 120);
+}
+
+function normalizeAssetFilterValue(value: string | undefined) {
+  return String(value || '').trim().slice(0, 80);
 }
 
 function normalizePrompt(value: any) {
@@ -103,14 +108,19 @@ function normalizeSourceImageUrl(value: any) {
 
 function normalizeOperationType(value: any): ImageOperationType {
   const operationType = String(value || '').trim();
-  if (operationType === 'inpaint' || operationType === 'outpaint' || operationType === 'cutout') {
+  if (
+    operationType === 'inpaint' ||
+    operationType === 'outpaint' ||
+    operationType === 'cutout' ||
+    operationType === 'upscale'
+  ) {
     return operationType;
   }
   throw new HttpException('不支持的编辑类型', HttpStatus.BAD_REQUEST);
 }
 
 function modeForOperationType(operationType: ImageOperationType) {
-  if (operationType === 'cutout') return 'tools' as const;
+  if (operationType === 'cutout' || operationType === 'upscale') return 'tools' as const;
   return 'image' as const;
 }
 
@@ -131,6 +141,17 @@ function promptForOperation(operationType: ImageOperationType, prompt: string) {
     const promptParts = [
       '请保留主体完整轮廓，去除背景，输出干净的透明背景 PNG。',
       '要求边缘自然干净，不要阴影、地面、倒影、额外物体、文字或水印。',
+    ];
+    if (extra) {
+      promptParts.push(`额外要求：${extra}`);
+    }
+    return promptParts.join(' ');
+  }
+  if (operationType === 'upscale') {
+    const extra = String(prompt || '').trim();
+    const promptParts = [
+      '请对这张图片进行高清增强和细节重建，提升清晰度、边缘质量、纹理细节和整体观感。',
+      '保持原始主体、构图、色彩关系和风格一致，不要新增文字、水印、Logo 或无关物体。',
     ];
     if (extra) {
       promptParts.push(`额外要求：${extra}`);
@@ -513,23 +534,43 @@ export class ImageController {
     @Query('offset') offsetValue?: string,
     @Query('mode') modeValue?: string,
     @Query('q') qValue?: string,
+    @Query('folder') folderValue?: string,
+    @Query('tag') tagValue?: string,
   ) {
     const limit = normalizeLimit(limitValue);
     const offset = normalizeOffset(offsetValue);
     const mode = normalizeImageModeFilter(modeValue);
     const q = normalizeSearchQuery(qValue);
+    const folder = normalizeAssetFilterValue(folderValue);
+    const tag = normalizeAssetFilterValue(tagValue);
     const page = this.imagesRepo.listByUserPaged({
       userId: req.user.id,
       limit,
       offset,
       mode,
       q,
+      folder,
+      tag,
     });
     const images = await Promise.all(
       page.items
         .map((item) => this.materializeImageAssets(item, req.user.id)),
     );
-    return { images, total: page.total, limit, offset };
+    const chainCounts = this.imagesRepo.countByChains({
+      userId: req.user.id,
+      chainIds: images.map((image) => image.continuationChainId).filter(Boolean),
+    });
+    return {
+      images: images.map((image) => ({
+        ...image,
+        chainRoundCount: image.continuationChainId
+          ? chainCounts[image.continuationChainId] || 1
+          : undefined,
+      })),
+      total: page.total,
+      limit,
+      offset,
+    };
   }
 
   @Get('dialogue/history')
@@ -767,7 +808,6 @@ export class ImageController {
         pricing,
       ) * count;
     const refId = crypto.randomUUID();
-    let charged = false;
     let uploadedReference:
       | {
           fileName: string;
@@ -775,20 +815,23 @@ export class ImageController {
           url: string;
         }
       | undefined;
-    const persistedResultAssets: Array<{ filePath: string; created: boolean }> = [];
+    const lifecycle = createImageJobLifecycle({
+      creditsRepo: this.creditsRepo,
+      userId,
+      cost,
+      chargeReason: usesImageContext ? 'image_to_image' : 'text_to_image',
+      refundReason: 'dialogue_refund',
+      refId,
+      refundFailureMessage: 'Refund failed after dialogue error',
+      removeFile: removeUploadedFile,
+    });
 
     try {
-      this.creditsRepo.charge({
-        userId,
-        cost,
-        reason: usesImageContext ? 'image_to_image' : 'text_to_image',
-        refType: 'image_job',
-        refId,
-      });
-      charged = cost > 0;
+      lifecycle.charge();
 
       if (referenceFile) {
         uploadedReference = await saveUploadedBuffer(referenceFile);
+        lifecycle.trackTemporaryFile(uploadedReference.filePath);
       }
 
       const bootstrapImageInputs = historyTurns.length
@@ -841,8 +884,8 @@ export class ImageController {
         result.imageUrls,
         mimeForFileName(`result.${outputFormat}`),
       );
-      persistedResultAssets.push(
-        ...persistedResults.persisted.map((item) => ({
+      lifecycle.trackResultAssets(
+        persistedResults.persisted.map((item) => ({
           filePath: item.filePath,
           created: item.created,
         })),
@@ -895,29 +938,7 @@ export class ImageController {
           .map(toPublicDialogueMessage),
       };
     } catch (error: any) {
-      for (const item of persistedResultAssets) {
-        if (!item.created) continue;
-        await removeUploadedFile(item.filePath);
-      }
-      await removeUploadedFile(uploadedReference?.filePath || '');
-      if (charged) {
-        try {
-          this.creditsRepo.refund({
-            userId,
-            amount: cost,
-            reason: 'dialogue_refund',
-            refType: 'image_job',
-            refId,
-          });
-        } catch (refundError) {
-          logError('ImageController', 'Refund failed after dialogue error', {
-            userId,
-            refId,
-            cost,
-            error: toErrorDetails(refundError),
-          });
-        }
-      }
+      await lifecycle.cleanupFailure();
       logError('ImageController', 'Dialogue image generation failed', {
         userId,
         refId,
@@ -1039,18 +1060,19 @@ export class ImageController {
       ) * count;
     const userId = req.user.id;
     const refId = crypto.randomUUID();
-    let charged = false;
-    const persistedResultAssets: Array<{ filePath: string; created: boolean }> = [];
+    const lifecycle = createImageJobLifecycle({
+      creditsRepo: this.creditsRepo,
+      userId,
+      cost,
+      chargeReason: 'text_to_image',
+      refundReason: 'text_to_image_refund',
+      refId,
+      refundFailureMessage: 'Refund failed after text-to-image error',
+      removeFile: removeUploadedFile,
+    });
 
     try {
-      this.creditsRepo.charge({
-        userId,
-        cost,
-        reason: 'text_to_image',
-        refType: 'image_job',
-        refId,
-      });
-      charged = cost > 0;
+      lifecycle.charge();
 
       const result = await this.hiapiService.generateImage(prompt, aspectRatio, {
         qualityTier,
@@ -1064,8 +1086,8 @@ export class ImageController {
         result.imageUrls,
         mimeForFileName(`result.${outputFormat}`),
       );
-      persistedResultAssets.push(
-        ...persistedResults.persisted.map((item) => ({
+      lifecycle.trackResultAssets(
+        persistedResults.persisted.map((item) => ({
           filePath: item.filePath,
           created: item.created,
         })),
@@ -1090,28 +1112,7 @@ export class ImageController {
       });
       return { image };
     } catch (error: any) {
-      for (const item of persistedResultAssets) {
-        if (!item.created) continue;
-        await removeUploadedFile(item.filePath);
-      }
-      if (charged) {
-        try {
-          this.creditsRepo.refund({
-            userId,
-            amount: cost,
-            reason: 'text_to_image_refund',
-            refType: 'image_job',
-            refId,
-          });
-        } catch (refundError) {
-          logError('ImageController', 'Refund failed after text-to-image error', {
-            userId,
-            refId,
-            cost,
-            error: toErrorDetails(refundError),
-          });
-        }
-      }
+      await lifecycle.cleanupFailure();
       logError('ImageController', 'Text-to-image failed', {
         userId,
         refId,
@@ -1208,24 +1209,25 @@ export class ImageController {
       ) * count;
     const userId = req.user.id;
     const refId = crypto.randomUUID();
-    let charged = false;
     const uploaded: Array<{
       fileName: string;
       filePath: string;
       url: string;
       fileType: string;
     }> = [];
-    const persistedResultAssets: Array<{ filePath: string; created: boolean }> = [];
+    const lifecycle = createImageJobLifecycle({
+      creditsRepo: this.creditsRepo,
+      userId,
+      cost,
+      chargeReason: 'image_to_image',
+      refundReason: 'image_to_image_refund',
+      refId,
+      refundFailureMessage: 'Refund failed after image-to-image error',
+      removeFile: removeUploadedFile,
+    });
 
     try {
-      this.creditsRepo.charge({
-        userId,
-        cost,
-        reason: 'image_to_image',
-        refType: 'image_job',
-        refId,
-      });
-      charged = cost > 0;
+      lifecycle.charge();
 
       for (const file of referenceFiles) {
         const saved = await saveUploadedBuffer(file);
@@ -1233,6 +1235,7 @@ export class ImageController {
           ...saved,
           fileType: file.mimetype,
         });
+        lifecycle.trackTemporaryFile(saved.filePath);
       }
 
       const result = await this.hiapiService.editImageFromFiles({
@@ -1254,8 +1257,8 @@ export class ImageController {
         result.imageUrls,
         mimeForFileName(`result.${outputFormat}`),
       );
-      persistedResultAssets.push(
-        ...persistedResults.persisted.map((item) => ({
+      lifecycle.trackResultAssets(
+        persistedResults.persisted.map((item) => ({
           filePath: item.filePath,
           created: item.created,
         })),
@@ -1284,31 +1287,7 @@ export class ImageController {
       });
       return { image: saved };
     } catch (error: any) {
-      for (const item of persistedResultAssets) {
-        if (!item.created) continue;
-        await removeUploadedFile(item.filePath);
-      }
-      for (const item of uploaded) {
-        await removeUploadedFile(item.filePath);
-      }
-      if (charged) {
-        try {
-          this.creditsRepo.refund({
-            userId,
-            amount: cost,
-            reason: 'image_to_image_refund',
-            refType: 'image_job',
-            refId,
-          });
-        } catch (refundError) {
-          logError('ImageController', 'Refund failed after image-to-image error', {
-            userId,
-            refId,
-            cost,
-            error: toErrorDetails(refundError),
-          });
-        }
-      }
+      await lifecycle.cleanupFailure();
       logError('ImageController', 'Image-to-image failed', {
         userId,
         refId,
@@ -1404,7 +1383,6 @@ export class ImageController {
     );
     const userId = req.user.id;
     const refId = crypto.randomUUID();
-    let charged = false;
     let uploadedImage:
       | {
           fileName: string;
@@ -1419,21 +1397,26 @@ export class ImageController {
           url: string;
         }
       | undefined;
-    const persistedResultAssets: Array<{ filePath: string; created: boolean }> = [];
+    const lifecycle = createImageJobLifecycle({
+      creditsRepo: this.creditsRepo,
+      userId,
+      cost,
+      chargeReason: operationType,
+      refundReason: `${operationType}_refund`,
+      refId,
+      refundFailureMessage: 'Refund failed after image edit error',
+      refundFailureMeta: { operationType },
+      removeFile: removeUploadedFile,
+    });
 
     try {
-      this.creditsRepo.charge({
-        userId,
-        cost,
-        reason: operationType,
-        refType: 'image_job',
-        refId,
-      });
-      charged = cost > 0;
+      lifecycle.charge();
 
       uploadedImage = await saveUploadedBuffer(imageFile);
+      lifecycle.trackTemporaryFile(uploadedImage.filePath);
       if (maskFile) {
         uploadedMask = await saveUploadedBuffer(maskFile);
+        lifecycle.trackTemporaryFile(uploadedMask.filePath);
       }
 
       const result = await this.hiapiService.editImageFromFiles({
@@ -1458,14 +1441,19 @@ export class ImageController {
               outputFormat: 'png' as const,
               background: 'transparent' as const,
             }
+          : operationType === 'upscale'
+            ? {
+                qualityTier: '4k' as const,
+                quality: 'high' as const,
+              }
           : {}),
       });
       const persistedResults = await persistImageAssetsSafely(
         result.imageUrls,
         mimeForFileName('result.png'),
       );
-      persistedResultAssets.push(
-        ...persistedResults.persisted.map((item) => ({
+      lifecycle.trackResultAssets(
+        persistedResults.persisted.map((item) => ({
           filePath: item.filePath,
           created: item.created,
         })),
@@ -1486,8 +1474,9 @@ export class ImageController {
           prompt,
           aspectRatio,
           generationParams: createGenerationParams({
+            qualityTier: operationType === 'upscale' ? '4k' : undefined,
             size,
-            quality,
+            quality: operationType === 'upscale' ? 'high' : quality,
             operationType,
             outputFormat: operationType === 'cutout' ? 'png' : undefined,
             background: operationType === 'cutout' ? 'transparent' : undefined,
@@ -1504,31 +1493,7 @@ export class ImageController {
       await removeUploadedFile(uploadedMask?.filePath || '');
       return { image: saved };
     } catch (error: any) {
-      for (const item of persistedResultAssets) {
-        if (!item.created) continue;
-        await removeUploadedFile(item.filePath);
-      }
-      await removeUploadedFile(uploadedImage?.filePath || '');
-      await removeUploadedFile(uploadedMask?.filePath || '');
-      if (charged) {
-        try {
-          this.creditsRepo.refund({
-            userId,
-            amount: cost,
-            reason: `${operationType}_refund`,
-            refType: 'image_job',
-            refId,
-          });
-        } catch (refundError) {
-          logError('ImageController', 'Refund failed after image edit error', {
-            userId,
-            refId,
-            cost,
-            operationType,
-            error: toErrorDetails(refundError),
-          });
-        }
-      }
+      await lifecycle.cleanupFailure();
       logError('ImageController', 'Image edit failed', {
         userId,
         refId,

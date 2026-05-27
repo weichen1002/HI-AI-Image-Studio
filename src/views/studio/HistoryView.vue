@@ -29,7 +29,13 @@
             </template>
             刷新
           </Button>
-          <Button variant="danger" @click="clearAll" :disabled="imagesStore.isLoading || !imagesStore.images.length">
+          <Button v-if="hasActiveFilters" variant="ghost" @click="resetFilters">
+            <template #icon>
+              <XIcon :size="16" />
+            </template>
+            重置
+          </Button>
+          <Button class="clear-history-btn" variant="ghost" @click="clearAll" :disabled="imagesStore.isLoading || !imagesStore.images.length">
             <template #icon>
               <Trash2Icon :size="16" />
             </template>
@@ -68,8 +74,8 @@
         </button>
       </div>
 
-      <div v-if="imagesCount || hasActiveFilters" class="asset-filter-panel">
-        <div class="asset-filter-row">
+      <div v-if="showAssetFilters" class="asset-filter-panel">
+        <div v-if="showFolderFilters" class="asset-filter-row">
           <div class="asset-filter-label">
             <FolderOpenIcon :size="15" />
             <span>文件夹</span>
@@ -87,7 +93,7 @@
             </button>
           </div>
         </div>
-        <div class="asset-filter-row">
+        <div v-if="showTagFilters" class="asset-filter-row">
           <div class="asset-filter-label">
             <TagIcon :size="15" />
             <span>标签</span>
@@ -111,7 +117,7 @@
     <div v-if="batchMode && imagesCount" class="batch-toolbar">
       <div class="batch-summary">
         <span class="batch-count">{{ selectedItems.length }}</span>
-        <span>已选项目</span>
+        <span>已选内容</span>
       </div>
       <div class="batch-actions">
         <Button size="sm" variant="ghost" @click="selectVisibleItems" :disabled="!visibleHistoryItems.length">
@@ -208,6 +214,12 @@
           </div>
 
           <div class="cover-actions" @click.stop>
+            <button class="cover-action" type="button" title="复制提示词" aria-label="复制提示词" @click="copyPrompt(item)">
+              <CopyIcon :size="16" />
+            </button>
+            <button class="cover-action" type="button" title="整理作品" aria-label="整理作品" @click="openAssetModalForItem(item)">
+              <FolderOpenIcon :size="16" />
+            </button>
             <button
               v-if="coverUrl(item)"
               class="cover-action"
@@ -237,20 +249,10 @@
             </button>
           </div>
           <div class="card-actions">
-            <Button class="action-btn" type="button" @click.stop="reusePrompt(item)">
-              <template #icon>
-                <Wand2Icon :size="15" />
-              </template>
-              {{ item.type === 'dialogue-chain' ? '继续对话' : '再次创作' }}
-            </Button>
-            <div class="quick-actions">
-              <button class="quick-action" type="button" title="复制提示词" aria-label="复制提示词" @click.stop="copyPrompt(item)">
-                <CopyIcon :size="15" />
-              </button>
-              <button class="quick-action" type="button" title="整理作品" aria-label="整理作品" @click.stop="openAssetModalForItem(item)">
-                <FolderOpenIcon :size="15" />
-              </button>
-            </div>
+            <button class="card-continue-action" type="button" @click.stop="reusePrompt(item)">
+              <Wand2Icon :size="15" />
+              <span>{{ item.type === 'dialogue-chain' ? '继续对话' : '再次创作' }}</span>
+            </button>
           </div>
           <div v-if="item.assetSummary.folder || item.assetSummary.tags.length" class="asset-meta-row">
             <span v-if="item.assetSummary.folder" class="asset-pill folder-pill">
@@ -289,7 +291,7 @@
         <div>
           <label class="label">文件夹</label>
           <SelectMenu v-if="isBatchAssetEdit" v-model="assetForm.folderMode" :options="assetEditModeOptions" size="sm" />
-          <Input v-model="assetForm.folder" placeholder="例如：电商海报、头像项目" />
+          <Input v-model="assetForm.folder" placeholder="例如：电商海报、头像、插画参考" />
         </div>
         <div>
           <label class="label">标签</label>
@@ -308,13 +310,14 @@
         </div>
       </template>
     </Modal>
+
   </div>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { CheckIcon, CheckSquareIcon, CopyIcon, DownloadIcon, FolderOpenIcon, RefreshCwIcon, ImageOffIcon, SearchIcon, TagIcon, Wand2Icon, Trash2Icon, StarIcon, XIcon } from 'lucide-vue-next'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useImagesStore } from '../../stores/images'
 import { usePreferencesStore } from '../../stores/preferences'
 import { Button, Input, LinkButton, Modal, SelectMenu, toastError, toastSuccess } from '../../components/common'
@@ -322,6 +325,7 @@ import { Button, Input, LinkButton, Modal, SelectMenu, toastError, toastSuccess 
 const imagesStore = useImagesStore()
 const preferencesStore = usePreferencesStore()
 const router = useRouter()
+const route = useRoute()
 const searchText = ref('')
 const modeFilter = ref('all')
 const folderFilter = ref('all')
@@ -331,6 +335,7 @@ const currentPage = ref(1)
 const pageSize = ref(24)
 const pageSizeText = ref('24')
 let searchTimer = null
+let suppressServerFetch = false
 const batchMode = ref(false)
 const selectedKeys = ref([])
 const assetModalOpen = ref(false)
@@ -370,11 +375,17 @@ const serverAssetTags = computed(() => {
   ).sort((a, b) => a.localeCompare(b, 'zh-CN'))
 })
 const allAssetFolders = computed(() => {
-  return Array.from(new Set([...serverAssetFolders.value, ...preferencesStore.assetFolders]))
+  const selected = folderFilter.value && !['all', 'unfiled'].includes(folderFilter.value)
+    ? [folderFilter.value]
+    : []
+  return Array.from(new Set([...serverAssetFolders.value, ...preferencesStore.assetFolders, ...selected]))
     .sort((a, b) => a.localeCompare(b, 'zh-CN'))
 })
 const allAssetTags = computed(() => {
-  return Array.from(new Set([...serverAssetTags.value, ...preferencesStore.assetTags]))
+  const selected = tagFilter.value && !['all', 'untagged'].includes(tagFilter.value)
+    ? [tagFilter.value]
+    : []
+  return Array.from(new Set([...serverAssetTags.value, ...preferencesStore.assetTags, ...selected]))
     .sort((a, b) => a.localeCompare(b, 'zh-CN'))
 })
 const folderFilterOptions = computed(() => [
@@ -398,7 +409,6 @@ const pageSizeOptions = [
   { label: '每页 48 条', value: '48' },
   { label: '每页 96 条', value: '96' }
 ]
-
 function isDialogueImage(image) {
   return image?.mode === 'dialogue' || image?.mode === 'continuous'
 }
@@ -423,6 +433,15 @@ const hasActiveFilters = computed(() => {
     tagFilter.value !== 'all' ||
     favoritesOnly.value
   )
+})
+const showFolderFilters = computed(() => {
+  return folderFilter.value !== 'all' || allAssetFolders.value.length > 0
+})
+const showTagFilters = computed(() => {
+  return tagFilter.value !== 'all' || allAssetTags.value.length > 0
+})
+const showAssetFilters = computed(() => {
+  return (imagesCount.value || hasActiveFilters.value) && (showFolderFilters.value || showTagFilters.value)
 })
 const sortedImages = computed(() => {
   const list = Array.isArray(imagesStore.images) ? imagesStore.images.slice() : []
@@ -452,7 +471,7 @@ const historyItems = computed(() => {
         chainId,
         image,
         images: [image],
-        roundCount: 1
+        roundCount: Math.max(1, Number(image.chainRoundCount || 1))
       }
       dialogueChains.set(chainId, item)
       items.push(item)
@@ -485,18 +504,8 @@ const enrichedHistoryItems = computed(() => {
 })
 const visibleHistoryItems = computed(() => {
   return enrichedHistoryItems.value.filter((item) => {
-    const image = item.image || item
-    const assetSummary = item.assetSummary
-    const matchesFolder =
-      folderFilter.value === 'all' ||
-      (folderFilter.value === 'unfiled' && !assetSummary.folder) ||
-      assetSummary.folders.includes(folderFilter.value)
-    const matchesTag =
-      tagFilter.value === 'all' ||
-      (tagFilter.value === 'untagged' && !assetSummary.tags.length) ||
-      assetSummary.tags.includes(tagFilter.value)
     const matchesFavorite = !favoritesOnly.value || isFavorite(item)
-    return matchesFolder && matchesTag && matchesFavorite
+    return matchesFavorite
   })
 })
 const selectedKeySet = computed(() => new Set(selectedKeys.value))
@@ -512,6 +521,7 @@ const assetModalTitle = computed(() => {
 })
 
 onMounted(() => {
+  applyRouteFilters()
   fetchImages()
 })
 
@@ -524,7 +534,9 @@ async function fetchImages() {
     limit: pageSize.value,
     offset: (currentPage.value - 1) * pageSize.value,
     mode: modeFilter.value,
-    q: searchText.value
+    q: searchText.value,
+    folder: folderFilter.value,
+    tag: tagFilter.value
   })
   if (currentPage.value > totalPages.value) {
     currentPage.value = totalPages.value
@@ -532,10 +544,28 @@ async function fetchImages() {
       limit: pageSize.value,
       offset: (currentPage.value - 1) * pageSize.value,
       mode: modeFilter.value,
-      q: searchText.value
+      q: searchText.value,
+      folder: folderFilter.value,
+      tag: tagFilter.value
     })
   }
   clearSelection()
+}
+
+function routeString(value) {
+  return Array.isArray(value) ? String(value[0] || '').trim() : String(value || '').trim()
+}
+
+function applyRouteFilters() {
+  const folder = routeString(route.query.folder)
+  const tag = routeString(route.query.tag)
+  const q = routeString(route.query.q)
+
+  suppressServerFetch = true
+  if (folder) folderFilter.value = folder
+  if (tag) tagFilter.value = tag
+  if (q) searchText.value = q
+  suppressServerFetch = false
 }
 
 function resetServerPageAndFetch() {
@@ -556,6 +586,7 @@ function goNextPage() {
 }
 
 watch(searchText, () => {
+  if (suppressServerFetch) return
   window.clearTimeout(searchTimer)
   searchTimer = window.setTimeout(() => {
     resetServerPageAndFetch()
@@ -563,6 +594,17 @@ watch(searchText, () => {
 })
 
 watch(modeFilter, () => {
+  if (suppressServerFetch) return
+  resetServerPageAndFetch()
+})
+
+watch(folderFilter, () => {
+  if (suppressServerFetch) return
+  resetServerPageAndFetch()
+})
+
+watch(tagFilter, () => {
+  if (suppressServerFetch) return
   resetServerPageAndFetch()
 })
 
@@ -593,11 +635,14 @@ function toggleFavorite(item) {
 }
 
 function resetFilters() {
+  suppressServerFetch = true
   searchText.value = ''
   modeFilter.value = 'all'
   folderFilter.value = 'all'
   tagFilter.value = 'all'
   favoritesOnly.value = false
+  suppressServerFetch = false
+  resetServerPageAndFetch()
 }
 
 async function removeOne(item) {
@@ -858,8 +903,8 @@ async function downloadCover(item) {
   padding: 14px;
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: calc(var(--radius-md) + 4px);
-  background: rgba(255, 255, 255, 0.62);
-  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.05);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
   backdrop-filter: blur(18px);
 }
 
@@ -932,6 +977,16 @@ async function downloadCover(item) {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.clear-history-btn {
+  color: rgba(15, 23, 42, 0.52);
+}
+
+.clear-history-btn:hover {
+  color: #b91c1c;
+  border-color: rgba(239, 68, 68, 0.18);
+  background: rgba(254, 242, 242, 0.68);
 }
 
 .history-filters {
@@ -1031,9 +1086,9 @@ async function downloadCover(item) {
 
 .asset-filter-panel {
   display: grid;
-  gap: 10px;
-  margin-top: 12px;
-  padding-top: 12px;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
   border-top: 1px solid rgba(15, 23, 42, 0.06);
 }
 
@@ -1135,18 +1190,18 @@ async function downloadCover(item) {
 .grid-history {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 20px;
+  gap: 18px;
 }
 
 .history-card {
-  background: rgba(255, 255, 255, 0.68);
+  background: rgba(255, 255, 255, 0.78);
   border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: calc(var(--radius-md) + 6px);
+  border-radius: var(--radius-md);
   overflow: hidden;
   transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s, background 0.2s;
   min-width: 0;
   backdrop-filter: blur(18px);
-  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.045);
 }
 
 .history-card.selected {
@@ -1155,9 +1210,9 @@ async function downloadCover(item) {
 }
 
 .history-card:hover {
-  transform: translateY(-3px);
+  transform: translateY(-2px);
   border-color: rgba(99, 102, 241, 0.18);
-  box-shadow: 0 18px 46px rgba(99, 102, 241, 0.12);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
 }
 
 .dialogue-chain-card {
@@ -1260,8 +1315,8 @@ async function downloadCover(item) {
 }
 
 .cover-action {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   display: grid;
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.8);
@@ -1280,7 +1335,7 @@ async function downloadCover(item) {
   top: 12px;
   right: 12px;
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 
 .count-badge {
@@ -1326,7 +1381,7 @@ async function downloadCover(item) {
 
 .history-body {
   padding: 14px;
-  min-height: 156px;
+  min-height: 148px;
   display: flex;
   flex-direction: column;
 }
@@ -1349,8 +1404,7 @@ async function downloadCover(item) {
   min-height: 62px;
 }
 
-.inline-favorite,
-.quick-action {
+.inline-favorite {
   display: inline-grid;
   place-items: center;
   border: 1px solid rgba(15, 23, 42, 0.08);
@@ -1366,8 +1420,7 @@ async function downloadCover(item) {
   border-radius: 10px;
 }
 
-.inline-favorite:hover,
-.quick-action:hover {
+.inline-favorite:hover {
   transform: translateY(-1px);
   background: #ffffff;
   color: var(--primary);
@@ -1410,26 +1463,26 @@ async function downloadCover(item) {
 .card-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 14px;
+  margin-top: 12px;
 }
 
-.action-btn {
-  height: 36px;
-  flex: 1;
-  border-radius: 10px;
-  font-size: 13px;
-}
-
-.quick-actions {
-  display: flex;
+.card-continue-action {
+  min-width: 0;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
 }
 
-.quick-action {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+.card-continue-action:hover {
+  color: rgba(79, 70, 229, 0.86);
 }
 
 .asset-meta-row {

@@ -1,0 +1,12 @@
+{
+  "id": "polish-inspiration-detail-ui",
+  "title": "优化灵感记录与灵感详情页面 UI 和交互",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "frontend",
+  "status": "completed",
+  "currentPhase": "completed",
+  "nextAction": "已完成 UI 调整并通过构建验证",
+  "createdAt": "2026-05-26T13:53:06Z",
+  "branch": "main"
+}
