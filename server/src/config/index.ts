@@ -60,6 +60,7 @@ export const config = {
       .update(`${resolvePath(process.env.SQLITE_FILE || SQLITE_FILE)}:redeem-codes`)
       .digest('hex'),
   ADMIN_TOKEN: process.env.ADMIN_TOKEN || '',
+  BILLING_WEBHOOK_SECRET: process.env.BILLING_WEBHOOK_SECRET || '',
   HIAPI_TEXT_MODEL: process.env.HIAPI_TEXT_MODEL || '',
   HIAPI_BASE_URL: trimSlash(
     process.env.HIAPI_BASE_URL || 'https://hiapis.cloud/v1',
@@ -69,4 +70,72 @@ export const config = {
   HIAPI_RESPONSE_FORMAT: process.env.HIAPI_RESPONSE_FORMAT || 'b64_json',
   HIAPI_SIZE_FORMAT: process.env.HIAPI_SIZE_FORMAT || 'pixel',
   HIAPI_TIMEOUT_MS: Number(process.env.HIAPI_TIMEOUT_MS || 60000),
+  IMAGE_JOB_CONCURRENCY: Math.max(1, Number(process.env.IMAGE_JOB_CONCURRENCY || 2)),
 };
+
+type RuntimeConfig = typeof config;
+
+export function validateStartupConfig(
+  runtimeConfig: RuntimeConfig = config,
+  env: string = process.env.NODE_ENV || 'development',
+) {
+  const issues: string[] = [];
+  const warnings: string[] = [];
+  const isProduction = env === 'production';
+
+  if (!Number.isFinite(runtimeConfig.PORT) || runtimeConfig.PORT <= 0) {
+    issues.push('PORT must be a positive number');
+  }
+  if (!runtimeConfig.SQLITE_FILE) {
+    issues.push('SQLITE_FILE is required');
+  }
+  if (!runtimeConfig.DATA_DIR) {
+    issues.push('DATA_DIR is required');
+  }
+  if (!runtimeConfig.HIAPI_BASE_URL) {
+    issues.push('HIAPI_BASE_URL is required');
+  }
+  if (!runtimeConfig.HIAPI_MODEL) {
+    issues.push('HIAPI_MODEL is required');
+  }
+
+  const requiredProductionSecrets = [
+    ['SESSION_SECRET', runtimeConfig.SESSION_SECRET],
+    ['ADMIN_TOKEN', runtimeConfig.ADMIN_TOKEN],
+    ['BILLING_WEBHOOK_SECRET', runtimeConfig.BILLING_WEBHOOK_SECRET],
+    ['HIAPI_API_KEY', runtimeConfig.HIAPI_API_KEY],
+  ] as const;
+
+  for (const [key, value] of requiredProductionSecrets) {
+    if (!String(value || '').trim()) {
+      if (isProduction) issues.push(`${key} is required in production`);
+      else warnings.push(`${key} is not configured`);
+    }
+  }
+
+  if (
+    isProduction &&
+    runtimeConfig.SESSION_SECRET &&
+    runtimeConfig.SESSION_SECRET.length < 32
+  ) {
+    issues.push('SESSION_SECRET must be at least 32 characters in production');
+  }
+
+  return {
+    ok: issues.length === 0,
+    env,
+    issues,
+    warnings,
+  };
+}
+
+export function assertStartupConfig(
+  runtimeConfig: RuntimeConfig = config,
+  env: string = process.env.NODE_ENV || 'development',
+) {
+  const result = validateStartupConfig(runtimeConfig, env);
+  if (!result.ok) {
+    throw new Error(`Invalid startup configuration: ${result.issues.join('; ')}`);
+  }
+  return result;
+}

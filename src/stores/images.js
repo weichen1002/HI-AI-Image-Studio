@@ -7,11 +7,298 @@ import { compressImage } from '../utils/imageCompressor'
 
 export const useImagesStore = defineStore('images', () => {
   const images = ref([])
+  const dialogueChains = ref([])
   const total = ref(0)
   const lastQuery = ref({ limit: 12, offset: 0, mode: 'all', q: '', folder: 'all', tag: 'all' })
   const isLoading = ref(false)
   const activeJob = ref(null)
-  const isGenerating = computed(() => activeJob.value?.status === 'running')
+  const jobs = ref([])
+  const jobsTotal = ref(0)
+  const jobsLastQuery = ref({ status: '', limit: 20, offset: 0 })
+  const jobStats = ref({ queued: 0, running: 0, succeeded: 0, failed: 0, cancelled: 0, total: 0, failureRate: 0 })
+  const jobQueueStats = ref({ queued: 0, running: 0, concurrency: 1 })
+  const isLoadingJobs = ref(false)
+  let jobPollTimer = null
+  const isGenerating = computed(() => ['queued', 'running'].includes(activeJob.value?.status))
+
+  function normalizeJobStatus(status) {
+    const value = String(status || '').trim()
+    if (value === 'succeeded') return 'success'
+    if (value === 'failed') return 'error'
+    if (value === 'queued' || value === 'running') return value
+    if (value === 'success' || value === 'error') return value
+    if (value === 'cancelled') return 'cancelled'
+    return 'running'
+  }
+
+  function toActiveJob(payload = {}) {
+    const job = payload?.job || payload
+    const image = payload?.image || null
+    const id = String(job?.id || '')
+    return {
+      id,
+      mode: job?.mode || 'text',
+      operationType: job?.operationType || job?.operation_type || '',
+      status: normalizeJobStatus(job?.status),
+      prompt: String(job?.prompt || ''),
+      image: image ? toListImage(image) : null,
+      chainId: String(payload?.chainId || image?.continuationChainId || ''),
+      dialogueMessages: Array.isArray(payload?.dialogueMessages) ? payload.dialogueMessages : [],
+      retryable: job?.payload?.retryable === true,
+      attempts: Math.max(0, Math.floor(Number(job?.attempts || 0))),
+      error: String(job?.errorMessage || job?.error || ''),
+      startedAt: job?.createdAt || new Date().toISOString(),
+      updatedAt: job?.updatedAt || '',
+      completedAt: ['succeeded', 'failed', 'success', 'error'].includes(String(job?.status || ''))
+        ? (job?.updatedAt || new Date().toISOString())
+        : ''
+    }
+  }
+
+  function toJobStatusParam(status) {
+    const value = String(status || '').trim()
+    if (!value || value === 'all') return ''
+    if (value === 'success') return 'succeeded'
+    if (value === 'error') return 'failed'
+    if (value === 'active') return 'queued,running'
+    if (value === 'completed') return 'succeeded,failed,cancelled'
+    return value
+  }
+
+  function upsertJob(job) {
+    const nextJob = toActiveJob(job?.job ? job : { job })
+    if (!nextJob.id) return null
+    const idx = jobs.value.findIndex((item) => String(item.id) === String(nextJob.id))
+    if (idx >= 0) {
+      jobs.value.splice(idx, 1, {
+        ...jobs.value[idx],
+        ...nextJob
+      })
+    } else {
+      jobs.value.unshift(nextJob)
+      jobsTotal.value += 1
+    }
+    return nextJob
+  }
+
+  function stopJobPolling() {
+    if (jobPollTimer) window.clearTimeout(jobPollTimer)
+    jobPollTimer = null
+  }
+
+  function upsertImage(image) {
+    const nextImage = image ? toListImage(image) : null
+    if (!nextImage?.id) return null
+    const idx = images.value.findIndex((item) => String(item.id) === String(nextImage.id))
+    if (idx >= 0) {
+      images.value.splice(idx, 1, nextImage)
+    } else {
+      images.value.unshift(nextImage)
+      total.value += 1
+    }
+    return nextImage
+  }
+
+  async function refreshAfterJobSuccess(image) {
+    if (image) upsertImage(image)
+    const authStore = useAuthStore()
+    await authStore.refreshUser()
+    if (image?.continuationChainId) {
+      await fetchDialogueChains({ limit: 100 })
+    }
+  }
+
+  async function pollJob(jobId, { immediate = false } = {}) {
+    const id = String(jobId || '').trim()
+    if (!id) return null
+    stopJobPolling()
+
+    const tick = async () => {
+      try {
+        const data = await apiFetch(`/api/images/jobs/${encodeURIComponent(id)}`, undefined, { toast: false })
+        const nextJob = toActiveJob(data)
+        upsertJob(data)
+        activeJob.value = {
+          ...(activeJob.value || {}),
+          ...nextJob
+        }
+
+        if (nextJob.status === 'success') {
+          await refreshAfterJobSuccess(nextJob.image)
+          activeJob.value = {
+            ...(activeJob.value || {}),
+            status: 'success',
+            image: nextJob.image,
+            completedAt: nextJob.completedAt || new Date().toISOString()
+          }
+          stopJobPolling()
+          return activeJob.value
+        }
+
+        if (nextJob.status === 'error') {
+          activeJob.value = {
+            ...(activeJob.value || {}),
+            status: 'error',
+            error: nextJob.error || '生成失败',
+            completedAt: nextJob.completedAt || new Date().toISOString()
+          }
+          await useAuthStore().refreshUser()
+          stopJobPolling()
+          return activeJob.value
+        }
+
+        jobPollTimer = window.setTimeout(tick, 1600)
+        return activeJob.value
+      } catch (error) {
+        activeJob.value = {
+          ...(activeJob.value || { id }),
+          status: 'error',
+          error: error.message || '任务状态获取失败',
+          completedAt: new Date().toISOString()
+        }
+        stopJobPolling()
+        throw error
+      }
+    }
+
+    if (immediate) return tick()
+    jobPollTimer = window.setTimeout(tick, 1000)
+    return activeJob.value
+  }
+
+  async function restoreActiveJob() {
+    if (isGenerating.value) return activeJob.value
+    try {
+      const data = await apiFetch('/api/images/jobs?status=queued,running&limit=1&offset=0', undefined, {
+        toast: false,
+        redirectOn401: false
+      })
+      const job = Array.isArray(data?.jobs) ? data.jobs[0] : null
+      if (!job?.id && !job?.job?.id) return null
+      activeJob.value = toActiveJob(job)
+      await pollJob(activeJob.value.id, { immediate: true })
+      return activeJob.value
+    } catch {
+      return null
+    }
+  }
+
+  async function ensureNoActiveGeneration() {
+    if (isGenerating.value) {
+      throw new Error('已有图片正在生成，请等待当前任务完成')
+    }
+    const data = await apiFetch('/api/images/jobs?status=queued,running&limit=1&offset=0', undefined, {
+      toast: false
+    })
+    const job = Array.isArray(data?.jobs) ? data.jobs[0] : null
+    if (!job?.id && !job?.job?.id) return
+    activeJob.value = toActiveJob(job)
+    upsertJob(job)
+    void pollJob(activeJob.value.id, { immediate: true })
+    throw new Error('已有图片正在生成，请等待当前任务完成')
+  }
+
+  async function fetchJobs({ status = '', limit = 20, offset = 0 } = {}) {
+    const normalizedLimit = Math.max(1, Math.min(100, Math.floor(Number(limit) || 20)))
+    const normalizedOffset = Math.max(0, Math.floor(Number(offset) || 0))
+    const statusParam = toJobStatusParam(status)
+    isLoadingJobs.value = true
+    try {
+      const search = new URLSearchParams()
+      search.set('limit', String(normalizedLimit))
+      search.set('offset', String(normalizedOffset))
+      if (statusParam) search.set('status', statusParam)
+      const data = await apiFetch(`/api/images/jobs?${search.toString()}`, undefined, { toast: false })
+      jobs.value = Array.isArray(data?.jobs)
+        ? data.jobs.map((job) => toActiveJob(job))
+        : []
+      jobsTotal.value = Number(data?.total ?? jobs.value.length)
+      if (data?.stats) jobStats.value = normalizeJobStats(data.stats)
+      if (data?.queue) jobQueueStats.value = normalizeQueueStats(data.queue)
+      jobsLastQuery.value = { status, limit: normalizedLimit, offset: normalizedOffset }
+      return {
+        jobs: jobs.value,
+        total: jobsTotal.value,
+        limit: normalizedLimit,
+        offset: normalizedOffset
+      }
+    } finally {
+      isLoadingJobs.value = false
+    }
+  }
+
+  function normalizeJobStats(stats = {}) {
+    return {
+      queued: Number(stats.queued || 0),
+      running: Number(stats.running || 0),
+      succeeded: Number(stats.succeeded || 0),
+      failed: Number(stats.failed || 0),
+      cancelled: Number(stats.cancelled || 0),
+      total: Number(stats.total || 0),
+      failureRate: Number(stats.failureRate || 0)
+    }
+  }
+
+  function normalizeQueueStats(stats = {}) {
+    return {
+      queued: Number(stats.queued || 0),
+      running: Number(stats.running || 0),
+      concurrency: Math.max(1, Number(stats.concurrency || 1))
+    }
+  }
+
+  async function fetchJobStats() {
+    const data = await apiFetch('/api/images/jobs/stats', undefined, { toast: false })
+    jobStats.value = normalizeJobStats(data?.stats)
+    jobQueueStats.value = normalizeQueueStats(data?.queue)
+    return { stats: jobStats.value, queue: jobQueueStats.value }
+  }
+
+  async function cancelJob(id) {
+    const data = await apiFetch(`/api/images/jobs/${encodeURIComponent(id)}/cancel`, {
+      method: 'POST'
+    })
+    const job = upsertJob(data)
+    if (activeJob.value?.id === job?.id) activeJob.value = job
+    return job
+  }
+
+  async function retryJob(id) {
+    const data = await apiFetch(`/api/images/jobs/${encodeURIComponent(id)}/retry`, {
+      method: 'POST'
+    })
+    const job = upsertJob(data)
+    if (job) {
+      activeJob.value = job
+      void pollJob(job.id)
+    }
+    return job
+  }
+
+  async function clearCompletedJobs() {
+    const data = await apiFetch('/api/images/jobs/completed', { method: 'DELETE' })
+    const deleted = Number(data?.deleted || 0)
+    if (deleted > 0) {
+      jobs.value = jobs.value.filter((job) => !['success', 'error', 'cancelled'].includes(job.status))
+      jobsTotal.value = Math.max(0, jobsTotal.value - deleted)
+    }
+    return deleted
+  }
+
+  function setQueuedJob(data, fallback = {}) {
+    const nextJob = toActiveJob(data)
+    activeJob.value = {
+      ...fallback,
+      ...nextJob,
+      status: nextJob.status === 'queued' ? 'queued' : 'running',
+      image: null,
+      error: '',
+      startedAt: nextJob.startedAt || new Date().toISOString()
+    }
+    upsertJob({ job: activeJob.value })
+    void pollJob(nextJob.id)
+    return activeJob.value
+  }
 
   function normalizeSourceImageUrl(sourceImageUrl, sourceImageId) {
     const normalizedUrl = String(sourceImageUrl || '').trim()
@@ -67,6 +354,8 @@ export const useImagesStore = defineStore('images', () => {
         .filter(Boolean),
       inputImageUrls: (image.inputImageUrls || [])
         .filter(Boolean),
+      previewImageUrls: (image.previewImageUrls || [])
+        .filter(Boolean),
       mode: image.mode || 'text',
       operationType: image.operationType || (image.mode === 'image' ? 'image_to_image' : 'generate'),
       generationParams: image.generationParams && typeof image.generationParams === 'object'
@@ -78,7 +367,41 @@ export const useImagesStore = defineStore('images', () => {
       folder: String(image.folder || ''),
       tags: Array.isArray(image.tags)
         ? Array.from(new Set(image.tags.map((item) => String(item || '').trim()).filter(Boolean)))
-        : []
+        : [],
+      favoriteAt: String(image.favoriteAt || ''),
+      isFavorite: Boolean(image.isFavorite || image.favoriteAt),
+      feedback: image.feedback && typeof image.feedback === 'object'
+        ? {
+            imageId: String(image.feedback.imageId || image.id || ''),
+            userId: String(image.feedback.userId || ''),
+            rating: ['like', 'dislike'].includes(String(image.feedback.rating || ''))
+              ? String(image.feedback.rating)
+              : 'none',
+            issueType: String(image.feedback.issueType || ''),
+            note: String(image.feedback.note || ''),
+            createdAt: String(image.feedback.createdAt || ''),
+            updatedAt: String(image.feedback.updatedAt || '')
+          }
+        : null
+    }
+  }
+
+  function toDialogueChain(chain) {
+    return {
+      chainId: String(chain?.chainId || ''),
+      title: String(chain?.title || '对话创作'),
+      firstImage: chain?.firstImage ? toListImage(chain.firstImage) : null,
+      lastImage: chain?.lastImage ? toListImage(chain.lastImage) : null,
+      roundCount: Math.max(1, Math.floor(Number(chain?.roundCount || 1))),
+      updatedAt: String(chain?.updatedAt || chain?.lastImage?.createdAt || ''),
+      coverUrl: String(
+        chain?.coverUrl ||
+        chain?.lastImage?.imageUrls?.[0] ||
+        chain?.lastImage?.previewImageUrls?.[0] ||
+        chain?.firstImage?.imageUrls?.[0] ||
+        chain?.firstImage?.previewImageUrls?.[0] ||
+        ''
+      )
     }
   }
 
@@ -92,6 +415,13 @@ export const useImagesStore = defineStore('images', () => {
     const q = String(params.q || '').trim()
     const folder = String(params.folder || 'all').trim()
     const tag = String(params.tag || 'all').trim()
+    const favorite = Boolean(params.favorite)
+    const ratio = String(params.ratio || 'all').trim()
+    const quality = String(params.quality || 'all').trim()
+    const hasReference = Boolean(params.hasReference)
+    const inStyleBoard = Boolean(params.inStyleBoard)
+    const dateFrom = String(params.dateFrom || '').trim()
+    const dateTo = String(params.dateTo || '').trim()
 
     isLoading.value = true
     try {
@@ -102,10 +432,17 @@ export const useImagesStore = defineStore('images', () => {
       if (q) search.set('q', q)
       if (folder && folder !== 'all') search.set('folder', folder)
       if (tag && tag !== 'all') search.set('tag', tag)
+      if (favorite) search.set('favorite', '1')
+      if (ratio && ratio !== 'all') search.set('ratio', ratio)
+      if (quality && quality !== 'all') search.set('quality', quality)
+      if (hasReference) search.set('hasReference', '1')
+      if (inStyleBoard) search.set('inStyleBoard', '1')
+      if (dateFrom) search.set('dateFrom', dateFrom)
+      if (dateTo) search.set('dateTo', dateTo)
       const data = await apiFetch(`/api/images?${search.toString()}`)
       images.value = (data?.images || []).map(toListImage)
       total.value = Number(data?.total ?? images.value.length)
-      lastQuery.value = { limit, offset, mode, q, folder, tag }
+      lastQuery.value = { limit, offset, mode, q, folder, tag, favorite, ratio, quality, hasReference, inStyleBoard, dateFrom, dateTo }
       return {
         images: images.value,
         total: total.value,
@@ -129,6 +466,8 @@ export const useImagesStore = defineStore('images', () => {
     const data = await apiFetch(`/api/images/${id}`)
     return {
       image: data?.image ? toListImage(data.image) : null,
+      sourceImage: data?.sourceImage ? toListImage(data.sourceImage) : null,
+      variants: Array.isArray(data?.variants) ? data.variants.map(toListImage) : [],
       dialogueMessages: Array.isArray(data?.dialogueMessages) ? data.dialogueMessages : []
     }
   }
@@ -157,10 +496,18 @@ export const useImagesStore = defineStore('images', () => {
     }
   }
 
+  async function fetchDialogueChains({ limit = 100 } = {}) {
+    const search = new URLSearchParams()
+    search.set('limit', String(limit))
+    const data = await apiFetch(`/api/images/dialogue/chains?${search.toString()}`)
+    dialogueChains.value = Array.isArray(data?.chains)
+      ? data.chains.map(toDialogueChain).filter((chain) => chain.chainId)
+      : []
+    return dialogueChains.value
+  }
+
   async function generate(prompt, aspectRatio, options = {}) {
-    if (isGenerating.value) {
-      throw new Error('已有图片正在生成，请等待当前任务完成')
-    }
+    await ensureNoActiveGeneration()
 
     await ensureEnoughCredits('text_to_image')
 
@@ -192,14 +539,11 @@ export const useImagesStore = defineStore('images', () => {
         })
       })
 
-      images.value.unshift(toListImage(data.image))
-      activeJob.value = {
-        ...activeJob.value,
-        status: 'success',
-        image: data.image,
-        completedAt: new Date().toISOString()
-      }
-      return data.image
+      return setQueuedJob(data, {
+        mode: 'text',
+        prompt,
+        aspectRatio
+      })
     } catch (error) {
       activeJob.value = {
         ...activeJob.value,
@@ -212,9 +556,7 @@ export const useImagesStore = defineStore('images', () => {
   }
 
   async function generateFromImages(files, prompt, aspectRatio, options = {}) {
-    if (isGenerating.value) {
-      throw new Error('已有图片正在生成，请等待当前任务完成')
-    }
+    await ensureNoActiveGeneration()
 
     const validFiles = Array.isArray(files)
       ? files.filter((file) => file instanceof File)
@@ -256,14 +598,11 @@ export const useImagesStore = defineStore('images', () => {
         body: form
       })
 
-      images.value.unshift(toListImage(data.image))
-      activeJob.value = {
-        ...activeJob.value,
-        status: 'success',
-        image: data.image,
-        completedAt: new Date().toISOString()
-      }
-      return data.image
+      return setQueuedJob(data, {
+        mode: 'image',
+        prompt,
+        aspectRatio
+      })
     } catch (error) {
       activeJob.value = {
         ...activeJob.value,
@@ -288,9 +627,7 @@ export const useImagesStore = defineStore('images', () => {
     background = 'auto',
     moderation = 'auto'
   } = {}) {
-    if (isGenerating.value) {
-      throw new Error('已有图片正在生成，请等待当前任务完成')
-    }
+    await ensureNoActiveGeneration()
 
     if (!String(prompt || '').trim()) {
       throw new Error('请输入这轮对话要求')
@@ -329,19 +666,11 @@ export const useImagesStore = defineStore('images', () => {
         body: form
       })
 
-      const image = toListImage(data.image)
-      images.value.unshift(image)
-      activeJob.value = {
-        ...activeJob.value,
-        status: 'success',
-        image,
-        completedAt: new Date().toISOString()
-      }
-      return {
-        image,
-        chainId: data?.chainId || image.continuationChainId || '',
-        messages: Array.isArray(data?.messages) ? data.messages : []
-      }
+      return setQueuedJob(data, {
+        mode: 'dialogue',
+        prompt,
+        aspectRatio
+      })
     } catch (error) {
       activeJob.value = {
         ...activeJob.value,
@@ -354,9 +683,7 @@ export const useImagesStore = defineStore('images', () => {
   }
 
   async function editImage({ imageFile, maskFile, prompt, aspectRatio, operationType, sourceImageId, sourceImageUrl }) {
-    if (isGenerating.value) {
-      throw new Error('已有图片正在生成，请等待当前任务完成')
-    }
+    await ensureNoActiveGeneration()
 
     if (!imageFile) {
       throw new Error('缺少待编辑图片')
@@ -395,14 +722,12 @@ export const useImagesStore = defineStore('images', () => {
         body: form
       })
 
-      images.value.unshift(toListImage(data.image))
-      activeJob.value = {
-        ...activeJob.value,
-        status: 'success',
-        image: data.image,
-        completedAt: new Date().toISOString()
-      }
-      return data.image
+      return setQueuedJob(data, {
+        mode: operationType === 'cutout' || operationType === 'upscale' ? 'tools' : 'image',
+        operationType,
+        prompt,
+        aspectRatio
+      })
     } catch (error) {
       activeJob.value = {
         ...activeJob.value,
@@ -440,10 +765,71 @@ export const useImagesStore = defineStore('images', () => {
     return nextImage
   }
 
+  function patchFavoriteState(ids, favorite, favoriteAt = '') {
+    const idSet = new Set((Array.isArray(ids) ? ids : [ids]).map((id) => String(id || '')).filter(Boolean))
+    if (!idSet.size) return
+    images.value = images.value.map((image) => {
+      if (!idSet.has(String(image.id || ''))) return image
+      return {
+        ...image,
+        isFavorite: favorite,
+        favoriteAt: favorite ? (favoriteAt || image.favoriteAt || new Date().toISOString()) : ''
+      }
+    })
+  }
+
+  async function updateImageFavorite(id, favorite) {
+    const data = await apiFetch(`/api/images/${encodeURIComponent(id)}/favorite`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ favorite: Boolean(favorite) })
+    })
+    const nextImage = data?.image ? toListImage(data.image) : null
+    if (nextImage) {
+      const idx = images.value.findIndex((im) => String(im.id) === String(id))
+      if (idx >= 0) images.value.splice(idx, 1, nextImage)
+    } else {
+      patchFavoriteState([id], Boolean(favorite))
+    }
+    return nextImage
+  }
+
+  async function updateImageFeedback(id, feedback = {}) {
+    const data = await apiFetch(`/api/images/${encodeURIComponent(id)}/feedback`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(feedback)
+    })
+    const nextFeedback = data?.feedback || null
+    const idx = images.value.findIndex((im) => String(im.id) === String(id))
+    if (idx >= 0) {
+      images.value.splice(idx, 1, {
+        ...images.value[idx],
+        feedback: nextFeedback
+      })
+    }
+    return nextFeedback
+  }
+
+  async function importFavoriteImages(ids = []) {
+    const values = Array.isArray(ids)
+      ? Array.from(new Set(ids.map((id) => String(id || '').trim()).filter(Boolean)))
+      : []
+    if (!values.length) return { imported: 0 }
+    const data = await apiFetch('/api/images/favorites/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageIds: values })
+    }, { toast: false })
+    patchFavoriteState(values, true)
+    return data
+  }
+
   async function deleteDialogueChain(chainId) {
     await apiFetch(`/api/images/dialogue/chain/${encodeURIComponent(chainId)}`, { method: 'DELETE' })
     const removedCount = images.value.filter((im) => String(im.continuationChainId || '') === String(chainId || '')).length
     images.value = images.value.filter((im) => String(im.continuationChainId || '') !== String(chainId || ''))
+    dialogueChains.value = dialogueChains.value.filter((chain) => String(chain.chainId || '') !== String(chainId || ''))
     total.value = Math.max(0, total.value - removedCount)
     toastSuccess('已删除对话')
   }
@@ -451,9 +837,10 @@ export const useImagesStore = defineStore('images', () => {
   async function clearImages() {
     await apiFetch('/api/images', { method: 'DELETE' })
     images.value = []
+    dialogueChains.value = []
     total.value = 0
     toastSuccess('已清空')
   }
 
-  return { images, total, lastQuery, isLoading, activeJob, isGenerating, fetchImages, fetchImage, fetchDialogueHistory, fetchDialogueChain, generate, generateFromImages, continueDialogue, editImage, clearJob, updateImageMeta, deleteImage, deleteDialogueChain, clearImages }
+  return { images, dialogueChains, total, lastQuery, isLoading, activeJob, jobs, jobsTotal, jobsLastQuery, jobStats, jobQueueStats, isLoadingJobs, isGenerating, fetchImages, fetchImage, fetchDialogueHistory, fetchDialogueChain, fetchDialogueChains, restoreActiveJob, pollJob, fetchJobs, fetchJobStats, cancelJob, retryJob, clearCompletedJobs, generate, generateFromImages, continueDialogue, editImage, clearJob, updateImageMeta, updateImageFavorite, updateImageFeedback, importFavoriteImages, deleteImage, deleteDialogueChain, clearImages }
 })

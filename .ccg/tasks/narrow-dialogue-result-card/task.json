@@ -1,0 +1,12 @@
+{
+  "id": "narrow-dialogue-result-card",
+  "title": "继续收窄对话结果卡",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已完成：结果卡最大宽度已小幅降低",
+  "createdAt": "2026-06-01T12:45:26Z",
+  "branch": "main"
+}

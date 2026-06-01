@@ -1,0 +1,13 @@
+{
+  "id": "hide-result-feedback-entry",
+  "title": "将历史详情结果反馈改为隐藏入口",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "等待人工验收历史详情反馈入口",
+  "createdAt": "2026-06-01T12:06:26Z",
+  "completedAt": "2026-06-01T12:10:00Z",
+  "branch": "main"
+}

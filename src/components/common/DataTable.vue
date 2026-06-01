@@ -183,15 +183,15 @@ function onRowClick(e, row) {
 }
 
 .row.clickable:hover {
-  background: rgba(99, 102, 241, 0.045);
+  background: rgba(37, 99, 235, 0.045);
 }
 
 .row.selected {
-  background: rgba(99, 102, 241, 0.08);
+  background: rgba(37, 99, 235, 0.08);
 }
 
 .row:focus-visible {
-  outline: 2px solid rgba(99, 102, 241, 0.55);
+  outline: 2px solid rgba(37, 99, 235, 0.55);
   outline-offset: -2px;
 }
 

@@ -1,0 +1,12 @@
+{
+  "id": "n11-2-prompt-quality-assist",
+  "title": "N11.2 Prompt 质量检查和自动补全",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "frontend/backend",
+  "currentPhase": "completed",
+  "nextAction": "后续可按路线图推进 N11.3 生成结果评分和反馈",
+  "createdAt": "2026-06-01T08:15:58Z",
+  "branch": "main"
+}

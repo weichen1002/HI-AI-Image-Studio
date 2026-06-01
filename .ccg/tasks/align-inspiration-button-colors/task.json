@@ -1,0 +1,12 @@
+{
+  "id": "align-inspiration-button-colors",
+  "title": "统一灵感库按钮颜色",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已完成：灵感库按钮状态已统一到平台主色体系",
+  "createdAt": "2026-06-01T12:49:58Z",
+  "branch": "main"
+}

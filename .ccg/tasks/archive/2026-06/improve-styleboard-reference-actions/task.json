@@ -1,0 +1,12 @@
+{
+  "id": "improve-styleboard-reference-actions",
+  "title": "优化风格板参考图添加入口和卡片操作",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "等待归档",
+  "createdAt": "2026-06-01T00:00:00Z",
+  "branch": "main"
+}

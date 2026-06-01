@@ -96,7 +96,7 @@ function toggle() {
 }
 
 .switch.is-checked .switch-track {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.92), rgba(59, 130, 246, 0.92));
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.92), rgba(59, 130, 246, 0.92));
 }
 
 .switch.is-checked .switch-thumb {

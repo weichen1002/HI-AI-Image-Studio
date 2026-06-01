@@ -1,0 +1,67 @@
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - img "Hi AI Image Studio logo" [ref=e9]
+        - generic [ref=e10]: Hi AI Image Studio
+      - generic [ref=e11]:
+        - generic [ref=e13]:
+          - img [ref=e14]
+          - generic [ref=e17]: Professional Design Power
+        - heading "把一句想法， 变成可以直接使用的 商业图片。" [level=2] [ref=e18]:
+          - text: 把一句想法，
+          - text: 变成可以直接使用的
+          - text: 商业图片。
+        - paragraph [ref=e20]: 面向内容创作者、电商卖家和个人品牌，快速生成海报、封面、商品图与灵感视觉，让设计生产更高效。
+      - generic [ref=e21]:
+        - generic [ref=e22]:
+          - img [ref=e24]
+          - generic [ref=e26]:
+            - generic [ref=e27]: 极速出图
+            - generic [ref=e28]: gpt-image-2模型支持
+        - generic [ref=e29]:
+          - img [ref=e31]
+          - generic [ref=e33]:
+            - generic [ref=e34]: 多比例适配
+            - generic [ref=e35]: 主流社交平台尺寸
+        - generic [ref=e36]:
+          - img [ref=e38]
+          - generic [ref=e40]:
+            - generic [ref=e41]: 灵感管理
+            - generic [ref=e42]: 自动保存随时回溯
+    - generic [ref=e43]:
+      - generic [ref=e44]:
+        - heading "欢迎回来 👋" [level=2] [ref=e45]
+        - paragraph [ref=e46]: 登录你的 Hi AI Image Studio 账户，继续你的 AI 创造之旅
+      - generic [ref=e47]:
+        - generic [ref=e48]:
+          - generic [ref=e49]: 邮箱 / 用户名
+          - generic [ref=e50]:
+            - img
+            - textbox "邮箱 / 用户名" [ref=e51]:
+              - /placeholder: 请输入邮箱或用户名
+        - generic [ref=e52]:
+          - generic [ref=e53]: 密码
+          - generic [ref=e54]:
+            - img
+            - textbox "密码" [ref=e55]:
+              - /placeholder: 请输入密码
+            - button "显示密码" [ref=e56] [cursor=pointer]:
+              - img [ref=e57]
+        - generic [ref=e60]:
+          - generic [ref=e61] [cursor=pointer]:
+            - checkbox "记住我" [ref=e62]
+            - text: 记住我
+          - button "忘记密码?" [ref=e63] [cursor=pointer]
+        - button "登 录" [ref=e64] [cursor=pointer]:
+          - generic [ref=e65]: 登 录
+        - generic [ref=e67]: 或通过以下方式
+        - generic [ref=e68]:
+          - button "使用 Google 登录" [ref=e69] [cursor=pointer]:
+            - img [ref=e70]
+          - button "使用 GitHub 登录" [ref=e75] [cursor=pointer]:
+            - img [ref=e76]
+        - generic [ref=e78]:
+          - text: 还没有账户？
+          - button "立即注册" [ref=e79] [cursor=pointer]
+  - generic [ref=e80]: © 2026 Hi AI Image Studio. All rights reserved.

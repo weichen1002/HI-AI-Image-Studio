@@ -1,0 +1,13 @@
+{
+  "id": "collapse-style-board-panel",
+  "title": "将创作工作台项目风格板改为可折叠辅助区",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "等待人工验收风格板折叠入口",
+  "createdAt": "2026-06-01T12:27:12Z",
+  "completedAt": "2026-06-01T12:30:00Z",
+  "branch": "main"
+}

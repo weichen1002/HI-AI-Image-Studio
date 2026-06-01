@@ -1,0 +1,12 @@
+{
+  "id": "soften-route-loading-ui",
+  "title": "弱化页面切换 loading 文案与层级",
+  "status": "in_progress",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已完成，待归档",
+  "createdAt": "2026-06-01T08:23:59Z",
+  "branch": "main"
+}

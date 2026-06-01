@@ -1,0 +1,12 @@
+{
+  "id": "n8-3-database-backup-restore",
+  "title": "数据库备份和恢复脚本",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "ops",
+  "currentPhase": "completed",
+  "nextAction": "等待后续任务；按用户要求不归档不提交",
+  "createdAt": "2026-05-29T03:41:49Z",
+  "branch": "main"
+}

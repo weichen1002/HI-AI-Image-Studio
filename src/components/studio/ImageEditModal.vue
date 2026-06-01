@@ -365,7 +365,7 @@ function renderOutpaintStage() {
   baseCtx.fillRect(0, 0, baseCanvas.width, baseCanvas.height)
   baseCtx.drawImage(sourceImage.value, offsetX, offsetY, sourceWidth, sourceHeight)
 
-  overlayCtx.fillStyle = 'rgba(99, 102, 241, 0.12)'
+  overlayCtx.fillStyle = 'rgba(37, 99, 235, 0.12)'
   const regions = getOutpaintRegions(
     fit.width,
     fit.height,
@@ -377,7 +377,7 @@ function renderOutpaintStage() {
   for (const region of regions) {
     overlayCtx.fillRect(region.x, region.y, region.width, region.height)
   }
-  overlayCtx.strokeStyle = 'rgba(99, 102, 241, 0.55)'
+  overlayCtx.strokeStyle = 'rgba(37, 99, 235, 0.55)'
   overlayCtx.lineWidth = 2
   overlayCtx.strokeRect(offsetX, offsetY, sourceWidth, sourceHeight)
 }
@@ -507,7 +507,7 @@ function endDraw(event) {
 
 function drawPreviewMask(ctx, width, height) {
   ctx.clearRect(0, 0, width, height)
-  ctx.strokeStyle = 'rgba(236, 72, 153, 0.42)'
+  ctx.strokeStyle = 'rgba(14, 165, 233, 0.46)'
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
   for (const stroke of strokes.value) {
@@ -686,8 +686,8 @@ onBeforeUnmount(() => {
   border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, 0.65);
   background:
-    radial-gradient(900px 320px at 0% 0%, rgba(99, 102, 241, 0.12), transparent 55%),
-    radial-gradient(780px 260px at 100% 0%, rgba(236, 72, 153, 0.10), transparent 55%),
+    radial-gradient(900px 320px at 0% 0%, rgba(37, 99, 235, 0.12), transparent 55%),
+    radial-gradient(780px 260px at 100% 0%, rgba(14, 165, 233, 0.07), transparent 55%),
     rgba(255, 255, 255, 0.96);
   box-shadow: 0 28px 90px rgba(15, 23, 42, 0.22);
 }
@@ -761,8 +761,8 @@ onBeforeUnmount(() => {
 
 .mode-btn.active,
 .expand-btn.active {
-  border-color: rgba(99, 102, 241, 0.24);
-  background: rgba(99, 102, 241, 0.10);
+  border-color: rgba(37, 99, 235, 0.24);
+  background: rgba(37, 99, 235, 0.10);
   color: var(--primary);
 }
 
@@ -813,8 +813,8 @@ onBeforeUnmount(() => {
   height: 30px;
   padding: 0 10px;
   border-radius: 999px;
-  border: 1px solid rgba(99, 102, 241, 0.16);
-  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  background: rgba(37, 99, 235, 0.08);
   color: var(--primary);
   font-size: 12px;
   font-weight: 900;

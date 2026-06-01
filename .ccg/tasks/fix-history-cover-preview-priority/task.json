@@ -1,0 +1,12 @@
+{
+  "id": "fix-history-cover-preview-priority",
+  "title": "修复灵感记录列表封面优先展示预览占位图",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已将历史列表和对话链封面优先级改为真实结果图优先",
+  "createdAt": "2026-06-01T02:02:58Z",
+  "branch": "main"
+}

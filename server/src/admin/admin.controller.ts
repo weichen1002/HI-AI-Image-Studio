@@ -11,6 +11,7 @@ import {
   Query,
   Req,
   UseGuards,
+  Header,
 } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import type { RequestWithUser } from '../auth/auth.guard';
@@ -29,6 +30,10 @@ import { SqliteService } from '../db/sqlite.service';
 import { ImagesRepo } from '../db/repositories/images.repo';
 import { DialogueRepo } from '../db/repositories/dialogue.repo';
 import { AuditLogsRepo } from '../db/repositories/audit-logs.repo';
+import {
+  ImageFeedbackRepo,
+  type ImageFeedbackRating,
+} from '../db/repositories/image-feedback.repo';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { config } from '../config';
@@ -57,6 +62,86 @@ function normalizeOptionalNumber(value: string | undefined) {
   const n = Number(raw);
   if (!Number.isFinite(n)) return undefined;
   return n;
+}
+
+function normalizeFeedbackRating(value: string | undefined): ImageFeedbackRating | 'all' {
+  const rating = String(value || 'all').trim();
+  if (rating === 'like' || rating === 'dislike' || rating === 'none') return rating;
+  return 'all';
+}
+
+function normalizeFeedbackIssueType(value: string | undefined) {
+  const issueType = String(value || '').trim();
+  if (
+    issueType === 'bad_quality' ||
+    issueType === 'wrong_subject' ||
+    issueType === 'bad_text' ||
+    issueType === 'composition' ||
+    issueType === 'unsafe' ||
+    issueType === 'other'
+  ) {
+    return issueType;
+  }
+  return '';
+}
+
+function normalizeDashboardRange(value: string | undefined) {
+  const range = String(value || '7d').trim();
+  if (range === '24h' || range === '7d' || range === '30d') return range;
+  return '7d';
+}
+
+function startDateForRange(range: '24h' | '7d' | '30d') {
+  const date = new Date();
+  if (range === '24h') date.setHours(date.getHours() - 24);
+  if (range === '7d') date.setDate(date.getDate() - 7);
+  if (range === '30d') date.setDate(date.getDate() - 30);
+  return date.toISOString();
+}
+
+function percent(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.round(value * 10000) / 100;
+}
+
+const EXPORT_LIMIT = 1000;
+
+function csvValue(value: unknown) {
+  const raw = value === undefined || value === null ? '' : String(value);
+  const guarded = /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
+  return `"${guarded.replace(/"/g, '""')}"`;
+}
+
+function toCsv(headers: string[], rows: unknown[][]) {
+  return [
+    headers.map(csvValue).join(','),
+    ...rows.map((row) => row.map(csvValue).join(',')),
+  ].join('\n');
+}
+
+function maskId(value: unknown) {
+  const text = String(value || '').trim();
+  if (text.length <= 10) return text;
+  return `${text.slice(0, 6)}...${text.slice(-4)}`;
+}
+
+function safeJson(value: unknown) {
+  if (!value) return '';
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function csvResponse(name: string, csv: string, total: number) {
+  return [
+    `# export=${name}`,
+    `# maxRows=${EXPORT_LIMIT}`,
+    `# exportedRows=${Math.min(total, EXPORT_LIMIT)}`,
+    `# totalMatched=${total}`,
+    csv,
+  ].join('\n');
 }
 
 function normalizeNonNegativeInt(value: unknown, fallback = 0) {
@@ -111,6 +196,7 @@ export class AdminController {
     private readonly imagesRepo: ImagesRepo,
     private readonly dialogueRepo: DialogueRepo,
     private readonly auditLogsRepo: AuditLogsRepo,
+    private readonly imageFeedbackRepo: ImageFeedbackRepo,
   ) {}
 
   @Get('users')
@@ -172,6 +258,142 @@ export class AdminController {
     };
   }
 
+  @Get('dashboard')
+  getDashboard(@Query('range') rangeValue?: string) {
+    const range = normalizeDashboardRange(rangeValue);
+    const since = startDateForRange(range);
+    const db = this.sqlite.connection;
+
+    const usersRow = db
+      .prepare(
+        `SELECT
+           COUNT(1) AS totalUsers,
+           SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS activeUsers,
+           SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS newUsers,
+           COUNT(DISTINCT CASE WHEN last_used_at >= ? THEN id ELSE NULL END) AS activeInRange
+         FROM users`,
+      )
+      .get(since, since) as any;
+
+    const jobsRow = db
+      .prepare(
+        `SELECT
+           COUNT(1) AS totalJobs,
+           SUM(CASE WHEN status = 'succeeded' THEN 1 ELSE 0 END) AS succeededJobs,
+           SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failedJobs,
+           SUM(CASE WHEN status IN ('queued', 'running') THEN 1 ELSE 0 END) AS activeJobs
+         FROM image_jobs
+         WHERE created_at >= ?`,
+      )
+      .get(since) as any;
+
+    const creditRow = db
+      .prepare(
+        `SELECT
+           COALESCE(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 0) AS consumed,
+           COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) AS credited,
+           COUNT(1) AS ledgerCount
+         FROM credit_ledgers
+         WHERE created_at >= ?`,
+      )
+      .get(since) as any;
+
+    const ordersRow = db
+      .prepare(
+        `SELECT
+           COUNT(1) AS totalOrders,
+           SUM(CASE WHEN status = 'paid' THEN 1 ELSE 0 END) AS paidOrders,
+           SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pendingOrders,
+           SUM(CASE WHEN status = 'refunded' THEN 1 ELSE 0 END) AS refundedOrders,
+           COALESCE(SUM(CASE WHEN status = 'paid' THEN amount_cents ELSE 0 END), 0) AS revenueCents
+         FROM billing_orders
+         WHERE created_at >= ?`,
+      )
+      .get(since) as any;
+
+    const failureReasons = db
+      .prepare(
+        `SELECT
+           CASE
+             WHEN error_message IS NULL OR TRIM(error_message) = '' THEN 'unknown'
+             ELSE SUBSTR(TRIM(error_message), 1, 80)
+           END AS reason,
+           COUNT(1) AS count
+         FROM image_jobs
+         WHERE created_at >= ?
+           AND status = 'failed'
+         GROUP BY reason
+         ORDER BY count DESC, reason ASC
+         LIMIT 8`,
+      )
+      .all(since) as Array<{ reason?: string; count?: number }>;
+
+    const feedbackReasons = db
+      .prepare(
+        `SELECT
+           CASE
+             WHEN TRIM(issue_type) != '' THEN issue_type
+             WHEN rating = 'dislike' THEN 'dislike'
+             WHEN TRIM(note) != '' THEN 'note'
+             ELSE 'other'
+           END AS reason,
+           COUNT(1) AS count
+         FROM image_feedbacks
+         WHERE updated_at >= ?
+           AND (rating = 'dislike' OR TRIM(issue_type) != '' OR TRIM(note) != '')
+         GROUP BY reason
+         ORDER BY count DESC, reason ASC
+         LIMIT 8`,
+      )
+      .all(since) as Array<{ reason?: string; count?: number }>;
+
+    const jobTotal = Number(jobsRow?.totalJobs || 0);
+    const jobCompleted = Number(jobsRow?.succeededJobs || 0) + Number(jobsRow?.failedJobs || 0);
+    const paidOrders = Number(ordersRow?.paidOrders || 0);
+    const totalOrders = Number(ordersRow?.totalOrders || 0);
+
+    return {
+      range,
+      since,
+      users: {
+        total: Number(usersRow?.totalUsers || 0),
+        active: Number(usersRow?.activeUsers || 0),
+        newInRange: Number(usersRow?.newUsers || 0),
+        activeInRange: Number(usersRow?.activeInRange || 0),
+      },
+      jobs: {
+        total: jobTotal,
+        succeeded: Number(jobsRow?.succeededJobs || 0),
+        failed: Number(jobsRow?.failedJobs || 0),
+        active: Number(jobsRow?.activeJobs || 0),
+        successRate: jobCompleted > 0
+          ? percent(Number(jobsRow?.succeededJobs || 0) / jobCompleted)
+          : 0,
+      },
+      credits: {
+        consumed: Number(creditRow?.consumed || 0),
+        credited: Number(creditRow?.credited || 0),
+        ledgerCount: Number(creditRow?.ledgerCount || 0),
+      },
+      orders: {
+        total: totalOrders,
+        paid: paidOrders,
+        pending: Number(ordersRow?.pendingOrders || 0),
+        refunded: Number(ordersRow?.refundedOrders || 0),
+        revenueCents: Number(ordersRow?.revenueCents || 0),
+        payRate: totalOrders > 0 ? percent(paidOrders / totalOrders) : 0,
+      },
+      failureReasons: failureReasons.map((item) => ({
+        reason: String(item.reason || 'unknown'),
+        count: Number(item.count || 0),
+      })),
+      feedbackReasons: feedbackReasons.map((item) => ({
+        reason: String(item.reason || 'other'),
+        count: Number(item.count || 0),
+      })),
+    };
+  }
+
   @Get('settings/signup-bonus')
   getSignupBonusSettings() {
     const rules = this.settingsRepo.getSignupBonusRules();
@@ -211,6 +433,7 @@ export class AdminController {
       },
       pricing: bootstrap.pricing,
       model: bootstrap.model,
+      modelCapabilities: bootstrap.modelCapabilities,
       upload: bootstrap.upload,
     };
   }
@@ -318,6 +541,23 @@ export class AdminController {
       refType: 'admin',
       refId: req.user.id,
     });
+    this.auditLogsRepo.create({
+      actorUserId: req.user.id,
+      targetUserId: id,
+      category: 'admin',
+      action: 'user_credits_adjusted',
+      status: 'success',
+      ip: requestIp(req),
+      userAgent: requestUserAgent(req),
+      detail: {
+        username: user.username,
+        amount: result.entry.amount,
+        reason: result.entry.reason,
+        ledgerEntryId: result.entry.id,
+        before: { creditBalance: user.creditBalance },
+        after: { creditBalance: result.balance },
+      },
+    });
     return result;
   }
 
@@ -351,7 +591,11 @@ export class AdminController {
 
   @Post('users/:id/role')
   @UseGuards(SuperAdminRoleGuard)
-  updateRole(@Param('id') id: string, @Body() body: any) {
+  updateRole(
+    @Param('id') id: string,
+    @Body() body: any,
+    @Req() req: RequestWithUser,
+  ) {
     const role = String(body?.role || '');
     if (role !== 'user' && role !== 'admin') {
       throw new HttpException(
@@ -369,6 +613,20 @@ export class AdminController {
 
     this.usersRepo.updateRole(id, role);
     const next = this.usersRepo.findById(id);
+    this.auditLogsRepo.create({
+      actorUserId: req.user.id,
+      targetUserId: id,
+      category: 'admin',
+      action: 'user_role_updated',
+      status: 'success',
+      ip: requestIp(req),
+      userAgent: requestUserAgent(req),
+      detail: {
+        username: user.username,
+        before: { role: user.role },
+        after: { role },
+      },
+    });
     return { user: next };
   }
 
@@ -403,7 +661,11 @@ export class AdminController {
       status: 'success',
       ip: requestIp(req),
       userAgent: requestUserAgent(req),
-      detail: { username: user.username },
+      detail: {
+        username: user.username,
+        before: { status: user.status },
+        after: { status },
+      },
     });
     return { user: this.usersRepo.findById(id) };
   }
@@ -450,10 +712,19 @@ export class AdminController {
     }
 
     const assetUrls = this.imagesRepo.listAssetUrlsByUser({ userId: id });
+    const deletedUserSnapshot = {
+      username: user.username,
+      plan: user.plan,
+      role: user.role,
+      status: user.status,
+      creditBalance: user.creditBalance,
+      createdAt: user.createdAt,
+    };
 
     this.sqlite.transaction(() => {
       this.dialogueRepo.deleteAllByUser({ userId: id });
       this.imagesRepo.deleteAllByUser({ userId: id });
+      this.imageFeedbackRepo.deleteAllByUser({ userId: id });
       this.sqlite.connection
         .prepare('DELETE FROM credit_ledgers WHERE user_id = ?')
         .run(id);
@@ -478,7 +749,11 @@ export class AdminController {
       status: 'success',
       ip: requestIp(req),
       userAgent: requestUserAgent(req),
-      detail: { username: user.username },
+      detail: {
+        username: user.username,
+        before: deletedUserSnapshot,
+        deletedAssets: assetUrls.length,
+      },
     });
 
     return { ok: true };
@@ -511,5 +786,228 @@ export class AdminController {
       limit,
       offset,
     });
+  }
+
+  @Get('exports/users')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="users.csv"')
+  exportUsers(
+    @Query('search') search?: string,
+    @Query('plan') plan?: string,
+    @Query('role') role?: string,
+    @Query('status') status?: string,
+    @Query('minBalance') minBalanceValue?: string,
+    @Query('maxBalance') maxBalanceValue?: string,
+    @Query('lowBalanceOnly') lowBalanceOnlyValue?: string,
+  ) {
+    const planValue =
+      plan === 'free' || plan === 'pro' ? (plan as UserPlan) : undefined;
+    const roleValue =
+      role === 'user' || role === 'admin' || role === 'superadmin'
+        ? (role as UserRole)
+        : undefined;
+    const statusValue =
+      status === 'active' || status === 'banned' || status === 'pending_verification'
+        ? (status as UserStatus)
+        : undefined;
+    const result = this.usersRepo.listPaged({
+      q: search,
+      plan: planValue,
+      role: roleValue,
+      status: statusValue,
+      minBalance: normalizeOptionalNumber(minBalanceValue),
+      maxBalance: normalizeOptionalNumber(maxBalanceValue),
+      lowBalanceOnly: normalizeBoolean(lowBalanceOnlyValue),
+      limit: EXPORT_LIMIT,
+      offset: 0,
+    });
+    const csv = toCsv(
+      ['id', 'username', 'plan', 'role', 'status', 'creditBalance', 'createdAt', 'lastUsedAt'],
+      result.users.map((user) => [
+        maskId(user.id),
+        user.username,
+        user.plan,
+        user.role,
+        user.status,
+        user.creditBalance,
+        user.createdAt,
+        user.lastUsedAt,
+      ]),
+    );
+    return csvResponse('users', csv, result.total);
+  }
+
+  @Get('exports/orders')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="billing-orders.csv"')
+  exportOrders(
+    @Query('userId') userId?: string,
+    @Query('status') status?: string,
+  ) {
+    const statusValue =
+      status === 'pending' ||
+      status === 'paid' ||
+      status === 'refunded' ||
+      status === 'cancelled' ||
+      status === 'failed'
+        ? status
+        : undefined;
+    const where: string[] = [];
+    const values: any[] = [];
+    const id = String(userId || '').trim();
+    if (id) {
+      where.push('user_id = ?');
+      values.push(id);
+    }
+    if (statusValue) {
+      where.push('status = ?');
+      values.push(statusValue);
+    }
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const totalRow = this.sqlite.connection
+      .prepare(`SELECT COUNT(1) AS c FROM billing_orders ${whereSql}`)
+      .get(...values) as any;
+    const rows = this.sqlite.connection
+      .prepare(
+        `SELECT * FROM billing_orders ${whereSql}
+         ORDER BY created_at DESC
+         LIMIT ?`,
+      )
+      .all(...values, EXPORT_LIMIT) as any[];
+    const csv = toCsv(
+      [
+        'id',
+        'userId',
+        'packageName',
+        'creditsAmount',
+        'amountCents',
+        'currency',
+        'status',
+        'paymentChannel',
+        'paymentRef',
+        'createdAt',
+        'paidAt',
+        'refundedAt',
+      ],
+      rows.map((row) => [
+        maskId(row.id),
+        maskId(row.user_id),
+        row.package_name,
+        row.credits_amount,
+        row.amount_cents,
+        row.currency,
+        row.status,
+        row.payment_channel || 'manual',
+        maskId(row.payment_ref),
+        row.created_at,
+        row.paid_at,
+        row.refunded_at,
+      ]),
+    );
+    return csvResponse('billing-orders', csv, Number(totalRow?.c || 0));
+  }
+
+  @Get('exports/ledger')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="credit-ledger.csv"')
+  exportLedger(
+    @Query('userId') userId?: string,
+    @Query('type') type?: string,
+  ) {
+    const id = String(userId || '').trim();
+    if (!id) {
+      throw new HttpException('导出流水需要 userId', HttpStatus.BAD_REQUEST);
+    }
+    const allowed = ['grant', 'charge', 'refund', 'adjust'];
+    const typeValue = type ? String(type) : '';
+    if (typeValue && !allowed.includes(typeValue)) {
+      throw new HttpException('type 不合法', HttpStatus.BAD_REQUEST);
+    }
+    const result = this.creditsRepo.listByUserPaged({
+      userId: id,
+      type: typeValue ? (typeValue as LedgerType) : undefined,
+      limit: EXPORT_LIMIT,
+      offset: 0,
+    });
+    const csv = toCsv(
+      ['id', 'userId', 'type', 'amount', 'reason', 'refType', 'refId', 'createdAt'],
+      result.entries.map((entry) => [
+        maskId(entry.id),
+        maskId(entry.userId),
+        entry.type,
+        entry.amount,
+        entry.reason,
+        entry.refType || '',
+        maskId(entry.refId),
+        entry.createdAt,
+      ]),
+    );
+    return csvResponse('credit-ledger', csv, result.total);
+  }
+
+  @Get('exports/audit-logs')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="audit-logs.csv"')
+  exportAuditLogs(
+    @Query('category') category?: string,
+    @Query('action') action?: string,
+    @Query('status') status?: string,
+    @Query('userId') userId?: string,
+  ) {
+    const categoryValue =
+      category === 'auth' || category === 'admin' || category === 'security'
+        ? category
+        : undefined;
+    const statusValue =
+      status === 'success' || status === 'failure' ? status : undefined;
+    const result = this.auditLogsRepo.listPaged({
+      category: categoryValue,
+      action: String(action || '').trim() || undefined,
+      status: statusValue,
+      userId: String(userId || '').trim() || undefined,
+      limit: EXPORT_LIMIT,
+      offset: 0,
+    });
+    const csv = toCsv(
+      ['id', 'actorUserId', 'targetUserId', 'category', 'action', 'status', 'ip', 'detail', 'createdAt'],
+      result.entries.map((entry) => [
+        maskId(entry.id),
+        maskId(entry.actorUserId),
+        maskId(entry.targetUserId),
+        entry.category,
+        entry.action,
+        entry.status,
+        entry.ip,
+        safeJson(entry.detail),
+        entry.createdAt,
+      ]),
+    );
+    return csvResponse('audit-logs', csv, result.total);
+  }
+
+  @Get('image-feedback')
+  listImageFeedback(
+    @Query('rating') ratingValue?: string,
+    @Query('issueType') issueTypeValue?: string,
+    @Query('lowOnly') lowOnlyValue?: string,
+    @Query('page') pageValue?: string,
+    @Query('limit') limitValue?: string,
+  ) {
+    const limit = normalizeLimit(limitValue, 100, 20);
+    const page = normalizePage(pageValue, 1);
+    const offset = (page - 1) * limit;
+    const result = this.imageFeedbackRepo.listSamples({
+      rating: normalizeFeedbackRating(ratingValue),
+      issueType: normalizeFeedbackIssueType(issueTypeValue),
+      lowOnly: normalizeBoolean(lowOnlyValue),
+      limit,
+      offset,
+    });
+    return {
+      samples: result.items,
+      total: result.total,
+      page,
+      limit,
+    };
   }
 }

@@ -7,13 +7,17 @@
     "dev": "vite",
     "server": "npm run start:dev --prefix server",
     "sync:inspiration": "node scripts/sync-inspiration-templates.mjs",
+    "backup:data": "node scripts/backup-data.mjs",
+    "restore:data": "node scripts/restore-data.mjs",
     "build": "vite build && npm run build --prefix server",
+    "smoke:frontend": "node scripts/smoke-frontend.mjs",
     "deploy": "bash scripts/deploy.sh",
     "preview": "vite preview",
     "start": "npm run start:prod --prefix server"
   },
   "dependencies": {
     "@vitejs/plugin-vue": "^5.2.4",
+    "echarts": "^6.1.0",
     "lucide-vue-next": "^1.0.0",
     "pinia": "^3.0.4",
     "vite": "^6.0.0",

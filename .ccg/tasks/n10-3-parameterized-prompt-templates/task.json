@@ -1,0 +1,12 @@
+{
+  "id": "n10-3-parameterized-prompt-templates",
+  "title": "N10.3 参数化提示词模板",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "frontend/backend",
+  "currentPhase": "completed",
+  "nextAction": "后续可按路线图推进 N11.2 Prompt 质量检查和自动补全",
+  "createdAt": "2026-06-01T07:40:44Z",
+  "branch": "main"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "n8-2-structured-logs",
+  "title": "任务和支付链路结构化日志",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "backend",
+  "currentPhase": "completed",
+  "nextAction": "等待后续任务；按用户要求不归档不提交",
+  "createdAt": "2026-05-29T03:35:08Z",
+  "branch": "main"
+}

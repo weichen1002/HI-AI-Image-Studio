@@ -4,12 +4,14 @@ import cookieParser from 'cookie-parser';
 import * as express from 'express';
 import * as path from 'path';
 import { config } from './config';
+import { assertStartupConfig } from './config';
 import { ApiExceptionFilter } from './filters/api-exception.filter';
 import { ApiResponseInterceptor } from './interceptors/api-response.interceptor';
 import { requestLoggingMiddleware } from './logging/request-logging.middleware';
 import { logError, logInfo } from './logging/logger';
 
 async function bootstrap() {
+  const startupConfig = assertStartupConfig();
   const app = await NestFactory.create(AppModule);
 
   app.use(express.json({ limit: config.BODY_LIMIT }));
@@ -32,6 +34,7 @@ async function bootstrap() {
     bodyLimit: config.BODY_LIMIT,
     dataDir: config.DATA_DIR,
     hiapiKey: config.HIAPI_API_KEY ? 'configured' : 'missing',
+    configWarnings: startupConfig.warnings,
   });
 }
 

@@ -1,0 +1,13 @@
+{
+  "id": "polish-models-toolbar",
+  "title": "优化灵感库 models toolbar 功能分区",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "等待人工验收灵感库工具栏",
+  "createdAt": "2026-06-01T12:18:12Z",
+  "completedAt": "2026-06-01T12:22:00Z",
+  "branch": "main"
+}

@@ -1,0 +1,9 @@
+[   78082ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3103/api/style-boards:0
+[   78149ms] ApiError: 网络异常，请检查网络连接后重试
+    at O (http://127.0.0.1:3103/assets/index-DdbwJ3ES.js:2:5662)
+    at async Proxy.l (http://127.0.0.1:3103/assets/styleBoards-deEHVIOk.js:1:759)
+    at async z (http://127.0.0.1:3103/assets/StyleBoardsView-CWF-Kg1v.js:1:1326)
+[   78151ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3103/favicon.png:0
+[   82978ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3103/assets/Pagination-CTpFlRhz.js:0
+[   82978ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3103/assets/TasksView-ovDY9onS.css:0
+[   82978ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:3103/assets/TasksView-CvdLKBSK.js:0

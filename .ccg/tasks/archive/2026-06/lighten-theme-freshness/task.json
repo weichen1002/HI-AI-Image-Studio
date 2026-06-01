@@ -1,0 +1,12 @@
+{
+  "id": "lighten-theme-freshness",
+  "title": "轻微提亮平台主题清新感",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已完成：微调主渐变、背景和阴影，降低沉重感",
+  "createdAt": "2026-06-01T12:43:55Z",
+  "branch": "main"
+}

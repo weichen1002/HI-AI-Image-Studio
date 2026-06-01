@@ -1,0 +1,12 @@
+{
+  "id": "extract-platform-logo",
+  "title": "提取平台 logo 的圆角图标内容",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已生成裁切后的圆角 logo 资源",
+  "createdAt": "2026-06-01T12:37:37Z",
+  "branch": "main"
+}

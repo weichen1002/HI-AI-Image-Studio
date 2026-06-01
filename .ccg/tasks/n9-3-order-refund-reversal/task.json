@@ -1,0 +1,12 @@
+{
+  "id": "n9-3-order-refund-reversal",
+  "title": "订单退款和积分冲正",
+  "status": "completed",
+  "complexity": "L",
+  "risk": "high",
+  "domain": "backend",
+  "currentPhase": "completed",
+  "nextAction": "等待用户反馈下一批问题；按用户要求暂不归档、不提交",
+  "createdAt": "2026-05-29T04:22:04Z",
+  "branch": "main"
+}

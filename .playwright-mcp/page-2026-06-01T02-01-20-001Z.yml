@@ -1,0 +1,90 @@
+- generic [ref=e81]:
+  - complementary "主导航" [ref=e82]:
+    - generic [ref=e83]:
+      - link "Hi AI Image Studio logo Hi AI Image Studio" [ref=e84] [cursor=pointer]:
+        - /url: /studio
+        - img "Hi AI Image Studio logo" [ref=e86]
+        - generic [ref=e87]: Hi AI Image Studio
+      - button "收起侧边栏" [ref=e88] [cursor=pointer]:
+        - img [ref=e89]
+    - navigation [ref=e92]:
+      - link "创作工作台" [ref=e93] [cursor=pointer]:
+        - /url: /studio
+        - img [ref=e94]
+        - generic [ref=e99]: 创作工作台
+      - link "对话创作" [ref=e100] [cursor=pointer]:
+        - /url: /studio/dialogue
+        - img [ref=e101]
+        - generic [ref=e103]: 对话创作
+      - link "灵感记录" [ref=e104] [cursor=pointer]:
+        - /url: /studio/history
+        - img [ref=e105]
+        - generic [ref=e107]: 灵感记录
+      - link "任务中心" [ref=e108] [cursor=pointer]:
+        - /url: /studio/tasks
+        - img [ref=e109]
+        - generic [ref=e112]: 任务中心
+      - link "风格板" [ref=e113] [cursor=pointer]:
+        - /url: /studio/style-boards
+        - img [ref=e114]
+        - generic [ref=e116]: 风格板
+      - link "灵感库" [ref=e117] [cursor=pointer]:
+        - /url: /studio/models
+        - img [ref=e118]
+        - generic [ref=e122]: 灵感库
+      - link "充值中心" [ref=e123] [cursor=pointer]:
+        - /url: /studio/billing
+        - img [ref=e124]
+        - generic [ref=e127]: 充值中心
+      - link "偏好设置" [ref=e129] [cursor=pointer]:
+        - /url: /studio/settings
+        - img [ref=e130]
+        - generic [ref=e133]: 账户与偏好
+  - main [ref=e134]:
+    - generic [ref=e135]:
+      - generic [ref=e136]:
+        - generic [ref=e138]: 任务中心
+        - generic [ref=e139]: 跟踪排队、运行、成功和失败的生成任务。
+      - generic [ref=e140]:
+        - generic [ref=e141]:
+          - generic [ref=e142]: FREE
+          - generic [ref=e143]: 余额 100
+          - button "兑换码" [ref=e144] [cursor=pointer]:
+            - img [ref=e145]
+            - generic [ref=e149]: 兑换码
+        - button "公告" [ref=e151]:
+          - button "公告" [ref=e152] [cursor=pointer]:
+            - img [ref=e153]
+        - button "用户菜单" [ref=e157]:
+          - button "用户菜单" [ref=e158] [cursor=pointer]:
+            - generic [ref=e159]: U
+            - generic [ref=e160]:
+              - generic [ref=e161]: ui-polish@example.com
+              - generic [ref=e162]: user
+            - img [ref=e163]
+    - generic [ref=e167]:
+      - generic [ref=e168]:
+        - generic [ref=e169]:
+          - generic [ref=e170]:
+            - generic [ref=e171]: 0/2
+            - generic [ref=e172]: 并发
+          - generic [ref=e173]:
+            - generic [ref=e174]: "0"
+            - generic [ref=e175]: 队列
+          - generic [ref=e176]:
+            - generic [ref=e177]: 0%
+            - generic [ref=e178]: 失败率
+        - generic [ref=e179]: 后台生成任务会在这里保留状态，刷新页面后也能继续追踪。
+        - generic [ref=e180]:
+          - button "刷新" [ref=e181] [cursor=pointer]:
+            - generic [ref=e182]: 刷新
+          - button "清理已完成" [ref=e183] [cursor=pointer]:
+            - generic [ref=e184]: 清理已完成
+      - generic [ref=e185]:
+        - generic [ref=e186]:
+          - button "全部" [ref=e187] [cursor=pointer]
+          - button "进行中" [ref=e188] [cursor=pointer]
+          - button "成功" [ref=e189] [cursor=pointer]
+          - button "失败" [ref=e190] [cursor=pointer]
+        - generic [ref=e191]: 0 条任务
+      - generic [ref=e192]: 暂无任务

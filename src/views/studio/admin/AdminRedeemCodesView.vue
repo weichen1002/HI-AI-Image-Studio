@@ -2,7 +2,7 @@
   <TablePageLayout title="" subtitle="" density="compact" variant="plain">
     <AdminListLayout>
       <template #filters>
-        <SearchInput v-model="query" placeholder="搜索标题或遮罩码..." @keydown.enter.prevent="load" />
+        <SearchInput v-model="query" placeholder="搜索标题或遮罩码..." @keydown.enter.prevent="search" />
         <SelectMenu v-model="typeFilter" size="sm" :options="typeFilterOptions" placeholder="全部类型" class="sel" />
         <SelectMenu v-model="statusFilter" size="sm" :options="statusFilterOptions" placeholder="全部状态" class="sel" />
       </template>
@@ -198,9 +198,9 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref, watch } from 'vue'
+import { onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { RefreshCcwIcon } from 'lucide-vue-next'
-import { Button, DataTable, Input, Modal, Pagination, SearchInput, SelectMenu, Switch, toastError, toastSuccess } from '../../../components/common'
+import { Button, DataTable, Input, Modal, Pagination, SearchInput, SelectMenu, Switch, confirmAction, toastError, toastSuccess } from '../../../components/common'
 import { AdminListLayout, TablePageLayout } from '../../../components/layout'
 import { apiFetch } from '../../../utils/api'
 
@@ -246,6 +246,7 @@ const editorOpen = ref(false)
 const createdCodeOpen = ref(false)
 const createdPlainCode = ref('')
 const createdCodeHelp = ref('完整兑换码只在本次创建成功后展示一次，请立即复制保存。')
+const originalEnabled = ref(true)
 const form = reactive({
   id: '',
   title: '',
@@ -303,11 +304,23 @@ async function load() {
     const data = await apiFetch(`/api/admin/redeem-codes?${params.toString()}`)
     codes.value = data.codes || []
     total.value = Number(data.total || 0)
+
+    const totalPages = Math.max(1, Math.ceil((total.value || 0) / pageSize.value))
+    if (page.value > totalPages) {
+      page.value = totalPages
+      await load()
+    }
   } catch (e) {
     errorMsg.value = e.message || '加载失败'
   } finally {
     loading.value = false
   }
+}
+
+function search() {
+  if (searchTimer) window.clearTimeout(searchTimer)
+  page.value = 1
+  load()
 }
 
 function openCreate() {
@@ -323,6 +336,7 @@ function openEdit(row) {
   form.totalLimit = String(row.totalLimit || 2)
   form.expiresAt = row.expiresAt ? String(row.expiresAt).slice(0, 16) : ''
   form.enabled = Boolean(row.enabled)
+  originalEnabled.value = Boolean(row.enabled)
   editorOpen.value = true
 }
 
@@ -330,6 +344,7 @@ async function saveCode() {
   const title = String(form.title || '').trim()
   const creditsAmount = Number(form.creditsAmount)
   const totalLimit = Number(form.totalLimit)
+  const nextEnabled = Boolean(form.enabled)
   if (!title) {
     toastError('标题不能为空')
     return
@@ -349,10 +364,22 @@ async function saveCode() {
     creditsAmount,
     totalLimit: form.type === 'campaign' ? totalLimit : 1,
     expiresAt: form.expiresAt || null,
-    enabled: form.enabled
+    enabled: nextEnabled
   }
 
   try {
+    if (form.id && originalEnabled.value !== nextEnabled) {
+      const ok = await confirmAction({
+        title: nextEnabled ? '启用兑换码' : '停用兑换码',
+        tone: nextEnabled ? 'warning' : 'danger',
+        objectName: title,
+        message: `确认将该兑换码状态改为${nextEnabled ? '启用' : '停用'}吗？`,
+        details: nextEnabled ? '启用后用户可继续兑换。' : '停用后用户将无法继续兑换该码。',
+        confirmText: nextEnabled ? '启用' : '停用',
+        destructive: !nextEnabled
+      })
+      if (!ok) return
+    }
     saving.value = true
     // 创建和编辑共用一套表单，提交时按是否存在 id 自动切换接口。
     if (form.id) {
@@ -394,7 +421,15 @@ async function copyCreatedCode() {
 }
 
 async function toggleEnabled(row, enabled) {
-  const ok = window.confirm(enabled ? '确认启用该兑换码？' : '确认停用该兑换码？')
+  const ok = await confirmAction({
+    title: enabled ? '启用兑换码' : '停用兑换码',
+    tone: enabled ? 'warning' : 'danger',
+    objectName: row.title,
+    message: enabled ? '确认启用这个兑换码？' : '确认停用这个兑换码？',
+    details: enabled ? '启用后用户可继续兑换。' : '停用后用户将无法继续兑换该码。',
+    confirmText: enabled ? '启用' : '停用',
+    destructive: !enabled
+  })
   if (!ok) return
   try {
     await apiFetch(`/api/admin/redeem-codes/${encodeURIComponent(row.id)}/${enabled ? 'enable' : 'disable'}`, {
@@ -426,6 +461,12 @@ async function loadClaims() {
     )
     claims.value = data.claims || []
     claimsTotal.value = Number(data.total || 0)
+
+    const totalPages = Math.max(1, Math.ceil((claimsTotal.value || 0) / claimsPageSize.value))
+    if (claimsPage.value > totalPages) {
+      claimsPage.value = totalPages
+      await loadClaims()
+    }
   } catch (e) {
     toastError(e.message || '加载记录失败')
   } finally {
@@ -478,6 +519,10 @@ watch([query, typeFilter, statusFilter], () => {
 onMounted(() => {
   load()
 })
+
+onUnmounted(() => {
+  if (searchTimer) window.clearTimeout(searchTimer)
+})
 </script>
 
 <style scoped>
@@ -488,8 +533,8 @@ onMounted(() => {
 .error {
   padding: 12px 14px;
   border-radius: 14px;
-  border: 1px solid rgba(236, 72, 153, 0.25);
-  background: rgba(236, 72, 153, 0.06);
+  border: 1px solid rgba(220, 38, 38, 0.18);
+  background: rgba(220, 38, 38, 0.06);
   color: var(--accent);
   font-weight: 800;
   margin: 12px 14px;
@@ -608,8 +653,8 @@ onMounted(() => {
 .created-code-value {
   padding: 12px 14px;
   border-radius: 14px;
-  border: 1px solid rgba(99, 102, 241, 0.14);
-  background: rgba(99, 102, 241, 0.06);
+  border: 1px solid rgba(37, 99, 235, 0.14);
+  background: rgba(37, 99, 235, 0.06);
   color: var(--text);
   font-size: 14px;
   font-weight: 900;

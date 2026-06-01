@@ -23,11 +23,23 @@ export type ImageEntity = {
   content: string;
   imageUrls: string[];
   inputImageUrls?: string[];
+  previewImageUrls: string[];
   folder: string;
   tags: string[];
+  favoriteAt: string;
+  isFavorite: boolean;
   sourceImageId?: string;
   continuationChainId?: string;
   createdAt: string;
+};
+
+export type DialogueChainSummary = {
+  chainId: string;
+  title: string;
+  firstImage: ImageEntity;
+  lastImage: ImageEntity;
+  roundCount: number;
+  updatedAt: string;
 };
 
 function parseJsonList(value: any) {
@@ -50,6 +62,10 @@ function parseJsonObject(value: any) {
   }
 }
 
+function hasJsonArrayItemsExpression(columnName: string) {
+  return `json_array_length(CASE WHEN json_valid(${columnName}) THEN ${columnName} ELSE '[]' END) > 0`;
+}
+
 function toImage(row: any): ImageEntity | null {
   if (!row) return null;
   const imageUrls = (() => {
@@ -67,6 +83,14 @@ function toImage(row: any): ImageEntity | null {
       return [];
     }
   })();
+  const previewImageUrls = (() => {
+    if (!row.preview_image_urls) return [];
+    try {
+      return JSON.parse(String(row.preview_image_urls || '[]'));
+    } catch {
+      return [];
+    }
+  })();
   return {
     id: String(row.id),
     userId: String(row.user_id),
@@ -80,8 +104,11 @@ function toImage(row: any): ImageEntity | null {
     content: String(row.content || ''),
     imageUrls: Array.isArray(imageUrls) ? imageUrls : [],
     inputImageUrls: Array.isArray(inputImageUrls) ? inputImageUrls : [],
+    previewImageUrls: Array.isArray(previewImageUrls) ? previewImageUrls : [],
     folder: String(row.folder || ''),
     tags: parseJsonList(row.tags),
+    favoriteAt: row.favorite_at ? String(row.favorite_at) : '',
+    isFavorite: Boolean(row.favorite_at),
     sourceImageId: row.source_image_id ? String(row.source_image_id) : '',
     continuationChainId: row.continuation_chain_id
       ? String(row.continuation_chain_id)
@@ -112,6 +139,13 @@ export class ImagesRepo {
     q?: string;
     folder?: string;
     tag?: string;
+    favorite?: boolean;
+    aspectRatio?: string;
+    qualityTier?: string;
+    hasReference?: boolean;
+    inStyleBoard?: boolean;
+    dateFrom?: string;
+    dateTo?: string;
   }) {
     const limit = Math.max(1, Math.min(100, Math.floor(params.limit)));
     const offset = Math.max(0, Math.floor(params.offset || 0));
@@ -155,6 +189,48 @@ export class ImagesRepo {
       }
     }
 
+    if (params.favorite) {
+      where.push("favorite_at IS NOT NULL AND TRIM(favorite_at) != ''");
+    }
+
+    const aspectRatio = String(params.aspectRatio || '').trim();
+    if (aspectRatio && aspectRatio !== 'all') {
+      where.push('aspect_ratio = ?');
+      values.push(aspectRatio);
+    }
+
+    const qualityTier = String(params.qualityTier || '').trim();
+    if (qualityTier && qualityTier !== 'all') {
+      where.push("json_extract(CASE WHEN json_valid(generation_params) THEN generation_params ELSE '{}' END, '$.qualityTier') = ?");
+      values.push(qualityTier);
+    }
+
+    if (params.hasReference) {
+      where.push(`(${hasJsonArrayItemsExpression('input_image_urls')} OR source_image_id IS NOT NULL AND TRIM(source_image_id) != '')`);
+    }
+
+    if (params.inStyleBoard) {
+      where.push(
+        `EXISTS (
+          SELECT 1 FROM style_board_refs
+          WHERE style_board_refs.user_id = images.user_id
+            AND style_board_refs.image_id = images.id
+        )`,
+      );
+    }
+
+    const dateFrom = String(params.dateFrom || '').trim();
+    if (dateFrom) {
+      where.push('created_at >= ?');
+      values.push(dateFrom);
+    }
+
+    const dateTo = String(params.dateTo || '').trim();
+    if (dateTo) {
+      where.push('created_at <= ?');
+      values.push(dateTo);
+    }
+
     const whereSql = where.join(' AND ');
     const totalRow = this.sqlite.connection
       .prepare(`SELECT COUNT(*) as total FROM images WHERE ${whereSql}`)
@@ -163,7 +239,7 @@ export class ImagesRepo {
       .prepare(
         `SELECT * FROM images
          WHERE ${whereSql}
-         ORDER BY created_at DESC
+         ORDER BY ${params.favorite ? 'favorite_at DESC, ' : ''}created_at DESC
          LIMIT ? OFFSET ?`,
       )
       .all(...values, limit, offset);
@@ -179,6 +255,19 @@ export class ImagesRepo {
       .prepare('SELECT * FROM images WHERE id = ? AND user_id = ?')
       .get(params.id, params.userId);
     return toImage(row);
+  }
+
+  listVariantsForImage(params: { id: string; userId: string; limit?: number }) {
+    const limit = Math.max(1, Math.min(20, Math.floor(params.limit || 8)));
+    const rows = this.sqlite.connection
+      .prepare(
+        `SELECT * FROM images
+         WHERE source_image_id = ? AND user_id = ?
+         ORDER BY created_at DESC
+         LIMIT ?`,
+      )
+      .all(params.id, params.userId, limit);
+    return rows.map(toImage).filter(Boolean) as ImageEntity[];
   }
 
   listByChain(params: { chainId: string; userId: string }) {
@@ -211,6 +300,45 @@ export class ImagesRepo {
     );
   }
 
+  listDialogueChains(params: { userId: string; limit?: number }) {
+    const limit = Math.max(1, Math.min(200, Math.floor(params.limit || 100)));
+    const rows = this.sqlite.connection
+      .prepare(
+        `SELECT * FROM images
+         WHERE user_id = ?
+           AND continuation_chain_id IS NOT NULL
+           AND TRIM(continuation_chain_id) != ''
+           AND (mode = 'dialogue' OR mode = 'continuous')
+         ORDER BY continuation_chain_id ASC, created_at ASC`,
+      )
+      .all(params.userId);
+    const groups = new Map<string, ImageEntity[]>();
+    for (const row of rows) {
+      const image = toImage(row);
+      if (!image?.continuationChainId) continue;
+      const list = groups.get(image.continuationChainId) || [];
+      list.push(image);
+      groups.set(image.continuationChainId, list);
+    }
+
+    return Array.from(groups.entries())
+      .map(([chainId, images]) => {
+        const firstImage = images[0];
+        const lastImage = images[images.length - 1];
+        return {
+          chainId,
+          title: lastImage?.prompt ? String(lastImage.prompt).slice(0, 60) : '对话创作',
+          firstImage,
+          lastImage,
+          roundCount: images.length,
+          updatedAt: lastImage?.createdAt || firstImage?.createdAt || '',
+        };
+      })
+      .filter((item) => item.firstImage && item.lastImage)
+      .sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime())
+      .slice(0, limit) as DialogueChainSummary[];
+  }
+
   listInputImageUrlsByUser(params: { userId: string }) {
     const rows = this.sqlite.connection
       .prepare(
@@ -236,14 +364,14 @@ export class ImagesRepo {
   listAssetUrlsByUser(params: { userId: string }) {
     const rows = this.sqlite.connection
       .prepare(
-        `SELECT image_urls, input_image_urls
+        `SELECT image_urls, input_image_urls, preview_image_urls
          FROM images
          WHERE user_id = ?`,
       )
       .all(params.userId) as any[];
     const urls: string[] = [];
     for (const row of rows) {
-      for (const key of ['image_urls', 'input_image_urls']) {
+      for (const key of ['image_urls', 'input_image_urls', 'preview_image_urls']) {
         try {
           const parsed = JSON.parse(String(row?.[key] || '[]'));
           if (Array.isArray(parsed)) {
@@ -262,14 +390,14 @@ export class ImagesRepo {
   listAssetUrlsByChain(params: { userId: string; chainId: string }) {
     const rows = this.sqlite.connection
       .prepare(
-        `SELECT image_urls, input_image_urls
+        `SELECT image_urls, input_image_urls, preview_image_urls
          FROM images
          WHERE user_id = ? AND continuation_chain_id = ?`,
       )
       .all(params.userId, params.chainId) as any[];
     const urls: string[] = [];
     for (const row of rows) {
-      for (const key of ['image_urls', 'input_image_urls']) {
+      for (const key of ['image_urls', 'input_image_urls', 'preview_image_urls']) {
         try {
           const parsed = JSON.parse(String(row?.[key] || '[]'));
           if (Array.isArray(parsed)) {
@@ -357,6 +485,35 @@ export class ImagesRepo {
     return Number(result?.changes || 0);
   }
 
+  updateFavorite(params: { id: string; userId: string; favorite: boolean }) {
+    const favoriteAt = params.favorite ? new Date().toISOString() : null;
+    const result = this.sqlite.connection
+      .prepare(
+        `UPDATE images
+         SET favorite_at = ?
+         WHERE id = ? AND user_id = ?`,
+      )
+      .run(favoriteAt, params.id, params.userId);
+    return Number(result?.changes || 0);
+  }
+
+  markFavorites(params: { ids: string[]; userId: string; favorite?: boolean }) {
+    const ids = Array.from(
+      new Set((params.ids || []).map((id) => String(id || '').trim()).filter(Boolean)),
+    );
+    if (!ids.length) return 0;
+    const placeholders = ids.map(() => '?').join(', ');
+    const favoriteAt = params.favorite === false ? null : new Date().toISOString();
+    const result = this.sqlite.connection
+      .prepare(
+        `UPDATE images
+         SET favorite_at = ?
+         WHERE user_id = ? AND id IN (${placeholders})`,
+      )
+      .run(favoriteAt, params.userId, ...ids);
+    return Number(result?.changes || 0);
+  }
+
   create(params: {
     userId: string;
     mode: ImageMode;
@@ -367,6 +524,7 @@ export class ImagesRepo {
     content: string;
     imageUrls: string[];
     inputImageUrls?: string[];
+    previewImageUrls?: string[];
     sourceImageId?: string;
     continuationChainId?: string;
   }) {
@@ -383,8 +541,11 @@ export class ImagesRepo {
       content: params.content,
       imageUrls: params.imageUrls,
       inputImageUrls: params.inputImageUrls || [],
+      previewImageUrls: params.previewImageUrls || [],
       folder: '',
       tags: [],
+      favoriteAt: '',
+      isFavorite: false,
       sourceImageId: params.sourceImageId || '',
       continuationChainId: params.continuationChainId || '',
       createdAt: new Date().toISOString(),
@@ -392,8 +553,8 @@ export class ImagesRepo {
 
     this.sqlite.connection
       .prepare(
-        `INSERT INTO images(id, user_id, mode, operation_type, prompt, aspect_ratio, generation_params, content, image_urls, input_image_urls, source_image_id, continuation_chain_id, created_at)
-         VALUES(@id, @user_id, @mode, @operation_type, @prompt, @aspect_ratio, @generation_params, @content, @image_urls, @input_image_urls, @source_image_id, @continuation_chain_id, @created_at)`,
+        `INSERT INTO images(id, user_id, mode, operation_type, prompt, aspect_ratio, generation_params, content, image_urls, input_image_urls, preview_image_urls, favorite_at, source_image_id, continuation_chain_id, created_at)
+         VALUES(@id, @user_id, @mode, @operation_type, @prompt, @aspect_ratio, @generation_params, @content, @image_urls, @input_image_urls, @preview_image_urls, @favorite_at, @source_image_id, @continuation_chain_id, @created_at)`,
       )
       .run({
         id: image.id,
@@ -408,6 +569,10 @@ export class ImagesRepo {
         input_image_urls: (image.inputImageUrls || []).length
           ? JSON.stringify(image.inputImageUrls || [])
           : null,
+        preview_image_urls: (image.previewImageUrls || []).length
+          ? JSON.stringify(image.previewImageUrls || [])
+          : null,
+        favorite_at: null,
         source_image_id: image.sourceImageId || null,
         continuation_chain_id: image.continuationChainId || null,
         created_at: image.createdAt,

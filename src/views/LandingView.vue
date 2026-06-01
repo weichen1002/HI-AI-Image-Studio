@@ -619,7 +619,7 @@ const testimonials = [
 .landing-view {
   position: relative;
   background:
-    radial-gradient(circle at top center, rgba(99, 102, 241, 0.08), transparent 28%),
+    radial-gradient(circle at top center, rgba(37, 99, 235, 0.08), transparent 28%),
     linear-gradient(180deg, #fcfdff 0%, #f8fafc 38%, #ffffff 100%);
   min-height: 100vh;
   color: #0f172a;
@@ -678,7 +678,7 @@ const testimonials = [
 .orb-1 {
   width: 60vw;
   height: 60vw;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.28) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.28) 0%, transparent 70%);
   top: -20%;
   left: -10%;
   animation-delay: 0s;
@@ -832,14 +832,14 @@ const testimonials = [
 }
 
 .cyber-glow {
-  background: var(--gradient-primary, linear-gradient(135deg, #6366f1 0%, #4338ca 100%));
+  background: var(--gradient-primary, linear-gradient(135deg, #2563eb 0%, #1e40af 100%));
   color: #fff;
   border: none;
-  box-shadow: 0 12px 28px rgba(99, 102, 241, 0.24);
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.24);
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .cyber-glow:hover {
-  box-shadow: 0 18px 36px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 18px 36px rgba(37, 99, 235, 0.3);
   transform: translateY(-2px);
 }
 
@@ -880,7 +880,7 @@ const testimonials = [
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
 }
 .badge-icon {
-  color: #6366f1;
+  color: #2563eb;
 }
 
 .hero-title {
@@ -893,7 +893,7 @@ const testimonials = [
 }
 
 .text-gradient {
-  background: linear-gradient(135deg, #0f172a 0%, #4338ca 50%, #6366f1 100%);
+  background: linear-gradient(135deg, #0f172a 0%, #1e40af 50%, #2563eb 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   display: inline-block;
@@ -932,8 +932,8 @@ const testimonials = [
 
 .cyber-search:hover {
   background: rgba(255, 255, 255, 0.96);
-  border-color: rgba(99, 102, 241, 0.28);
-  box-shadow: 0 28px 70px rgba(15, 23, 42, 0.1), 0 12px 32px rgba(99, 102, 241, 0.08);
+  border-color: rgba(37, 99, 235, 0.28);
+  box-shadow: 0 28px 70px rgba(15, 23, 42, 0.1), 0 12px 32px rgba(37, 99, 235, 0.08);
 }
 
 .icon-search {
@@ -955,7 +955,7 @@ const testimonials = [
   display: inline-block;
   width: 2px;
   height: 20px;
-  background-color: #6366f1;
+  background-color: #2563eb;
   vertical-align: middle;
   margin-left: 2px;
   animation: blink 1s step-end infinite;
@@ -972,7 +972,7 @@ const testimonials = [
   padding: 0 48px;
   font-size: 18px;
   font-weight: 700;
-  background: var(--gradient-primary, linear-gradient(135deg, #6366f1 0%, #a855f7 100%));
+  background: var(--gradient-primary, linear-gradient(135deg, #2563eb 0%, #1e40af 100%));
   color: #fff;
   border: none;
   cursor: pointer;
@@ -980,12 +980,12 @@ const testimonials = [
   white-space: nowrap;
   display: flex;
   align-items: center;
-  box-shadow: 0 10px 20px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.3);
 }
 
 .btn-generate:hover {
   transform: translateY(-2px);
-  box-shadow: 0 15px 30px rgba(99, 102, 241, 0.5);
+  box-shadow: 0 15px 30px rgba(37, 99, 235, 0.5);
 }
 
 /* Trending Tags */
@@ -1016,7 +1016,7 @@ const testimonials = [
 
 .tag:hover {
   background: #ffffff;
-  border-color: rgba(99, 102, 241, 0.18);
+  border-color: rgba(37, 99, 235, 0.18);
   color: #0f172a;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
 }
@@ -1120,7 +1120,7 @@ const testimonials = [
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: radial-gradient(600px circle at var(--mouse-x, 0) var(--mouse-y, 0), rgba(99, 102, 241, 0.05), transparent 40%);
+  background: radial-gradient(600px circle at var(--mouse-x, 0) var(--mouse-y, 0), rgba(37, 99, 235, 0.05), transparent 40%);
   z-index: 0;
   pointer-events: none;
   opacity: 0;
@@ -1140,7 +1140,7 @@ const testimonials = [
 
 .cap-card:hover {
   transform: translateY(-8px);
-  border-color: rgba(99, 102, 241, 0.2);
+  border-color: rgba(37, 99, 235, 0.2);
   box-shadow: 0 24px 52px rgba(15, 23, 42, 0.08);
   background: linear-gradient(145deg, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.82) 100%);
 }
@@ -1160,10 +1160,10 @@ const testimonials = [
 }
 
 .cap-card:hover .cap-icon-wrap {
-  background: rgba(99, 102, 241, 0.1);
-  border-color: rgba(99, 102, 241, 0.3);
-  color: #6366f1;
-  box-shadow: 0 0 30px rgba(99, 102, 241, 0.1);
+  background: rgba(37, 99, 235, 0.1);
+  border-color: rgba(37, 99, 235, 0.3);
+  color: #2563eb;
+  box-shadow: 0 0 30px rgba(37, 99, 235, 0.1);
   transform: scale(1.05);
 }
 
@@ -1179,7 +1179,7 @@ const testimonials = [
 
 .cap-subtitle {
   font-size: 13px;
-  color: #6366f1;
+  color: #2563eb;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 600;
@@ -1313,10 +1313,10 @@ const testimonials = [
 }
 
 .btn-try:hover {
-  background: var(--gradient-primary, linear-gradient(135deg, #6366f1 0%, #a855f7 100%));
+  background: var(--gradient-primary, linear-gradient(135deg, #2563eb 0%, #1e40af 100%));
   color: #fff;
   border-color: transparent;
-  box-shadow: 0 10px 20px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.4);
 }
 
 @keyframes scrollLeft {
@@ -1382,7 +1382,7 @@ const testimonials = [
 }
 
 .bento-card:hover {
-  border-color: rgba(99, 102, 241, 0.18);
+  border-color: rgba(37, 99, 235, 0.18);
   transform: translateY(-4px);
   box-shadow: 0 28px 64px rgba(15, 23, 42, 0.08);
 }
@@ -1393,7 +1393,7 @@ const testimonials = [
   left: 0;
   width: 100%;
   height: 100%;
-  background: radial-gradient(circle at 80% 20%, rgba(99, 102, 241, 0.05), transparent 50%);
+  background: radial-gradient(circle at 80% 20%, rgba(37, 99, 235, 0.05), transparent 50%);
   opacity: 0;
   transition: opacity 0.5s ease;
   pointer-events: none;
@@ -1428,10 +1428,10 @@ const testimonials = [
 }
 
 .bento-card:hover .bento-icon-wrap {
-  background: rgba(99, 102, 241, 0.1);
-  border-color: rgba(99, 102, 241, 0.3);
-  color: #6366f1;
-  box-shadow: 0 0 30px rgba(99, 102, 241, 0.1);
+  background: rgba(37, 99, 235, 0.1);
+  border-color: rgba(37, 99, 235, 0.3);
+  color: #2563eb;
+  box-shadow: 0 0 30px rgba(37, 99, 235, 0.1);
 }
 
 .bento-title {
@@ -1533,7 +1533,7 @@ const testimonials = [
 
 .scenario-card:hover {
   transform: translateY(-10px);
-  border-color: rgba(99, 102, 241, 0.22);
+  border-color: rgba(37, 99, 235, 0.22);
   box-shadow: 0 26px 56px rgba(15, 23, 42, 0.1);
 }
 
@@ -1646,7 +1646,7 @@ const testimonials = [
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.1) 0%, transparent 70%);
   opacity: 0;
   transition: opacity 0.3s;
 }
@@ -1679,15 +1679,15 @@ const testimonials = [
 .connector-line {
   flex: 1;
   height: 2px;
-  background: linear-gradient(90deg, rgba(15,23,42,0.1), rgba(99, 102, 241, 0.5), rgba(15,23,42,0.1));
+  background: linear-gradient(90deg, rgba(15,23,42,0.1), rgba(37, 99, 235, 0.5), rgba(15,23,42,0.1));
 }
 
 .connector-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #6366f1;
-  box-shadow: 0 0 10px #6366f1;
+  background: #2563eb;
+  box-shadow: 0 0 10px #2563eb;
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
@@ -1762,14 +1762,14 @@ const testimonials = [
 .testimonial-card:hover {
   transform: translateY(-8px);
   background: rgba(255, 255, 255, 1);
-  border-color: rgba(99, 102, 241, 0.2);
+  border-color: rgba(37, 99, 235, 0.2);
   box-shadow: 0 24px 52px rgba(15, 23, 42, 0.08);
 }
 
 .quote-icon {
   font-size: 64px;
   line-height: 1;
-  color: rgba(99, 102, 241, 0.1);
+  color: rgba(37, 99, 235, 0.1);
   font-family: Georgia, serif;
   position: absolute;
   top: 20px;
@@ -1798,7 +1798,7 @@ const testimonials = [
   height: 48px;
   border-radius: 50%;
   overflow: hidden;
-  border: 2px solid rgba(99, 102, 241, 0.4);
+  border: 2px solid rgba(37, 99, 235, 0.4);
 }
 
 .t-avatar img {
@@ -1853,8 +1853,8 @@ const testimonials = [
 
 .pricing-card.popular {
   background: linear-gradient(180deg, #ffffff 0%, rgba(246, 247, 255, 0.96) 100%);
-  border-color: rgba(99, 102, 241, 0.22);
-  box-shadow: 0 28px 64px rgba(15, 23, 42, 0.1), 0 12px 36px rgba(99, 102, 241, 0.08);
+  border-color: rgba(37, 99, 235, 0.22);
+  box-shadow: 0 28px 64px rgba(15, 23, 42, 0.1), 0 12px 36px rgba(37, 99, 235, 0.08);
 }
 
 .popular-badge {
@@ -1862,7 +1862,7 @@ const testimonials = [
   top: 0;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: linear-gradient(135deg, #6366f1, #a855f7);
+  background: linear-gradient(135deg, #2563eb, #1e40af);
   color: #fff;
   padding: 6px 16px;
   border-radius: 100px;
@@ -1916,7 +1916,7 @@ const testimonials = [
 }
 
 .check-icon {
-  color: #6366f1;
+  color: #2563eb;
 }
 
 .btn-plan {
@@ -1956,7 +1956,7 @@ const testimonials = [
 
 .faq-item.active {
   background: #f8fafc;
-  border-color: rgba(99, 102, 241, 0.3);
+  border-color: rgba(37, 99, 235, 0.3);
 }
 
 .faq-q {
@@ -1978,7 +1978,7 @@ const testimonials = [
 
 .rotate-180 {
   transform: rotate(180deg);
-  color: #6366f1;
+  color: #2563eb;
 }
 
 .faq-a-wrapper {
@@ -2008,7 +2008,7 @@ const testimonials = [
   transform: translate(-50%, -50%);
   width: 80vw;
   height: 80vw;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.08) 0%, transparent 60%);
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.08) 0%, transparent 60%);
   pointer-events: none;
 }
 

@@ -1,0 +1,12 @@
+{
+  "id": "plan-next-goal-roadmap-20260529",
+  "title": "规划下一阶段 Codex 目标模式路线图",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "low",
+  "domain": "documentation",
+  "currentPhase": "completed",
+  "nextAction": "可按 docs/goal-mode-roadmap-next.md 从 N8.1 开始继续执行",
+  "createdAt": "2026-05-29T11:05:36+08:00",
+  "branch": "main"
+}

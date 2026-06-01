@@ -80,6 +80,15 @@ export const useAnnouncementsStore = defineStore('announcements', () => {
     return data?.announcement
   }
 
+  async function previewAudience(audience) {
+    const data = await apiFetch('/api/admin/announcements/audience/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ audience: audience || {} })
+    })
+    return data
+  }
+
   async function publishAnnouncement(id) {
     const announcementId = String(id || '').trim()
     const data = await apiFetch(`/api/admin/announcements/${encodeURIComponent(announcementId)}/publish`, { method: 'POST' })
@@ -109,9 +118,9 @@ export const useAnnouncementsStore = defineStore('announcements', () => {
     fetchAdmin,
     createAnnouncement,
     updateAnnouncement,
+    previewAudience,
     publishAnnouncement,
     archiveAnnouncement,
     deleteAnnouncement
   }
 })
-

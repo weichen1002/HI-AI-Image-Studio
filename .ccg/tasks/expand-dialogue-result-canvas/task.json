@@ -1,0 +1,13 @@
+{
+  "id": "expand-dialogue-result-canvas",
+  "title": "扩展对话生成结果画布展示区域",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "等待人工验收对话结果画布展示",
+  "createdAt": "2026-06-01T12:32:00Z",
+  "completedAt": "2026-06-01T12:35:00Z",
+  "branch": "main"
+}

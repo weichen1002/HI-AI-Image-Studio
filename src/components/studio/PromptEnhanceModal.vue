@@ -180,16 +180,16 @@ function apply() {
 }
 
 .direction-btn:hover {
-  border-color: rgba(99, 102, 241, 0.25);
-  background: rgba(99, 102, 241, 0.06);
+  border-color: rgba(37, 99, 235, 0.25);
+  background: rgba(37, 99, 235, 0.06);
   color: var(--primary);
 }
 
 .direction-btn.active {
-  border-color: rgba(99, 102, 241, 0.25);
-  background: rgba(99, 102, 241, 0.10);
+  border-color: rgba(37, 99, 235, 0.25);
+  background: rgba(37, 99, 235, 0.10);
   color: var(--primary);
-  box-shadow: 0 10px 26px rgba(99, 102, 241, 0.12);
+  box-shadow: 0 10px 26px rgba(37, 99, 235, 0.12);
 }
 
 .compare-grid {

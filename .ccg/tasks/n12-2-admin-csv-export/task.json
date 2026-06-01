@@ -1,0 +1,12 @@
+{
+  "id": "n12-2-admin-csv-export",
+  "title": "后台导出能力",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "fullstack",
+  "currentPhase": "completed",
+  "nextAction": "等待后续目标",
+  "createdAt": "2026-06-01T09:01:30Z",
+  "branch": "main"
+}

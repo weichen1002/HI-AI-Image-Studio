@@ -190,6 +190,7 @@ export class RedeemCodesRepo {
     const status = String(params.status || '').trim();
     const limit = Math.max(1, Math.min(100, Math.floor(params.limit)));
     const offset = Math.max(0, Math.floor(params.offset));
+    const now = new Date().toISOString();
 
     const where: string[] = [];
     const values: any[] = [];
@@ -202,16 +203,40 @@ export class RedeemCodesRepo {
       where.push('type = ?');
       values.push(type);
     }
+    if (status) {
+      if (status === 'disabled') {
+        where.push('enabled = 0');
+      } else if (status === 'expired') {
+        where.push('enabled != 0 AND expires_at IS NOT NULL AND expires_at < ?');
+        values.push(now);
+      } else if (status === 'exhausted') {
+        where.push(
+          'enabled != 0 AND (expires_at IS NULL OR expires_at >= ?) AND redeemed_count >= total_limit',
+        );
+        values.push(now);
+      } else if (status === 'active') {
+        where.push(
+          'enabled != 0 AND (expires_at IS NULL OR expires_at >= ?) AND redeemed_count < total_limit',
+        );
+        values.push(now);
+      } else {
+        where.push('1 = 0');
+      }
+    }
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const totalRow = this.sqlite.connection
+      .prepare(`SELECT COUNT(1) AS c FROM redeem_codes ${whereSql}`)
+      .get(...values) as any;
+    const total = Number(totalRow?.c || 0);
+
     const rows = this.sqlite.connection
       .prepare(
-        `SELECT * FROM redeem_codes ${whereSql} ORDER BY created_at DESC`,
+        `SELECT * FROM redeem_codes ${whereSql} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
       )
-      .all(...values);
+      .all(...values, limit, offset);
 
-    const now = new Date().toISOString();
-    const filtered = rows
+    const codes = rows
       .map((row: any) => {
         const item = toRedeemCode(row);
         if (!item) return null;
@@ -221,12 +246,11 @@ export class RedeemCodesRepo {
           status: getRedeemCodeStatus(item, now),
         };
       })
-      .filter(Boolean)
-      .filter((code: RedeemCodeAdminItem) => !status || code.status === status) as RedeemCodeAdminItem[];
+      .filter(Boolean) as RedeemCodeAdminItem[];
 
     return {
-      total: filtered.length,
-      codes: filtered.slice(offset, offset + limit),
+      total,
+      codes,
     };
   }
 

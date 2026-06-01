@@ -1,0 +1,12 @@
+{
+  "id": "replace-dialogue-create-icon",
+  "title": "替换对话创作图标",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已完成：对话创作图标已换为 AI 会话图标",
+  "createdAt": "2026-06-01T12:53:55Z",
+  "branch": "main"
+}

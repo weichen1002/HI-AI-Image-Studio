@@ -1,28 +1,60 @@
 <template>
-  <div class="studio-layout">
+  <div class="studio-layout" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
     <!-- Sidebar -->
-    <aside class="sidebar">
-      <div class="header" style="padding: 0 16px;">
+    <aside class="sidebar" :aria-label="sidebarCollapsed ? '主导航，已收起' : '主导航'">
+      <div class="header sidebar-header">
         <router-link to="/studio" class="brand">
           <div class="brand-icon">
-            <img :src="logoUrl" alt="Hi AI Image Studio logo" width="20" height="20" loading="eager" fetchpriority="high" />
+            <img :src="logoUrl" alt="Hi AI Image Studio logo" width="44" height="44" loading="eager" fetchpriority="high" />
           </div>
-          <span>{{ siteSettings.siteName }}</span>
         </router-link>
+        <button
+          type="button"
+          class="sidebar-toggle"
+          :aria-label="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+          :title="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+          @click="toggleSidebar"
+        >
+          <ChevronRightIcon v-if="sidebarCollapsed" :size="15" />
+          <ChevronLeftIcon v-else :size="15" />
+        </button>
       </div>
 
       <nav class="sidebar-nav">
-        <router-link to="/studio" exact-active-class="router-link-active" class="nav-link">
-          <PenToolIcon :size="18" />
-          创作工作台
-        </router-link>
-        <router-link to="/studio/history" class="nav-link">
-          <FolderIcon :size="18" />
-          灵感记录
-        </router-link>
-        <router-link to="/studio/models" class="nav-link">
-          <LayoutTemplateIcon :size="18" />
-          灵感库
+        <div class="nav-group">
+          <div class="nav-group-label">工作区</div>
+          <router-link to="/studio" active-class="" exact-active-class="router-link-active" class="nav-link" title="创作工作台" aria-label="创作工作台">
+            <PenToolIcon :size="18" />
+            <span class="nav-label">创作工作台</span>
+          </router-link>
+          <router-link to="/studio/dialogue" class="nav-link" title="对话创作" aria-label="对话创作">
+            <BotMessageSquareIcon :size="18" />
+            <span class="nav-label">对话创作</span>
+          </router-link>
+          <router-link to="/studio/history" class="nav-link" title="灵感记录" aria-label="灵感记录">
+            <FolderIcon :size="18" />
+            <span class="nav-label">灵感记录</span>
+          </router-link>
+          <router-link to="/studio/tasks" class="nav-link" title="任务中心" aria-label="任务中心">
+            <ClipboardListIcon :size="18" />
+            <span class="nav-label">任务中心</span>
+          </router-link>
+          <router-link to="/studio/style-boards" class="nav-link" title="风格板" aria-label="风格板">
+            <PanelsTopLeftIcon :size="18" />
+            <span class="nav-label">风格板</span>
+          </router-link>
+          <router-link to="/studio/models" class="nav-link" title="灵感库" aria-label="灵感库">
+            <LayoutTemplateIcon :size="18" />
+            <span class="nav-label">灵感库</span>
+          </router-link>
+          <router-link to="/studio/billing" class="nav-link" title="充值中心" aria-label="充值中心">
+            <ReceiptIcon :size="18" />
+            <span class="nav-label">充值中心</span>
+          </router-link>
+        </div>
+        <router-link v-if="isAdmin" to="/studio/admin/dashboard" class="nav-link nav-link-admin-mobile">
+          <BarChart3Icon :size="18" />
+          总览
         </router-link>
         <router-link v-if="isAdmin" to="/studio/admin/settings" class="nav-link nav-link-admin-mobile">
           <SlidersHorizontalIcon :size="18" />
@@ -36,53 +68,110 @@
           <ReceiptIcon :size="18" />
           账务
         </router-link>
+        <router-link v-if="isAdmin" to="/studio/admin/billing-orders" class="nav-link nav-link-admin-mobile">
+          <ClipboardListIcon :size="18" />
+          订单
+        </router-link>
+        <router-link v-if="isAdmin" to="/studio/admin/audit-logs" class="nav-link nav-link-admin-mobile">
+          <AlertCircleIcon :size="18" />
+          审计
+        </router-link>
         <router-link v-if="isAdmin" to="/studio/admin/announcements" class="nav-link nav-link-admin-mobile">
-          <BellIcon :size="18" />
+          <MegaphoneIcon :size="18" />
           公告
         </router-link>
         <router-link v-if="isAdmin" to="/studio/admin/redeem-codes" class="nav-link nav-link-admin-mobile">
           <GiftIcon :size="18" />
           兑换
         </router-link>
-        <router-link v-if="isAdmin" to="/studio/admin/audit-logs" class="nav-link nav-link-admin-mobile">
-          <AlertCircleIcon :size="18" />
-          审计
+        <router-link v-if="isAdmin" to="/studio/admin/image-feedback" class="nav-link nav-link-admin-mobile">
+          <ImageIcon :size="18" />
+          反馈
         </router-link>
-        
-        <div style="flex: 1"></div>
-
-        <div v-if="isAdmin" class="nav-section">
-          <div class="nav-section-title">管理中心</div>
-          <router-link to="/studio/admin/settings" class="nav-link">
+        <div v-if="isAdmin" class="nav-section nav-group">
+          <div class="nav-group-label">后台</div>
+          <button
+            type="button"
+            class="nav-section-toggle"
+            :class="{ active: isAdminManagementRoute }"
+            :aria-expanded="adminMenuOpen"
+            :aria-label="adminMenuOpen ? '收起管理中心菜单' : '展开管理中心菜单'"
+            title="管理中心"
+            @click="toggleAdminMenu"
+          >
             <SlidersHorizontalIcon :size="18" />
-            系统设置
-          </router-link>
-          <router-link to="/studio/admin/users" class="nav-link">
-            <UsersIcon :size="18" />
-            用户管理
-          </router-link>
-          <router-link to="/studio/admin/ledger" class="nav-link">
-            <ReceiptIcon :size="18" />
-            账务流水
-          </router-link>
-          <router-link to="/studio/admin/announcements" class="nav-link">
-            <BellIcon :size="18" />
-            公告中心
-          </router-link>
-          <router-link to="/studio/admin/redeem-codes" class="nav-link">
-            <GiftIcon :size="18" />
-            兑换码
-          </router-link>
-          <router-link to="/studio/admin/audit-logs" class="nav-link">
-            <AlertCircleIcon :size="18" />
-            审计日志
+            <span class="nav-label">管理中心</span>
+            <ChevronDownIcon :size="16" class="nav-section-chevron" :class="{ open: adminMenuOpen }" />
+          </button>
+          <div v-if="adminMenuOpen && !sidebarCollapsed" class="nav-section-list">
+            <router-link to="/studio/admin/dashboard" class="nav-link nav-sub-link">
+              <BarChart3Icon :size="18" />
+              <span class="nav-label">指标总览</span>
+            </router-link>
+            <router-link to="/studio/admin/settings" class="nav-link nav-sub-link">
+              <SlidersHorizontalIcon :size="18" />
+              <span class="nav-label">系统设置</span>
+            </router-link>
+            <router-link to="/studio/admin/users" class="nav-link nav-sub-link">
+              <UsersIcon :size="18" />
+              <span class="nav-label">用户管理</span>
+            </router-link>
+            <router-link to="/studio/admin/ledger" class="nav-link nav-sub-link">
+              <ReceiptIcon :size="18" />
+              <span class="nav-label">账务流水</span>
+            </router-link>
+            <router-link to="/studio/admin/billing-orders" class="nav-link nav-sub-link">
+              <ClipboardListIcon :size="18" />
+              <span class="nav-label">订单</span>
+            </router-link>
+            <router-link to="/studio/admin/audit-logs" class="nav-link nav-sub-link">
+              <AlertCircleIcon :size="18" />
+              <span class="nav-label">审计日志</span>
+            </router-link>
+          </div>
+        </div>
+
+        <div v-if="isAdmin" class="nav-section nav-group">
+          <div class="nav-group-label">运营</div>
+          <button
+            type="button"
+            class="nav-section-toggle"
+            :class="{ active: isOperationsRoute }"
+            :aria-expanded="operationsMenuOpen"
+            :aria-label="operationsMenuOpen ? '收起运营中心菜单' : '展开运营中心菜单'"
+            title="运营中心"
+            @click="toggleOperationsMenu"
+          >
+            <TargetIcon :size="18" />
+            <span class="nav-label">运营中心</span>
+            <ChevronDownIcon :size="16" class="nav-section-chevron" :class="{ open: operationsMenuOpen }" />
+          </button>
+          <div v-if="operationsMenuOpen && !sidebarCollapsed" class="nav-section-list">
+            <router-link to="/studio/admin/operations" class="nav-link nav-sub-link">
+              <ChartNoAxesCombinedIcon :size="18" />
+              <span class="nav-label">运营看板</span>
+            </router-link>
+            <router-link to="/studio/admin/announcements" class="nav-link nav-sub-link">
+              <MegaphoneIcon :size="18" />
+              <span class="nav-label">公告投放</span>
+            </router-link>
+            <router-link to="/studio/admin/redeem-codes" class="nav-link nav-sub-link">
+              <GiftIcon :size="18" />
+              <span class="nav-label">兑换码</span>
+            </router-link>
+            <router-link to="/studio/admin/image-feedback" class="nav-link nav-sub-link">
+              <ImageIcon :size="18" />
+              <span class="nav-label">反馈样本</span>
+            </router-link>
+          </div>
+        </div>
+        <div class="nav-group nav-account-group">
+          <div class="nav-group-label">账户</div>
+          <router-link to="/studio/settings" class="nav-link" title="偏好设置" aria-label="偏好设置">
+            <SettingsIcon :size="18" />
+            <span class="nav-label">账户与偏好</span>
           </router-link>
         </div>
-        
-        <router-link to="/studio/settings" class="nav-link">
-          <SettingsIcon :size="18" />
-          偏好设置
-        </router-link>
       </nav>
     </aside>
 
@@ -94,7 +183,7 @@
             <span v-if="isCreateRoute" class="topbar-mode-icon">
               <PenToolIcon v-if="siteStore.createIcon === 'wand'" :size="20" />
               <ImageIcon v-else-if="siteStore.createIcon === 'image'" :size="20" />
-              <MessageSquareIcon v-else-if="siteStore.createIcon === 'dialogue'" :size="20" />
+              <BotMessageSquareIcon v-else-if="siteStore.createIcon === 'dialogue'" :size="20" />
               <WrenchIcon v-else-if="siteStore.createIcon === 'tools'" :size="20" />
               <PenToolIcon v-else :size="20" />
             </span>
@@ -174,7 +263,7 @@
               <div class="user-menu-list">
                 <button type="button" class="user-menu-item" @click="goProfile">
                   <UserIcon :size="16" />
-                  <span>个人资料</span>
+                  <span>账户与偏好</span>
                 </button>
                 <button type="button" class="user-menu-item" @click="copySupport">
                   <HeadphonesIcon :size="16" />
@@ -200,7 +289,7 @@
         :class="[{ 'generation-bar-collapsed': !jobPanelExpanded }, 'generation-bar-' + imagesStore.activeJob.status]"
       >
         <button type="button" class="generation-capsule" @click="toggleJobPanel">
-          <LoaderIcon v-if="imagesStore.activeJob.status === 'running'" class="animate-spin" :size="16" />
+          <LoaderIcon v-if="imagesStore.activeJob.status === 'queued' || imagesStore.activeJob.status === 'running'" class="animate-spin" :size="16" />
           <ImageIcon v-else-if="imagesStore.activeJob.status === 'success'" :size="16" />
           <AlertCircleIcon v-else :size="16" />
           <span class="generation-capsule-text">{{ generationCapsuleText }}</span>
@@ -216,7 +305,7 @@
           <div class="generation-actions">
             <Button variant="ghost" class="generation-btn" type="button" @click="goToGeneration">查看</Button>
             <Button
-              v-if="imagesStore.activeJob.status !== 'running'"
+              v-if="imagesStore.activeJob.status !== 'queued' && imagesStore.activeJob.status !== 'running'"
               variant="ghost"
               class="generation-btn"
               type="button"
@@ -289,7 +378,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useImagesStore } from '../stores/images'
 import { useSiteStore } from '../stores/site'
-import { AlertCircleIcon, BellIcon, ChevronDownIcon, GiftIcon, HeadphonesIcon, ImageIcon, LoaderIcon, LogOutIcon, PenToolIcon, FolderIcon, LayoutTemplateIcon, SettingsIcon, SlidersHorizontalIcon, UserIcon, UsersIcon, ReceiptIcon, MessageSquareIcon, WrenchIcon } from 'lucide-vue-next'
+import { AlertCircleIcon, BarChart3Icon, BellIcon, BotMessageSquareIcon, ChartNoAxesCombinedIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ClipboardListIcon, GiftIcon, HeadphonesIcon, ImageIcon, LoaderIcon, LogOutIcon, MegaphoneIcon, PenToolIcon, FolderIcon, LayoutTemplateIcon, PanelsTopLeftIcon, SettingsIcon, SlidersHorizontalIcon, TargetIcon, UserIcon, UsersIcon, ReceiptIcon, WrenchIcon } from 'lucide-vue-next'
 import { Button, Input, LinkButton, Modal, Popover, toastError, toastSuccess } from '../components/common'
 import logoUrl from '../hi-image-logo.png'
 import { useAnnouncementsStore } from '../stores/announcements'
@@ -302,39 +391,74 @@ const imagesStore = useImagesStore()
 const announcementsStore = useAnnouncementsStore()
 const siteStore = useSiteStore()
 const siteSettings = computed(() => siteStore.settings)
+const SIDEBAR_COLLAPSED_KEY = 'studio:sidebar-collapsed'
+const ADMIN_MENU_OPEN_KEY = 'studio:admin-menu-open'
+const OPERATIONS_MENU_OPEN_KEY = 'studio:operations-menu-open'
 
 const isAdminRoute = computed(() => String(route.path || '').startsWith('/studio/admin'))
+const adminManagementRouteNames = new Set([
+  'studio-admin-dashboard',
+  'studio-admin-settings',
+  'studio-admin-users',
+  'studio-admin-ledger',
+  'studio-admin-billing-orders',
+  'studio-admin-audit-logs'
+])
+const operationsRouteNames = new Set([
+  'studio-admin-operations',
+  'studio-admin-announcements',
+  'studio-admin-redeem-codes',
+  'studio-admin-image-feedback'
+])
+const isAdminManagementRoute = computed(() => adminManagementRouteNames.has(route.name))
+const isOperationsRoute = computed(() => operationsRouteNames.has(route.name))
 
 const routeNames = {
   'studio-create': '工作台 / 创建',
+  'studio-dialogue': '对话创作',
   'studio-history': '灵感记录',
   'studio-history-detail': '灵感记录 / 详情',
+  'studio-tasks': '任务中心',
+  'studio-style-boards': '风格板',
   'studio-models': '灵感库',
-  'studio-profile': '个人资料',
-  'studio-settings': '偏好设置',
+  'studio-profile': '账户与偏好',
+  'studio-billing': '充值中心',
+  'studio-settings': '账户与偏好',
   'studio-announcements': '公告中心',
+  'studio-admin-dashboard': '管理中心 / 指标总览',
   'studio-admin-settings': '管理中心 / 系统设置',
   'studio-admin-users': '管理中心 / 用户管理',
   'studio-admin-ledger': '管理中心 / 账务流水',
-  'studio-admin-announcements': '管理中心 / 公告中心',
-  'studio-admin-redeem-codes': '管理中心 / 兑换码',
-  'studio-admin-audit-logs': '管理中心 / 审计日志'
+  'studio-admin-billing-orders': '管理中心 / 订单',
+  'studio-admin-operations': '运营中心 / 运营看板',
+  'studio-admin-announcements': '运营中心 / 公告投放',
+  'studio-admin-redeem-codes': '运营中心 / 兑换码',
+  'studio-admin-audit-logs': '管理中心 / 审计日志',
+  'studio-admin-image-feedback': '运营中心 / 反馈样本'
 }
 
 const routeDescs = {
   'studio-create': '输入提示词或上传参考图，生成你的图片灵感。',
+  'studio-dialogue': '从空白、参考图或已有结果开始，逐轮调整图片。',
   'studio-history': '查看历史生成记录，复用提示词继续创作。',
   'studio-history-detail': '查看生成详情，复用提示词、下载图片或删除记录。',
+  'studio-tasks': '跟踪排队、运行、成功和失败的生成任务。',
+  'studio-style-boards': '保存项目风格参考，按需带入本次创作。',
   'studio-models': '浏览社区灵感模板，一键带入工作台。',
-  'studio-profile': '查看你的账户信息与权限状态。',
-  'studio-settings': '管理账户与生成偏好（后续将逐步补全）。',
+  'studio-profile': '查看账户信息，并管理默认创作参数。',
+  'studio-billing': '查看可用套餐，创建待支付订单并跟踪订单状态。',
+  'studio-settings': '查看账户信息，并管理默认创作参数。',
   'studio-announcements': '查看平台公告与更新说明。',
+  'studio-admin-dashboard': '查看用户、任务、积分、订单和失败原因的核心运营指标。',
   'studio-admin-settings': '统一管理注册赠送余额、积分规则与后续系统级配置。',
   'studio-admin-users': '管理用户套餐、余额与权限。',
   'studio-admin-ledger': '查看充值、扣费等账务流水记录。',
-  'studio-admin-announcements': '创建/发布公告，支持全站可见与自动弹窗（读过不弹 / 每次必读）。',
-  'studio-admin-redeem-codes': '创建和管理单次码、活动码。',
-  'studio-admin-audit-logs': '查看注册、登录、封禁、删号等关键安全与管理操作记录。'
+  'studio-admin-billing-orders': '查看充值订单，筛选用户与状态，并确认人工补单入账。',
+  'studio-admin-operations': '集中管理公告投放、活动码和反馈样本，规划后续运营活动能力。',
+  'studio-admin-announcements': '创建公告投放，支持全站可见与自动弹窗（读过不弹 / 每次必读）。',
+  'studio-admin-redeem-codes': '创建和管理单次码、活动码，承接运营活动。',
+  'studio-admin-audit-logs': '查看注册、登录、封禁、删号等关键安全与管理操作记录。',
+  'studio-admin-image-feedback': '查看用户对生成结果的低分反馈，沉淀运营和质量优化样本。'
 }
 
 const currentRouteName = computed(() => {
@@ -358,15 +482,19 @@ const autoRunning = ref(false)
 const redeemOpen = ref(false)
 const redeemLoading = ref(false)
 const redeemCode = ref('')
+const sidebarCollapsed = ref(false)
+const adminMenuOpen = ref(true)
+const operationsMenuOpen = ref(true)
 
 const unreadCount = computed(() => announcementsStore.unreadCount || 0)
 const recentAnnouncements = computed(() => (announcementsStore.active || []).slice(0, 6))
-const isCreateRoute = computed(() => route.name === 'studio-create')
+const isCreateRoute = computed(() => route.name === 'studio-create' || route.name === 'studio-dialogue')
 const hasActiveJob = computed(() => Boolean(imagesStore.activeJob))
 const jobPanelExpanded = ref(false)
 
 const generationCapsuleText = computed(() => {
   const status = imagesStore.activeJob?.status
+  if (status === 'queued') return '排队中...'
   if (status === 'running') return '生成中...'
   if (status === 'success') return '已完成'
   if (status === 'error') return '生成失败'
@@ -381,6 +509,48 @@ function formatTime(val) {
     hour: '2-digit',
     minute: '2-digit'
   }).format(new Date(val))
+}
+
+function readStoredBoolean(key, fallback) {
+  if (typeof window === 'undefined') return fallback
+  const value = window.localStorage.getItem(key)
+  if (value === '1') return true
+  if (value === '0') return false
+  return fallback
+}
+
+function writeStoredBoolean(key, value) {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(key, value ? '1' : '0')
+}
+
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+  writeStoredBoolean(SIDEBAR_COLLAPSED_KEY, sidebarCollapsed.value)
+}
+
+function toggleAdminMenu() {
+  if (sidebarCollapsed.value) {
+    sidebarCollapsed.value = false
+    writeStoredBoolean(SIDEBAR_COLLAPSED_KEY, false)
+    adminMenuOpen.value = true
+    writeStoredBoolean(ADMIN_MENU_OPEN_KEY, true)
+    return
+  }
+  adminMenuOpen.value = !adminMenuOpen.value
+  writeStoredBoolean(ADMIN_MENU_OPEN_KEY, adminMenuOpen.value)
+}
+
+function toggleOperationsMenu() {
+  if (sidebarCollapsed.value) {
+    sidebarCollapsed.value = false
+    writeStoredBoolean(SIDEBAR_COLLAPSED_KEY, false)
+    operationsMenuOpen.value = true
+    writeStoredBoolean(OPERATIONS_MENU_OPEN_KEY, true)
+    return
+  }
+  operationsMenuOpen.value = !operationsMenuOpen.value
+  writeStoredBoolean(OPERATIONS_MENU_OPEN_KEY, operationsMenuOpen.value)
 }
 
 async function refreshAnnouncements() {
@@ -452,6 +622,7 @@ async function onAnnouncementClosed() {
 
 const generationTitle = computed(() => {
   const status = imagesStore.activeJob?.status
+  if (status === 'queued') return '任务已排队'
   if (status === 'running') return '图片正在生成'
   if (status === 'success') return '图片已生成'
   if (status === 'error') return '生成失败'
@@ -461,6 +632,7 @@ const generationTitle = computed(() => {
 const generationSubtitle = computed(() => {
   const job = imagesStore.activeJob
   if (!job) return ''
+  if (job.status === 'queued') return '任务已提交，后台会按顺序开始生成'
   if (job.status === 'running') return '可以继续浏览其他页面，完成后会自动保存到灵感记录'
   if (job.status === 'success') return '已保存到灵感记录，可回到工作台查看预览'
   return job.error || '请稍后重试'
@@ -495,13 +667,36 @@ watch(
   () => authStore.user?.id,
   async (id) => {
     if (!id) return
+    await imagesStore.restoreActiveJob()
     await startAutoQueue()
   }
 )
 
 onMounted(async () => {
+  sidebarCollapsed.value = readStoredBoolean(SIDEBAR_COLLAPSED_KEY, false)
+  adminMenuOpen.value = readStoredBoolean(ADMIN_MENU_OPEN_KEY, true)
+  operationsMenuOpen.value = readStoredBoolean(OPERATIONS_MENU_OPEN_KEY, true)
+  if (isAdminManagementRoute.value) adminMenuOpen.value = true
+  if (isOperationsRoute.value) operationsMenuOpen.value = true
   await siteStore.fetchSettings()
-  if (authStore.user?.id) await startAutoQueue()
+  if (authStore.user?.id) {
+    await imagesStore.restoreActiveJob()
+    await startAutoQueue()
+  }
+})
+
+watch(isAdminManagementRoute, (active) => {
+  if (active && !adminMenuOpen.value) {
+    adminMenuOpen.value = true
+    writeStoredBoolean(ADMIN_MENU_OPEN_KEY, true)
+  }
+})
+
+watch(isOperationsRoute, (active) => {
+  if (active && !operationsMenuOpen.value) {
+    operationsMenuOpen.value = true
+    writeStoredBoolean(OPERATIONS_MENU_OPEN_KEY, true)
+  }
 })
 
 async function logout() {
@@ -542,7 +737,7 @@ async function submitRedeem() {
 
 function goProfile() {
   userMenuOpen.value = false
-  router.push('/studio/profile')
+  router.push('/studio/settings')
 }
 
 async function copySupport() {
@@ -575,19 +770,205 @@ async function logoutFromMenu() {
   min-height: 0;
 }
 
-.nav-section {
-  padding: 12px 0;
-  border-top: 1px solid rgba(15, 23, 42, 0.06);
-  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
-  margin: 12px 0;
+.studio-layout :deep(.sidebar) {
+  min-height: 0;
+  transition: width 0.22s ease, padding 0.22s ease;
 }
 
-.nav-section-title {
-  padding: 0 14px 8px;
+.studio-layout :deep(.sidebar-nav) {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 18px;
+}
+
+.studio-layout :deep(.sidebar-nav > div[style*="flex"]) {
+  flex: 0 0 8px !important;
+}
+
+.nav-group {
+  display: grid;
+  gap: 5px;
+  padding: 8px 0;
+}
+
+.nav-group + .nav-group {
+  margin-top: 6px;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.nav-group-label {
+  padding: 0 12px 3px;
+  color: rgba(100, 116, 139, 0.78);
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0;
+  line-height: 1.4;
+}
+
+.sidebar-header {
+  position: relative;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+}
+
+.sidebar-header :deep(.brand) {
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: center;
+  padding: 0;
+}
+
+.sidebar-header :deep(.brand-icon) {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+}
+
+.sidebar-header :deep(.brand-icon img) {
+  width: 44px;
+  height: 44px;
+}
+
+.brand-label,
+.nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-toggle {
+  position: absolute;
+  right: -13px;
+  top: 50%;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.9);
   color: var(--muted);
+  cursor: pointer;
+  box-shadow: 0 8px 18px -14px rgba(15, 23, 42, 0.4);
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+  z-index: 5;
+}
+
+.sidebar-toggle:hover {
+  color: var(--primary);
+  border-color: rgba(37, 99, 235, 0.22);
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.nav-section {
+  margin: 0;
+}
+
+.nav-section-toggle {
+  width: 100%;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.nav-section-toggle:hover,
+.nav-section-toggle.active {
+  color: var(--primary);
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.nav-section-chevron {
+  margin-left: auto;
+  transition: transform 0.18s ease;
+}
+
+.nav-section-chevron.open {
+  transform: rotate(180deg);
+}
+
+.nav-section-list {
+  display: grid;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 3px 0 0 10px;
+}
+
+.nav-sub-link {
+  height: 36px;
+  padding-left: 12px;
   font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
+  font-weight: 800;
+}
+
+.studio-layout.sidebar-collapsed :deep(.sidebar) {
+  width: 72px;
+}
+
+.studio-layout.sidebar-collapsed .sidebar-header {
+  justify-content: center;
+  padding: 0 12px;
+}
+
+.studio-layout.sidebar-collapsed .sidebar-header :deep(.brand) {
+  flex: 0 0 48px;
+}
+
+.studio-layout.sidebar-collapsed .sidebar-header :deep(.brand-icon) {
+  width: 44px;
+  height: 44px;
+  flex-basis: 44px;
+}
+
+.studio-layout.sidebar-collapsed .sidebar-header :deep(.brand-icon img) {
+  width: 40px;
+  height: 40px;
+}
+
+.studio-layout.sidebar-collapsed :deep(.sidebar-nav) {
+  padding: 16px 10px;
+  align-items: center;
+}
+
+.studio-layout.sidebar-collapsed :deep(.nav-link),
+.studio-layout.sidebar-collapsed .nav-section-toggle {
+  width: 42px;
+  justify-content: center;
+  padding: 0;
+  gap: 0;
+}
+
+.studio-layout.sidebar-collapsed .nav-label,
+.studio-layout.sidebar-collapsed .nav-section-chevron,
+.studio-layout.sidebar-collapsed .nav-group-label {
+  display: none;
+}
+
+.studio-layout.sidebar-collapsed .nav-section,
+.studio-layout.sidebar-collapsed .nav-group {
+  width: 100%;
+  padding: 8px 0;
+}
+
+.studio-layout.sidebar-collapsed .nav-group + .nav-group {
+  margin-top: 4px;
 }
 
 .nav-link-admin-mobile {
@@ -597,43 +978,43 @@ async function logoutFromMenu() {
 .topbar-title {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
   flex: 1 1 auto;
 }
 
 .topbar-title :deep(.text-h3) {
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 900;
-  letter-spacing: -0.03em;
-  line-height: 1.08;
-  text-shadow: 0 10px 24px rgba(15, 23, 42, 0.10);
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+  text-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
 }
 
 .topbar-heading {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
 }
 
 .topbar-mode-icon {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: inline-grid;
   place-items: center;
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--gradient-subtle);
   color: var(--primary);
   flex: none;
 }
 
 .topbar.topbar-create {
-  min-height: 78px;
+  min-height: 64px;
 }
 
 .topbar-sub {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 750;
   color: var(--muted);
   line-height: 1.4;
@@ -645,7 +1026,7 @@ async function logoutFromMenu() {
 .topbar-right {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   flex: 0 1 auto;
   min-width: 0;
 }
@@ -653,8 +1034,8 @@ async function logoutFromMenu() {
 .topbar-meta {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  font-size: 13px;
+  gap: 8px;
+  font-size: 12px;
   font-weight: 850;
   color: var(--text);
 }
@@ -663,26 +1044,26 @@ async function logoutFromMenu() {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 30px;
-  padding: 0 10px;
+  height: 28px;
+  padding: 0 9px;
   border-radius: 999px;
-  border: 1px solid rgba(99, 102, 241, 0.16);
-  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  background: rgba(37, 99, 235, 0.08);
   color: var(--primary);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 900;
   cursor: pointer;
 }
 
 .redeem-entry:hover {
-  background: rgba(99, 102, 241, 0.12);
+  background: rgba(37, 99, 235, 0.12);
 }
 
 .meta-tag {
   display: inline-flex;
   align-items: center;
-  height: 30px;
-  padding: 0 10px;
+  height: 28px;
+  padding: 0 9px;
   border-radius: 999px;
   border: 1px solid rgba(15, 23, 42, 0.08);
   background: transparent;
@@ -692,14 +1073,14 @@ async function logoutFromMenu() {
 
 .meta-tag.plan {
   color: var(--primary);
-  border-color: rgba(99, 102, 241, 0.18);
+  border-color: rgba(37, 99, 235, 0.18);
 }
 
 .user-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 4px 8px 4px 4px;
+  gap: 8px;
+  padding: 3px 7px 3px 3px;
   border-radius: 999px;
   border: 1px solid rgba(15, 23, 42, 0.08);
   background: transparent;
@@ -709,13 +1090,13 @@ async function logoutFromMenu() {
 }
 
 .user-trigger:hover {
-  border-color: rgba(99, 102, 241, 0.22);
+  border-color: rgba(37, 99, 235, 0.22);
   background: rgba(255, 255, 255, 0.32);
 }
 
 .user-avatar {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -733,7 +1114,7 @@ async function logoutFromMenu() {
 }
 
 .user-trigger-name {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 950;
   max-width: 140px;
   overflow: hidden;
@@ -742,7 +1123,7 @@ async function logoutFromMenu() {
 }
 
 .user-trigger-role {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 900;
   color: var(--muted);
   letter-spacing: 0.04em;
@@ -754,7 +1135,7 @@ async function logoutFromMenu() {
 }
 
 .user-menu {
-  width: min(240px, 80vw);
+  width: min(220px, 80vw);
 }
 
 .user-menu-head {
@@ -767,8 +1148,8 @@ async function logoutFromMenu() {
 }
 
 .user-menu-avatar {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 10px;
   display: grid;
   place-items: center;
@@ -840,8 +1221,8 @@ async function logoutFromMenu() {
 }
 
 .user-menu-item.danger:hover {
-  background: rgba(236, 72, 153, 0.08);
-  border-color: rgba(236, 72, 153, 0.18);
+  background: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.18);
 }
 
 .redeem-form {
@@ -857,21 +1238,21 @@ async function logoutFromMenu() {
 }
 
 .generation-bar {
-  min-height: 44px;
+  min-height: 40px;
   position: fixed;
   left: 50%;
   bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
   width: min(920px, calc(100vw - 80px));
   margin: 0;
-  padding: 8px 10px;
+  padding: 7px 9px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  border: 1px solid rgba(99, 102, 241, 0.18);
+  gap: 8px;
+  border: 1px solid rgba(37, 99, 235, 0.18);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.08);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.08);
   backdrop-filter: blur(18px);
   z-index: 30;
 }
@@ -887,8 +1268,8 @@ async function logoutFromMenu() {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 2px 8px;
+  gap: 8px;
+  padding: 1px 7px;
   background: transparent;
   border: none;
   color: var(--text);
@@ -921,8 +1302,8 @@ async function logoutFromMenu() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 2px 6px 4px;
+  gap: 12px;
+  padding: 1px 5px 3px;
 }
 
 .generation-info,
@@ -946,7 +1327,7 @@ async function logoutFromMenu() {
 
 .generation-copy strong {
   color: var(--text);
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .generation-copy span {
@@ -960,21 +1341,21 @@ async function logoutFromMenu() {
 }
 
 .generation-bar-error {
-  border-color: rgba(236, 72, 153, 0.24);
+  border-color: rgba(220, 38, 38, 0.24);
 }
 
 .generation-btn {
-  height: 34px;
-  padding: 0 12px;
-  border-radius: 10px;
-  font-size: 13px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 9px;
+  font-size: 12px;
 }
 
 .notice-trigger {
   position: relative;
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
   border: 1px solid rgba(15, 23, 42, 0.08);
   background: transparent;
   display: grid;
@@ -1089,8 +1470,8 @@ async function logoutFromMenu() {
 
 .notice-pill.unread {
   color: var(--primary);
-  background: rgba(99, 102, 241, 0.08);
-  border-color: rgba(99, 102, 241, 0.18);
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.18);
 }
 
 .notice-pill.sticky {
@@ -1136,8 +1517,8 @@ async function logoutFromMenu() {
 
 .announcement-tag.unread {
   color: var(--primary);
-  background: rgba(99, 102, 241, 0.08);
-  border-color: rgba(99, 102, 241, 0.18);
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.18);
 }
 
 .announcement-tag.sticky {
@@ -1187,6 +1568,47 @@ async function logoutFromMenu() {
 }
 
 @media (max-width: 760px) {
+  .studio-layout.sidebar-collapsed :deep(.sidebar) {
+    width: auto;
+  }
+
+  .sidebar-toggle {
+    display: none;
+  }
+
+  .brand-label,
+  .nav-label,
+  .studio-layout.sidebar-collapsed .nav-label {
+    display: inline;
+  }
+
+  .studio-layout.sidebar-collapsed :deep(.sidebar-nav) {
+    padding: 7px;
+    align-items: center;
+  }
+
+  .nav-group,
+  .studio-layout.sidebar-collapsed .nav-group {
+    display: contents;
+  }
+
+  .nav-group-label,
+  .studio-layout.sidebar-collapsed .nav-group-label {
+    display: none;
+  }
+
+  .studio-layout.sidebar-collapsed :deep(.nav-link) {
+    flex: 1 0 68px;
+    width: auto;
+    height: 46px;
+    padding: 0 8px;
+    gap: 5px;
+  }
+
+  .nav-section {
+    display: none;
+  }
+
   .page-shell {
     display: block;
     flex: none;

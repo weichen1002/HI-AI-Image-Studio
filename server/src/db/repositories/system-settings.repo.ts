@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { config } from '../../config';
 import { SqliteService } from '../sqlite.service';
+import { getModelCapabilities } from '../../hiapi/model-capabilities';
 
 const SIGNUP_BONUS_RULES_KEY = 'signup_bonus_rules';
 const GENERAL_SETTINGS_KEY = 'general_settings';
@@ -486,11 +487,13 @@ export class SystemSettingsRepo {
   }
 
   getAdminSettingsBootstrap() {
+    const model = this.getModelSettings();
     return {
       general: this.getGeneralSettings(),
       signupBonus: this.getSignupBonusRules(),
       pricing: this.getPricingSettings(),
-      model: this.getModelSettings(),
+      model,
+      modelCapabilities: getModelCapabilities(model),
       upload: this.getUploadSettings(),
     };
   }

@@ -72,44 +72,91 @@
           <StarIcon :size="15" />
           <span>只看收藏</span>
         </button>
+        <button
+          type="button"
+          class="advanced-filter-trigger"
+          :class="{ active: advancedFiltersOpen || hasAdvancedFilters }"
+          @click="advancedFiltersOpen = !advancedFiltersOpen"
+        >
+          <span>更多筛选</span>
+          <span v-if="hasAdvancedFilters" class="advanced-filter-dot"></span>
+        </button>
       </div>
 
-      <div v-if="showAssetFilters" class="asset-filter-panel">
-        <div v-if="showFolderFilters" class="asset-filter-row">
-          <div class="asset-filter-label">
-            <FolderOpenIcon :size="15" />
-            <span>文件夹</span>
+      <div v-if="showAdvancedFilters" class="advanced-filter-panel">
+        <div v-if="showAssetFilters" class="asset-filter-panel">
+          <div v-if="showFolderFilters" class="asset-filter-row">
+            <div class="asset-filter-label">
+              <FolderOpenIcon :size="15" />
+              <span>文件夹</span>
+            </div>
+            <div class="asset-filter-chips" aria-label="文件夹筛选">
+              <button
+                v-for="item in folderFilterOptions"
+                :key="item.value"
+                type="button"
+                class="asset-filter-chip"
+                :class="{ active: folderFilter === item.value }"
+                @click="folderFilter = item.value"
+              >
+                {{ item.label }}
+              </button>
+            </div>
           </div>
-          <div class="asset-filter-chips" aria-label="文件夹筛选">
-            <button
-              v-for="item in folderFilterOptions"
-              :key="item.value"
-              type="button"
-              class="asset-filter-chip"
-              :class="{ active: folderFilter === item.value }"
-              @click="folderFilter = item.value"
-            >
-              {{ item.label }}
-            </button>
+          <div v-if="showTagFilters" class="asset-filter-row">
+            <div class="asset-filter-label">
+              <TagIcon :size="15" />
+              <span>标签</span>
+            </div>
+            <div class="asset-filter-chips" aria-label="标签筛选">
+              <button
+                v-for="item in tagFilterOptions"
+                :key="item.value"
+                type="button"
+                class="asset-filter-chip"
+                :class="{ active: tagFilter === item.value }"
+                @click="tagFilter = item.value"
+              >
+                {{ item.label }}
+              </button>
+            </div>
           </div>
         </div>
-        <div v-if="showTagFilters" class="asset-filter-row">
-          <div class="asset-filter-label">
-            <TagIcon :size="15" />
-            <span>标签</span>
-          </div>
-          <div class="asset-filter-chips" aria-label="标签筛选">
-            <button
-              v-for="item in tagFilterOptions"
-              :key="item.value"
-              type="button"
-              class="asset-filter-chip"
-              :class="{ active: tagFilter === item.value }"
-              @click="tagFilter = item.value"
-            >
-              {{ item.label }}
-            </button>
-          </div>
+        <div class="advanced-filter-grid">
+          <label class="advanced-filter-field">
+            <span>比例</span>
+            <SelectMenu v-model="ratioFilter" :options="ratioFilterOptions" size="sm" />
+          </label>
+          <label class="advanced-filter-field">
+            <span>质量</span>
+            <SelectMenu v-model="qualityFilter" :options="qualityFilterOptions" size="sm" />
+          </label>
+          <label class="advanced-filter-field">
+            <span>开始日期</span>
+            <Input v-model="dateFromFilter" type="date" size="sm" />
+          </label>
+          <label class="advanced-filter-field">
+            <span>结束日期</span>
+            <Input v-model="dateToFilter" type="date" size="sm" />
+          </label>
+        </div>
+        <div class="advanced-filter-toggles">
+          <button
+            type="button"
+            class="advanced-toggle"
+            :class="{ active: hasReferenceOnly }"
+            @click="hasReferenceOnly = !hasReferenceOnly"
+          >
+            有参考图
+          </button>
+          <button
+            type="button"
+            class="advanced-toggle"
+            :class="{ active: inStyleBoardOnly }"
+            @click="inStyleBoardOnly = !inStyleBoardOnly"
+          >
+            已加入风格板
+          </button>
         </div>
       </div>
     </section>
@@ -221,7 +268,17 @@
               <FolderOpenIcon :size="16" />
             </button>
             <button
-              v-if="coverUrl(item)"
+              v-if="item.image?.imageUrls?.[0] || item.image?.previewImageUrls?.[0]"
+              class="cover-action"
+              type="button"
+              title="加入风格板"
+              aria-label="加入风格板"
+              @click="openStyleBoardModalForItem(item)"
+            >
+              <PanelsTopLeftIcon :size="16" />
+            </button>
+            <button
+              v-if="downloadUrl(item)"
               class="cover-action"
               type="button"
               title="下载图片"
@@ -251,7 +308,7 @@
           <div class="card-actions">
             <button class="card-continue-action" type="button" @click.stop="reusePrompt(item)">
               <Wand2Icon :size="15" />
-              <span>{{ item.type === 'dialogue-chain' ? '继续对话' : '再次创作' }}</span>
+              <span>{{ item.type === 'dialogue-chain' ? '继续对话' : '生成变体' }}</span>
             </button>
           </div>
           <div v-if="item.assetSummary.folder || item.assetSummary.tags.length" class="asset-meta-row">
@@ -311,19 +368,55 @@
       </template>
     </Modal>
 
+    <Modal v-model:open="styleBoardModalOpen" title="加入风格板" size="md">
+      <div class="style-board-form">
+        <div class="style-board-preview">
+          <img v-if="styleBoardTargetCover" :src="styleBoardTargetCover" alt="风格参考图" />
+          <div class="style-board-preview-copy">
+            <div class="style-board-form-title">保存为项目参考图</div>
+            <div class="style-board-form-sub">加入后可在工作台选择该风格板，带入风格、构图、色彩和材质方向。</div>
+          </div>
+        </div>
+        <label class="style-board-field">
+          <span>选择已有风格板</span>
+          <SelectMenu
+            v-model="styleBoardTargetId"
+            :options="styleBoardOptions"
+            placeholder="选择风格板"
+            size="sm"
+          />
+        </label>
+        <label class="style-board-field">
+          <span>或新建风格板</span>
+          <Input v-model="styleBoardNewName" placeholder="例如：新品电商冷白光" />
+        </label>
+      </div>
+
+      <template #footer>
+        <div class="asset-modal-actions">
+          <Button variant="ghost" :disabled="styleBoardSaving" @click="styleBoardModalOpen = false">取消</Button>
+          <Button :disabled="styleBoardSaving" @click="saveToStyleBoard">
+            {{ styleBoardSaving ? '加入中...' : '加入' }}
+          </Button>
+        </div>
+      </template>
+    </Modal>
+
   </div>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { CheckIcon, CheckSquareIcon, CopyIcon, DownloadIcon, FolderOpenIcon, RefreshCwIcon, ImageOffIcon, SearchIcon, TagIcon, Wand2Icon, Trash2Icon, StarIcon, XIcon } from 'lucide-vue-next'
+import { CheckIcon, CheckSquareIcon, CopyIcon, DownloadIcon, FolderOpenIcon, PanelsTopLeftIcon, RefreshCwIcon, ImageOffIcon, SearchIcon, TagIcon, Wand2Icon, Trash2Icon, StarIcon, XIcon } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import { useImagesStore } from '../../stores/images'
 import { usePreferencesStore } from '../../stores/preferences'
-import { Button, Input, LinkButton, Modal, SelectMenu, toastError, toastSuccess } from '../../components/common'
+import { useStyleBoardsStore } from '../../stores/styleBoards'
+import { Button, Input, LinkButton, Modal, SelectMenu, confirmDanger, toastError, toastSuccess } from '../../components/common'
 
 const imagesStore = useImagesStore()
 const preferencesStore = usePreferencesStore()
+const styleBoardsStore = useStyleBoardsStore()
 const router = useRouter()
 const route = useRoute()
 const searchText = ref('')
@@ -331,6 +424,13 @@ const modeFilter = ref('all')
 const folderFilter = ref('all')
 const tagFilter = ref('all')
 const favoritesOnly = ref(false)
+const ratioFilter = ref('all')
+const qualityFilter = ref('all')
+const hasReferenceOnly = ref(false)
+const inStyleBoardOnly = ref(false)
+const dateFromFilter = ref('')
+const dateToFilter = ref('')
+const advancedFiltersOpen = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(24)
 const pageSizeText = ref('24')
@@ -340,6 +440,11 @@ const batchMode = ref(false)
 const selectedKeys = ref([])
 const assetModalOpen = ref(false)
 const assetTargetItems = ref([])
+const styleBoardModalOpen = ref(false)
+const styleBoardSaving = ref(false)
+const styleBoardTargetItem = ref(null)
+const styleBoardTargetId = ref('')
+const styleBoardNewName = ref('')
 const assetForm = reactive({
   folderMode: 'keep',
   folder: '',
@@ -353,6 +458,20 @@ const modeFilterOptions = [
   { label: '图生图', value: 'image' },
   { label: '对话创作', value: 'dialogue' },
   { label: '图片工具', value: 'tools' }
+]
+const ratioFilterOptions = [
+  { label: '全部比例', value: 'all' },
+  { label: '1:1', value: '1:1' },
+  { label: '16:9', value: '16:9' },
+  { label: '9:16', value: '9:16' },
+  { label: '4:3', value: '4:3' },
+  { label: '3:4', value: '3:4' }
+]
+const qualityFilterOptions = [
+  { label: '全部质量', value: 'all' },
+  { label: '1K 标准', value: '1k' },
+  { label: '2K 高清', value: '2k' },
+  { label: '4K 超清', value: '4k' }
 ]
 
 const serverAssetFolders = computed(() => {
@@ -431,8 +550,28 @@ const hasActiveFilters = computed(() => {
     modeFilter.value !== 'all' ||
     folderFilter.value !== 'all' ||
     tagFilter.value !== 'all' ||
-    favoritesOnly.value
+    favoritesOnly.value ||
+    ratioFilter.value !== 'all' ||
+    qualityFilter.value !== 'all' ||
+    hasReferenceOnly.value ||
+    inStyleBoardOnly.value ||
+    Boolean(dateFromFilter.value || dateToFilter.value)
   )
+})
+const hasAdvancedFilters = computed(() => {
+  return Boolean(
+    folderFilter.value !== 'all' ||
+    tagFilter.value !== 'all' ||
+    ratioFilter.value !== 'all' ||
+    qualityFilter.value !== 'all' ||
+    hasReferenceOnly.value ||
+    inStyleBoardOnly.value ||
+    dateFromFilter.value ||
+    dateToFilter.value
+  )
+})
+const showAdvancedFilters = computed(() => {
+  return Boolean((imagesCount.value || hasActiveFilters.value) && (advancedFiltersOpen.value || hasAdvancedFilters.value))
 })
 const showFolderFilters = computed(() => {
   return folderFilter.value !== 'all' || allAssetFolders.value.length > 0
@@ -519,9 +658,20 @@ const assetModalTitle = computed(() => {
   if (assetTargetItems.value.length > 1) return `批量整理 ${assetTargetItems.value.length} 项`
   return '整理作品'
 })
+const styleBoardOptions = computed(() =>
+  styleBoardsStore.boards.map((board) => ({
+    label: `${board.name}${board.refs.length ? ` · ${board.refs.length}图` : ''}`,
+    value: board.id
+  }))
+)
+const styleBoardTargetCover = computed(() => {
+  const image = styleBoardTargetItem.value?.image || null
+  return image?.imageUrls?.[0] || image?.previewImageUrls?.[0] || ''
+})
 
-onMounted(() => {
+onMounted(async () => {
   applyRouteFilters()
+  await importLocalFavorites()
   fetchImages()
 })
 
@@ -536,7 +686,14 @@ async function fetchImages() {
     mode: modeFilter.value,
     q: searchText.value,
     folder: folderFilter.value,
-    tag: tagFilter.value
+    tag: tagFilter.value,
+    favorite: favoritesOnly.value,
+    ratio: ratioFilter.value,
+    quality: qualityFilter.value,
+    hasReference: hasReferenceOnly.value,
+    inStyleBoard: inStyleBoardOnly.value,
+    dateFrom: dateFromFilter.value,
+    dateTo: dateToFilter.value
   })
   if (currentPage.value > totalPages.value) {
     currentPage.value = totalPages.value
@@ -546,10 +703,27 @@ async function fetchImages() {
       mode: modeFilter.value,
       q: searchText.value,
       folder: folderFilter.value,
-      tag: tagFilter.value
+      tag: tagFilter.value,
+      favorite: favoritesOnly.value,
+      ratio: ratioFilter.value,
+      quality: qualityFilter.value,
+      hasReference: hasReferenceOnly.value,
+      inStyleBoard: inStyleBoardOnly.value,
+      dateFrom: dateFromFilter.value,
+      dateTo: dateToFilter.value
     })
   }
+  syncRouteFilters()
   clearSelection()
+}
+
+async function importLocalFavorites() {
+  if (!preferencesStore.favoriteImageIds.length) return
+  try {
+    await imagesStore.importFavoriteImages(preferencesStore.favoriteImageIds)
+  } catch {
+    void 0
+  }
 }
 
 function routeString(value) {
@@ -560,12 +734,48 @@ function applyRouteFilters() {
   const folder = routeString(route.query.folder)
   const tag = routeString(route.query.tag)
   const q = routeString(route.query.q)
+  const mode = routeString(route.query.mode)
+  const ratio = routeString(route.query.ratio)
+  const quality = routeString(route.query.quality)
+  const favorite = routeString(route.query.favorite)
+  const hasReference = routeString(route.query.hasReference)
+  const inStyleBoard = routeString(route.query.inStyleBoard)
+  const dateFrom = routeString(route.query.dateFrom)
+  const dateTo = routeString(route.query.dateTo)
 
   suppressServerFetch = true
+  if (modeFilterOptions.some((item) => item.value === mode)) modeFilter.value = mode
   if (folder) folderFilter.value = folder
   if (tag) tagFilter.value = tag
   if (q) searchText.value = q
+  if (ratioFilterOptions.some((item) => item.value === ratio)) ratioFilter.value = ratio
+  if (qualityFilterOptions.some((item) => item.value === quality)) qualityFilter.value = quality
+  favoritesOnly.value = favorite === '1'
+  hasReferenceOnly.value = hasReference === '1'
+  inStyleBoardOnly.value = inStyleBoard === '1'
+  if (dateFrom) dateFromFilter.value = dateFrom
+  if (dateTo) dateToFilter.value = dateTo
   suppressServerFetch = false
+}
+
+function syncRouteFilters() {
+  const query = {}
+  if (searchText.value.trim()) query.q = searchText.value.trim()
+  if (modeFilter.value !== 'all') query.mode = modeFilter.value
+  if (folderFilter.value !== 'all') query.folder = folderFilter.value
+  if (tagFilter.value !== 'all') query.tag = tagFilter.value
+  if (favoritesOnly.value) query.favorite = '1'
+  if (ratioFilter.value !== 'all') query.ratio = ratioFilter.value
+  if (qualityFilter.value !== 'all') query.quality = qualityFilter.value
+  if (hasReferenceOnly.value) query.hasReference = '1'
+  if (inStyleBoardOnly.value) query.inStyleBoard = '1'
+  if (dateFromFilter.value) query.dateFrom = dateFromFilter.value
+  if (dateToFilter.value) query.dateTo = dateToFilter.value
+  const current = JSON.stringify(route.query || {})
+  const next = JSON.stringify(query)
+  if (current !== next) {
+    void router.replace({ path: route.path, query }).catch(() => {})
+  }
 }
 
 function resetServerPageAndFetch() {
@@ -608,6 +818,16 @@ watch(tagFilter, () => {
   resetServerPageAndFetch()
 })
 
+watch(favoritesOnly, () => {
+  if (suppressServerFetch) return
+  resetServerPageAndFetch()
+})
+
+watch([ratioFilter, qualityFilter, hasReferenceOnly, inStyleBoardOnly, dateFromFilter, dateToFilter], () => {
+  if (suppressServerFetch) return
+  resetServerPageAndFetch()
+})
+
 watch(pageSizeText, (value) => {
   const nextSize = Number(value || 24)
   pageSize.value = [12, 24, 48, 96].includes(nextSize) ? nextSize : 24
@@ -625,13 +845,27 @@ function favoriteIdsForItem(item) {
 
 function isFavorite(item) {
   const ids = favoriteIdsForItem(item)
-  return ids.length > 0 && ids.some((id) => preferencesStore.isFavoriteImage(id))
+  return ids.length > 0 && ids.some((id) => {
+    const image = (item.type === 'dialogue-chain' ? item.images : [item.image])
+      .find((current) => String(current?.id || '') === String(id))
+    return Boolean(image?.isFavorite || image?.favoriteAt || preferencesStore.isFavoriteImage(id))
+  })
 }
 
-function toggleFavorite(item) {
+async function toggleFavorite(item) {
   const ids = favoriteIdsForItem(item)
-  const shouldFavorite = !ids.some((id) => preferencesStore.isFavoriteImage(id))
+  if (!ids.length) return
+  const shouldFavorite = !isFavorite(item)
   preferencesStore.setFavoriteImages(ids, shouldFavorite)
+  try {
+    await Promise.all(ids.map((id) => imagesStore.updateImageFavorite(id, shouldFavorite)))
+    if (favoritesOnly.value && !shouldFavorite) {
+      await fetchImages()
+    }
+  } catch (error) {
+    preferencesStore.setFavoriteImages(ids, !shouldFavorite)
+    toastError(error?.message || '收藏更新失败')
+  }
 }
 
 function resetFilters() {
@@ -641,6 +875,13 @@ function resetFilters() {
   folderFilter.value = 'all'
   tagFilter.value = 'all'
   favoritesOnly.value = false
+  ratioFilter.value = 'all'
+  qualityFilter.value = 'all'
+  hasReferenceOnly.value = false
+  inStyleBoardOnly.value = false
+  dateFromFilter.value = ''
+  dateToFilter.value = ''
+  advancedFiltersOpen.value = false
   suppressServerFetch = false
   resetServerPageAndFetch()
 }
@@ -648,7 +889,13 @@ function resetFilters() {
 async function removeOne(item) {
   if (!item?.image?.id) return
   const isChain = item.type === 'dialogue-chain'
-  const ok = window.confirm(isChain ? '确定删除整条对话记录吗？该操作不可撤销。' : '确定删除这条记录吗？')
+  const ok = await confirmDanger({
+    title: isChain ? '删除对话记录' : '删除历史记录',
+    objectName: isChain ? `对话记录 · ${item.roundCount || 1} 轮` : item.image.prompt || '未命名作品',
+    message: isChain ? '确定删除整条对话记录吗？' : '确定删除这条历史记录吗？',
+    details: isChain ? '这会删除该对话下的所有生成结果。' : '删除后将无法在灵感记录中找回。',
+    confirmText: '删除'
+  })
   if (!ok) return
   if (isChain) {
     await imagesStore.deleteDialogueChain(item.chainId)
@@ -660,7 +907,13 @@ async function removeOne(item) {
 }
 
 async function clearAll() {
-  const ok = window.confirm('确定清空全部灵感记录吗？该操作不可撤销。')
+  const ok = await confirmDanger({
+    title: '清空灵感记录',
+    objectName: `${serverTotal.value || imagesStore.images.length} 条记录`,
+    message: '确定清空全部灵感记录吗？',
+    details: '所有历史图片、对话链和本地偏好都会从当前账号记录中移除。',
+    confirmText: '清空'
+  })
   if (!ok) return
   const ids = (imagesStore.images || []).map((image) => image.id).filter(Boolean)
   await imagesStore.clearImages()
@@ -677,20 +930,17 @@ function formatTime(val) {
 function reusePrompt(item) {
   const image = item?.image || item
   if (image.mode === 'dialogue' || image.mode === 'continuous') {
-    router.push({ path: '/studio', query: { mode: 'dialogue', imageId: image.id } })
+    router.push({ path: '/studio/dialogue', query: { imageId: image.id } })
     return
   }
-  if (image.mode === 'tools') {
-    router.push({ path: '/studio', query: { mode: 'tools' } })
-    return
-  }
-  if (image.mode === 'image' && image.inputImageUrls?.[0]) {
+  const input = variantInputUrl(image)
+  if (input) {
     router.push({
       path: '/studio',
       query: {
         ...reuseQueryForImage(image, 'image'),
-        mode: 'image',
-        input: encodeURIComponent(image.inputImageUrls[0])
+        input: encodeURIComponent(input),
+        sourceImageId: image.id
       }
     })
     return
@@ -713,6 +963,10 @@ function reuseQueryForImage(image, mode = 'text') {
     }
   }
   return query
+}
+
+function variantInputUrl(image) {
+  return image?.imageUrls?.[0] || ''
 }
 
 function openDetail(item) {
@@ -817,6 +1071,44 @@ async function saveAssetMeta() {
   }
 }
 
+async function openStyleBoardModalForItem(item) {
+  if (!item?.image?.id) return
+  try {
+    await styleBoardsStore.fetchBoards()
+    styleBoardTargetItem.value = item
+    styleBoardTargetId.value = styleBoardsStore.boards[0]?.id || ''
+    styleBoardNewName.value = ''
+    styleBoardModalOpen.value = true
+  } catch (error) {
+    toastError(error?.message || '风格板加载失败')
+  }
+}
+
+async function saveToStyleBoard() {
+  const image = styleBoardTargetItem.value?.image
+  if (!image?.id) return
+  styleBoardSaving.value = true
+  try {
+    let boardId = styleBoardTargetId.value
+    const newName = String(styleBoardNewName.value || '').trim()
+    if (newName) {
+      const board = await styleBoardsStore.createBoard({
+        name: newName,
+        description: image.prompt || ''
+      })
+      boardId = board?.id || ''
+    }
+    if (!boardId) throw new Error('请选择或新建一个风格板')
+    await styleBoardsStore.addRefFromImage(boardId, image.id, image.prompt || '')
+    toastSuccess('已加入风格板')
+    styleBoardModalOpen.value = false
+  } catch (error) {
+    toastError(error?.message || '加入风格板失败')
+  } finally {
+    styleBoardSaving.value = false
+  }
+}
+
 async function downloadSelected() {
   for (const item of selectedItems.value) {
     await downloadCover(item)
@@ -825,7 +1117,13 @@ async function downloadSelected() {
 
 async function deleteSelected() {
   if (!selectedItems.value.length) return
-  const ok = window.confirm(`确定删除选中的 ${selectedItems.value.length} 项吗？对话记录会按整条链删除。`)
+  const ok = await confirmDanger({
+    title: '删除选中记录',
+    objectName: `${selectedItems.value.length} 项`,
+    message: '确定删除选中的历史记录吗？',
+    details: '对话记录会按整条链删除，删除后不可撤销。',
+    confirmText: '删除'
+  })
   if (!ok) return
   const ids = selectedItems.value.flatMap((item) => imageIdsForItem(item))
   for (const item of selectedItems.value) {
@@ -856,6 +1154,13 @@ function coverUrl(item) {
   const image = item.image || item
   const current = coverMode[item.key || image.id] === 'input' ? 'input' : 'result'
   if (current === 'input') return image.inputImageUrls?.[0] || image.imageUrls?.[0] || ''
+  return image.imageUrls?.[0] || image.previewImageUrls?.[0] || ''
+}
+
+function downloadUrl(item) {
+  const image = item.image || item
+  const current = coverMode[item.key || image.id] === 'input' ? 'input' : 'result'
+  if (current === 'input') return image.inputImageUrls?.[0] || image.imageUrls?.[0] || ''
   return image.imageUrls?.[0] || ''
 }
 
@@ -877,7 +1182,7 @@ function triggerDownload(url, filename) {
 }
 
 async function downloadCover(item) {
-  const url = coverUrl(item)
+  const url = downloadUrl(item)
   if (!url) return
 
   if (url.startsWith('data:')) {
@@ -950,8 +1255,8 @@ async function downloadCover(item) {
 .stat-pill.strong {
   min-width: 42px;
   color: var(--primary);
-  border-color: rgba(99, 102, 241, 0.2);
-  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(37, 99, 235, 0.2);
+  background: rgba(37, 99, 235, 0.08);
   font-size: 14px;
 }
 
@@ -991,8 +1296,8 @@ async function downloadCover(item) {
 
 .history-filters {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(0, 520px) auto;
-  gap: 12px;
+  grid-template-columns: minmax(220px, 1fr) minmax(0, 480px) auto auto;
+  gap: 10px;
   align-items: center;
   margin-top: 14px;
 }
@@ -1051,29 +1356,34 @@ async function downloadCover(item) {
 .mode-tab.active {
   color: #ffffff;
   background: var(--primary);
-  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.18);
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.18);
 }
 
-.favorite-filter {
-  height: 42px;
+.favorite-filter,
+.advanced-filter-trigger {
+  height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 7px;
-  padding: 0 14px;
+  padding: 0 12px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.58);
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
   white-space: nowrap;
   cursor: pointer;
   transition: border-color 0.2s, background-color 0.2s, color 0.2s, box-shadow 0.2s;
 }
 
-.favorite-filter:hover {
+.favorite-filter:hover,
+.advanced-filter-trigger:hover {
   background: #ffffff;
+}
+
+.favorite-filter:hover {
   border-color: rgba(245, 158, 11, 0.3);
 }
 
@@ -1084,18 +1394,36 @@ async function downloadCover(item) {
   box-shadow: 0 8px 18px rgba(245, 158, 11, 0.12);
 }
 
+.advanced-filter-trigger {
+  position: relative;
+  border-color: rgba(37, 99, 235, 0.14);
+}
+
+.advanced-filter-trigger.active {
+  color: var(--primary);
+  border-color: rgba(37, 99, 235, 0.28);
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.advanced-filter-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
 .asset-filter-panel {
   display: grid;
-  gap: 8px;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid rgba(15, 23, 42, 0.06);
+  gap: 7px;
+  min-width: 0;
+  grid-column: 1 / -1;
 }
 
 .asset-filter-row {
   display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 8px;
   align-items: center;
 }
 
@@ -1111,7 +1439,7 @@ async function downloadCover(item) {
 .asset-filter-chips {
   min-width: 0;
   display: flex;
-  gap: 8px;
+  gap: 6px;
   overflow-x: auto;
   padding: 1px 2px 3px;
   scrollbar-width: thin;
@@ -1120,13 +1448,13 @@ async function downloadCover(item) {
 .asset-filter-chip {
   flex: 0 0 auto;
   max-width: 180px;
-  height: 30px;
-  padding: 0 10px;
+  height: 28px;
+  padding: 0 9px;
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.58);
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 900;
   white-space: nowrap;
   overflow: hidden;
@@ -1138,14 +1466,79 @@ async function downloadCover(item) {
 .asset-filter-chip:hover {
   color: rgba(15, 23, 42, 0.86);
   background: #ffffff;
-  border-color: rgba(99, 102, 241, 0.16);
+  border-color: rgba(37, 99, 235, 0.16);
 }
 
 .asset-filter-chip.active {
   color: var(--primary);
-  border-color: rgba(99, 102, 241, 0.26);
-  background: rgba(99, 102, 241, 0.09);
-  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.08);
+  border-color: rgba(37, 99, 235, 0.26);
+  background: rgba(37, 99, 235, 0.09);
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.08);
+}
+
+.advanced-filter-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px 12px;
+  margin-top: 10px;
+  padding: 10px;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.58);
+}
+
+.advanced-filter-grid {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.advanced-filter-field {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.advanced-filter-field > span {
+  color: rgba(15, 23, 42, 0.62);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.advanced-filter-toggles {
+  display: flex;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.advanced-toggle {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.58);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.advanced-toggle:hover {
+  color: rgba(15, 23, 42, 0.86);
+  background: #ffffff;
+  border-color: rgba(37, 99, 235, 0.16);
+}
+
+.advanced-toggle.active {
+  color: var(--primary);
+  border-color: rgba(37, 99, 235, 0.26);
+  background: rgba(37, 99, 235, 0.09);
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.08);
 }
 
 .batch-toolbar {
@@ -1155,10 +1548,10 @@ async function downloadCover(item) {
   gap: 12px;
   margin-bottom: 18px;
   padding: 12px 14px;
-  border: 1px solid rgba(99, 102, 241, 0.18);
+  border: 1px solid rgba(37, 99, 235, 0.18);
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(14, 165, 233, 0.06));
-  box-shadow: 0 10px 26px rgba(99, 102, 241, 0.08);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(14, 165, 233, 0.05));
+  box-shadow: 0 10px 26px rgba(37, 99, 235, 0.08);
 }
 
 .batch-summary {
@@ -1205,18 +1598,18 @@ async function downloadCover(item) {
 }
 
 .history-card.selected {
-  border-color: rgba(99, 102, 241, 0.42);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1), 0 18px 46px rgba(99, 102, 241, 0.14);
+  border-color: rgba(37, 99, 235, 0.42);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1), 0 18px 46px rgba(37, 99, 235, 0.14);
 }
 
 .history-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(99, 102, 241, 0.18);
+  border-color: rgba(37, 99, 235, 0.18);
   box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
 }
 
 .dialogue-chain-card {
-  border-color: rgba(99, 102, 241, 0.16);
+  border-color: rgba(37, 99, 235, 0.16);
 }
 
 .dialogue-chain-card .history-cover::after {
@@ -1228,11 +1621,11 @@ async function downloadCover(item) {
 }
 
 .dialogue-chain-card .count-badge {
-  background: rgba(99, 102, 241, 0.88);
+  background: rgba(37, 99, 235, 0.88);
 }
 
 .history-card:focus-visible {
-  outline: 2px solid rgba(99, 102, 241, 0.6);
+  outline: 2px solid rgba(37, 99, 235, 0.6);
   outline-offset: 2px;
 }
 
@@ -1310,7 +1703,7 @@ async function downloadCover(item) {
 
 .toggle-btn.active {
   color: var(--primary);
-  border-color: rgba(99, 102, 241, 0.35);
+  border-color: rgba(37, 99, 235, 0.35);
   background: var(--gradient-subtle);
 }
 
@@ -1424,7 +1817,7 @@ async function downloadCover(item) {
   transform: translateY(-1px);
   background: #ffffff;
   color: var(--primary);
-  border-color: rgba(99, 102, 241, 0.18);
+  border-color: rgba(37, 99, 235, 0.18);
 }
 
 .inline-favorite.active {
@@ -1506,8 +1899,8 @@ async function downloadCover(item) {
 }
 
 .folder-pill {
-  border-color: rgba(99, 102, 241, 0.16);
-  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(37, 99, 235, 0.16);
+  background: rgba(37, 99, 235, 0.08);
   color: var(--primary);
 }
 
@@ -1526,6 +1919,56 @@ async function downloadCover(item) {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.style-board-form {
+  display: grid;
+  gap: 13px;
+}
+
+.style-board-preview {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 13px;
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  background: rgba(248, 250, 252, 0.72);
+}
+
+.style-board-preview img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 11px;
+  background: rgba(15, 23, 42, 0.05);
+}
+
+.style-board-preview-copy {
+  min-width: 0;
+}
+
+.style-board-form-title {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.style-board-form-sub {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 750;
+}
+
+.style-board-field {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .history-pagination {
@@ -1556,6 +1999,18 @@ async function downloadCover(item) {
 @media (max-width: 980px) {
   .history-filters {
     grid-template-columns: 1fr;
+  }
+
+  .advanced-filter-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .advanced-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .advanced-filter-toggles {
+    justify-content: flex-start;
   }
 
   .mode-tabs {
@@ -1610,7 +2065,8 @@ async function downloadCover(item) {
   }
 
   .history-actions,
-  .favorite-filter {
+  .favorite-filter,
+  .advanced-filter-trigger {
     width: 100%;
   }
 
@@ -1621,6 +2077,14 @@ async function downloadCover(item) {
   .asset-filter-row {
     grid-template-columns: 1fr;
     gap: 7px;
+  }
+
+  .advanced-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .advanced-toggle {
+    width: 100%;
   }
 
   .grid-history {

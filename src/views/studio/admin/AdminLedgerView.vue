@@ -29,6 +29,9 @@
         <SelectMenu v-model="typeFilter" size="sm" :options="typeOptions" placeholder="全部类型" class="type-select" />
       </template>
       <template #filterActions>
+        <Button variant="ghost" size="sm" :disabled="loading || !String(userId || '').trim()" @click="exportCsv">
+          导出当前筛选
+        </Button>
         <Button variant="ghost" size="sm" :disabled="loading" @click="load">
           <template #icon><RefreshCcwIcon :size="16" aria-hidden="true" /></template>
           刷新数据
@@ -121,6 +124,29 @@ function handlePageSizeChange(next) {
   pageSize.value = next
   page.value = 1
   if (String(userId.value || '').trim()) load()
+}
+
+function buildFilterParams() {
+  const params = new URLSearchParams()
+  const id = String(userId.value || '').trim()
+  if (id) params.set('userId', id)
+  if (typeFilter.value) params.set('type', String(typeFilter.value))
+  return params
+}
+
+function downloadUrl(url) {
+  const link = document.createElement('a')
+  link.href = url
+  link.download = ''
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+}
+
+function exportCsv() {
+  const params = buildFilterParams()
+  if (!params.get('userId')) return
+  downloadUrl(`/api/admin/exports/ledger?${params.toString()}`)
 }
 
 async function load() {
@@ -257,8 +283,8 @@ onUnmounted(() => {
 .error {
   padding: 12px 14px;
   border-radius: 14px;
-  border: 1px solid rgba(236, 72, 153, 0.25);
-  background: rgba(236, 72, 153, 0.06);
+  border: 1px solid rgba(220, 38, 38, 0.18);
+  background: rgba(220, 38, 38, 0.06);
   color: var(--accent);
   font-weight: 800;
   margin: 12px 14px;

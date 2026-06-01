@@ -1,0 +1,12 @@
+{
+  "id": "compact-platform-density",
+  "title": "压缩平台整体视觉尺寸",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已完成，待归档",
+  "createdAt": "2026-06-01T11:57:11Z",
+  "branch": "main"
+}

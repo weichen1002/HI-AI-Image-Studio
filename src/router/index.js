@@ -11,14 +11,20 @@ const HistoryView = () => import('../views/studio/HistoryView.vue')
 const HistoryDetailView = () => import('../views/studio/HistoryDetailView.vue')
 const ModelsView = () => import('../views/studio/ModelsView.vue')
 const SettingsView = () => import('../views/studio/SettingsView.vue')
-const ProfileView = () => import('../views/studio/ProfileView.vue')
 const AnnouncementsView = () => import('../views/studio/AnnouncementsView.vue')
+const TasksView = () => import('../views/studio/TasksView.vue')
+const StyleBoardsView = () => import('../views/studio/StyleBoardsView.vue')
+const AdminDashboardView = () => import('../views/studio/admin/AdminDashboardView.vue')
+const AdminOperationsView = () => import('../views/studio/admin/AdminOperationsView.vue')
 const AdminUsersView = () => import('../views/studio/admin/AdminUsersView.vue')
 const AdminAnnouncementsView = () => import('../views/studio/admin/AdminAnnouncementsView.vue')
 const AdminSettingsView = () => import('../views/studio/admin/AdminSettingsView.vue')
 const AdminLedgerView = () => import('../views/studio/admin/AdminLedgerView.vue')
 const AdminRedeemCodesView = () => import('../views/studio/admin/AdminRedeemCodesView.vue')
 const AdminAuditLogsView = () => import('../views/studio/admin/AdminAuditLogsView.vue')
+const AdminBillingOrdersView = () => import('../views/studio/admin/AdminBillingOrdersView.vue')
+const AdminImageFeedbackView = () => import('../views/studio/admin/AdminImageFeedbackView.vue')
+const BillingView = () => import('../views/studio/BillingView.vue')
 
 export function isDynamicImportError(error) {
   const message = String(error?.message || error || '')
@@ -91,6 +97,11 @@ const routes = [
         component: CreateView
       },
       {
+        path: 'dialogue',
+        name: 'studio-dialogue',
+        component: CreateView
+      },
+      {
         path: 'history',
         name: 'studio-history',
         component: HistoryView
@@ -114,12 +125,43 @@ const routes = [
       {
         path: 'profile',
         name: 'studio-profile',
-        component: ProfileView
+        redirect: { name: 'studio-settings' }
+      },
+      {
+        path: 'billing',
+        name: 'studio-billing',
+        component: BillingView
+      },
+      {
+        path: 'tasks',
+        name: 'studio-tasks',
+        component: TasksView
+      },
+      {
+        path: 'style-boards',
+        name: 'studio-style-boards',
+        component: StyleBoardsView
       },
       {
         path: 'announcements',
         name: 'studio-announcements',
         component: AnnouncementsView
+      },
+      {
+        path: 'admin',
+        redirect: { name: 'studio-admin-dashboard' }
+      },
+      {
+        path: 'admin/operations',
+        name: 'studio-admin-operations',
+        component: AdminOperationsView,
+        meta: { requiresRole: ['admin', 'superadmin'] }
+      },
+      {
+        path: 'admin/dashboard',
+        name: 'studio-admin-dashboard',
+        component: AdminDashboardView,
+        meta: { requiresRole: ['admin', 'superadmin'] }
       },
       {
         path: 'admin/users',
@@ -146,6 +188,12 @@ const routes = [
         meta: { requiresRole: ['admin', 'superadmin'] }
       },
       {
+        path: 'admin/billing-orders',
+        name: 'studio-admin-billing-orders',
+        component: AdminBillingOrdersView,
+        meta: { requiresRole: ['admin', 'superadmin'] }
+      },
+      {
         path: 'admin/redeem-codes',
         name: 'studio-admin-redeem-codes',
         component: AdminRedeemCodesView,
@@ -155,6 +203,12 @@ const routes = [
         path: 'admin/audit-logs',
         name: 'studio-admin-audit-logs',
         component: AdminAuditLogsView,
+        meta: { requiresRole: ['admin', 'superadmin'] }
+      },
+      {
+        path: 'admin/image-feedback',
+        name: 'studio-admin-image-feedback',
+        component: AdminImageFeedbackView,
         meta: { requiresRole: ['admin', 'superadmin'] }
       }
     ]

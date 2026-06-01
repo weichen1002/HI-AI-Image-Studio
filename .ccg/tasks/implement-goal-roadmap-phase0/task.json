@@ -1,0 +1,12 @@
+{
+  "id": "implement-goal-roadmap-phase0",
+  "title": "执行目标模式路线图 Phase 0 和 Phase 1",
+  "status": "completed",
+  "complexity": "L",
+  "risk": "high",
+  "domain": "fullstack",
+  "currentPhase": "completed",
+  "nextAction": "Phase 0/1 路线图已执行到 G7.3，等待下一阶段目标",
+  "createdAt": "2026-05-27T00:00:00+08:00",
+  "branch": "main"
+}

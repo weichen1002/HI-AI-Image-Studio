@@ -1,0 +1,12 @@
+{
+  "id": "n8-1-health-config-validation",
+  "title": "N8.1 启动配置校验和健康检查",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "backend",
+  "currentPhase": "completed",
+  "nextAction": "后续可按 N8.2 补任务和支付链路结构化日志",
+  "createdAt": "2026-05-29T11:10:00+08:00",
+  "branch": "main"
+}

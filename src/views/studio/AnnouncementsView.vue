@@ -152,8 +152,8 @@ onMounted(load)
 .error {
   padding: 12px 14px;
   border-radius: 14px;
-  border: 1px solid rgba(236, 72, 153, 0.25);
-  background: rgba(236, 72, 153, 0.06);
+  border: 1px solid rgba(220, 38, 38, 0.18);
+  background: rgba(220, 38, 38, 0.06);
   color: var(--accent);
   font-weight: 800;
   margin-bottom: 14px;
@@ -226,8 +226,8 @@ onMounted(load)
 
 .chip.unread {
   color: var(--primary);
-  background: rgba(99, 102, 241, 0.08);
-  border-color: rgba(99, 102, 241, 0.18);
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.18);
 }
 
 .chip.sticky {

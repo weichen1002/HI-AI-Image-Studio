@@ -1,0 +1,12 @@
+{
+  "id": "polish-studio-secondary-pages-ui",
+  "title": "整理风格板任务中心充值中心重复标题和 UI",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已移除页面内重复标题并优化操作区布局",
+  "createdAt": "2026-06-01T01:54:23Z",
+  "branch": "main"
+}

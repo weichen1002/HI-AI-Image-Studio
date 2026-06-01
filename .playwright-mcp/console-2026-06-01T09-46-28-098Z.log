@@ -1,0 +1,54 @@
+[  679413ms] [WARNING] [Vue warn]: Unhandled error during execution of setup function 
+  at <AdminDashboardView onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< null > > 
+  at <RouterView> 
+  at <StudioView onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
+  at <RouterView> 
+  at <App> @ http://localhost:5171/node_modules/.vite/deps/chunk-S5ZFOAR2.js?v=3f3443ba:2214
+[  679414ms] [WARNING] [Vue warn]: Unhandled error during execution of scheduler flush 
+  at <AdminDashboardView onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< null > > 
+  at <RouterView> 
+  at <StudioView onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
+  at <RouterView> 
+  at <App> @ http://localhost:5171/node_modules/.vite/deps/chunk-S5ZFOAR2.js?v=3f3443ba:2214
+[  679482ms] ReferenceError: watch is not defined
+    at setup (http://localhost:5171/src/views/studio/admin/AdminDashboardView.vue?t=1780307867405:395:1)
+    at callWithErrorHandling (http://localhost:5171/node_modules/.vite/deps/chunk-S5ZFOAR2.js?v=3f3443ba:2362:19)
+    at setupStatefulComponent (http://localhost:5171/node_modules/.vite/deps/chunk-S5ZFOAR2.js?v=3f3443ba:10311:25)
+    at setupComponent (http://localhost:5171/node_modules/.vite/deps/chunk-S5ZFOAR2.js?v=3f3443ba:10273:36)
+    at mountComponent (http://localhost:5171/node_modules/.vite/deps/chunk-S5ZFOAR2.js?v=3f3443ba:8199:7)
+    at processComponent (http://localhost:5171/node_modules/.vite/deps/chunk-S5ZFOAR2.js?v=3f3443ba:8165:9)
+    at patch (http://localhost:5171/node_modules/.vite/deps/chunk-S5ZFOAR2.js?v=3f3443ba:7662:11)
+    at ReactiveEffect.componentUpdateFn [as fn] (http://localhost:5171/node_modules/.vite/deps/chunk-S5ZFOAR2.js?v=3f3443ba:8393:9)
+    at ReactiveEffect.run (http://localhost:5171/node_modules/.vite/deps/chunk-S5ZFOAR2.js?v=3f3443ba:518:19)
+    at http://localhost:5171/node_modules/.vite/deps/chunk-S5ZFOAR2.js?v=3f3443ba:2700:27
+[  714362ms] [WARNING] [Vue warn]: Unhandled error during execution of scheduler flush 
+  at <AdminDashboardView onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< null > > 
+  at <RouterView> 
+  at <StudioView onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
+  at <RouterView> 
+  at <App> @ http://localhost:5171/node_modules/.vite/deps/chunk-S5ZFOAR2.js?v=3f3443ba:2214
+[  714376ms] TypeError: Cannot read properties of null (reading 'flags')
+    at http://localhost:5171/node_modules/.vite/deps/chunk-S5ZFOAR2.js?v=3f3443ba:2698:28
+    at callWithErrorHandling (http://localhost:5171/node_modules/.vite/deps/chunk-S5ZFOAR2.js?v=3f3443ba:2362:33)
+    at flushJobs (http://localhost:5171/node_modules/.vite/deps/chunk-S5ZFOAR2.js?v=3f3443ba:2570:9)
+[  761617ms] [WARNING] [Vue warn]: Unhandled error during execution of scheduler flush 
+  at <AdminDashboardView onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< null > > 
+  at <RouterView> 
+  at <StudioView onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
+  at <RouterView> 
+  at <App> @ http://localhost:5171/node_modules/.vite/deps/chunk-S5ZFOAR2.js?v=3f3443ba:2214
+[  761627ms] TypeError: Cannot read properties of null (reading 'flags')
+    at http://localhost:5171/node_modules/.vite/deps/chunk-S5ZFOAR2.js?v=3f3443ba:2698:28
+    at callWithErrorHandling (http://localhost:5171/node_modules/.vite/deps/chunk-S5ZFOAR2.js?v=3f3443ba:2362:33)
+    at flushJobs (http://localhost:5171/node_modules/.vite/deps/chunk-S5ZFOAR2.js?v=3f3443ba:2570:9)
+[  823350ms] [WARNING] [Vue warn]: Unhandled error during execution of scheduler flush 
+  at <AdminDashboardView onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< null > > 
+  at <RouterView> 
+  at <StudioView onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > 
+  at <RouterView> 
+  at <App> @ http://localhost:5171/node_modules/.vite/deps/chunk-S5ZFOAR2.js?v=3f3443ba:2214
+[  823371ms] TypeError: Cannot read properties of null (reading 'flags')
+    at http://localhost:5171/node_modules/.vite/deps/chunk-S5ZFOAR2.js?v=3f3443ba:2698:28
+    at callWithErrorHandling (http://localhost:5171/node_modules/.vite/deps/chunk-S5ZFOAR2.js?v=3f3443ba:2362:33)
+    at flushJobs (http://localhost:5171/node_modules/.vite/deps/chunk-S5ZFOAR2.js?v=3f3443ba:2570:9)
+[ 1237867ms] [LOG] [vite] server connection lost. Polling for restart... @ http://localhost:5171/@vite/client:963

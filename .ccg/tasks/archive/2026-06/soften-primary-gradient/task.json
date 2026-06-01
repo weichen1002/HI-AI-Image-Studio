@@ -1,0 +1,12 @@
+{
+  "id": "soften-primary-gradient",
+  "title": "柔化平台主渐变并增加轻快感",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已完成：回退亮蓝方向，保留稳重蓝并加入轻微清新感",
+  "createdAt": "2026-06-01T12:37:08Z",
+  "branch": "main"
+}

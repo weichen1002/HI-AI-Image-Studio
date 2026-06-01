@@ -1,0 +1,12 @@
+{
+  "id": "relax-ratio-button-padding",
+  "title": "调整比例按钮内部留白",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已完成：ratio-btn 上下留白和 active 态已放松",
+  "createdAt": "2026-06-01T13:01:22Z",
+  "branch": "main"
+}

@@ -1,0 +1,13 @@
+{
+  "id": "move-reset-preview-to-result-panel",
+  "title": "移除提示词操作区的重置预览入口",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "等待人工验收预览区重置入口",
+  "createdAt": "2026-06-01T12:24:44Z",
+  "completedAt": "2026-06-01T12:27:00Z",
+  "branch": "main"
+}

@@ -29,7 +29,7 @@
 .admin-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   min-height: 0;
   flex: 1;
 }
@@ -38,17 +38,17 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .filter-card {
-  padding: 14px 14px 12px;
-  border-radius: 18px;
+  padding: 11px 12px 10px;
+  border-radius: 14px;
   border: 1px solid rgba(15, 23, 42, 0.06);
   background: rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(18px);
-  box-shadow: 0 10px 34px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
   min-width: 0;
 }
 
@@ -56,17 +56,17 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
   flex: 1;
 }
 
 .table-card {
-  border-radius: 18px;
+  border-radius: 14px;
   border: 1px solid rgba(15, 23, 42, 0.06);
   background: rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(18px);
-  box-shadow: 0 10px 34px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -81,12 +81,12 @@
 }
 
 .table-footer {
-  padding: 12px 14px;
+  padding: 10px 12px;
   border-top: 1px solid rgba(15, 23, 42, 0.06);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
   flex: 0 0 auto;
 }

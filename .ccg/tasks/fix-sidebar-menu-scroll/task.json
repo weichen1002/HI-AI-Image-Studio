@@ -1,0 +1,12 @@
+{
+  "id": "fix-sidebar-menu-scroll",
+  "title": "修复左侧菜单无法滚动",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已完成：桌面侧边栏导航支持纵向滚动",
+  "createdAt": "2026-06-01T13:33:08Z",
+  "branch": "main"
+}

@@ -18,6 +18,7 @@ import {
   RedeemCodesRepo,
   RedeemCodeType,
 } from '../db/repositories/redeem-codes.repo';
+import { AuditLogsRepo } from '../db/repositories/audit-logs.repo';
 
 function normalizeLimit(value: string | undefined, max = 100, fallback = 20) {
   const limit = Number(value || fallback);
@@ -68,7 +69,10 @@ function normalizePositiveInt(value: any, fieldName: string) {
 @Controller('api/admin/redeem-codes')
 @UseGuards(AuthGuard, AdminRoleGuard)
 export class AdminRedeemCodesController {
-  constructor(private readonly redeemCodesRepo: RedeemCodesRepo) {}
+  constructor(
+    private readonly redeemCodesRepo: RedeemCodesRepo,
+    private readonly auditLogsRepo: AuditLogsRepo,
+  ) {}
 
   @Get()
   list(
@@ -182,6 +186,34 @@ export class AdminRedeemCodesController {
           : normalizeBoolean(body?.enabled, current.enabled),
       updatedBy: req.user.id,
     });
+    if (!next) {
+      throw new HttpException('兑换码不存在', HttpStatus.NOT_FOUND);
+    }
+    this.auditLogsRepo.create({
+      actorUserId: req.user.id,
+      targetUserId: id,
+      category: 'admin',
+      action: 'redeem_code_updated',
+      status: 'success',
+      detail: {
+        title: current.title,
+        codeMask: current.codeMask,
+        before: {
+          title: current.title,
+          creditsAmount: current.creditsAmount,
+          totalLimit: current.totalLimit,
+          expiresAt: current.expiresAt,
+          enabled: current.enabled,
+        },
+        after: {
+          title: next.title,
+          creditsAmount: next.creditsAmount,
+          totalLimit: next.totalLimit,
+          expiresAt: next.expiresAt,
+          enabled: next.enabled,
+        },
+      },
+    });
     return { code: next };
   }
 
@@ -219,19 +251,47 @@ export class AdminRedeemCodesController {
 
   @Post(':id/enable')
   enable(@Req() req: RequestWithUser, @Param('id') id: string) {
+    const current = this.redeemCodesRepo.findById(id);
     const next = this.redeemCodesRepo.setEnabled(id, true, req.user.id);
     if (!next) {
       throw new HttpException('兑换码不存在', HttpStatus.NOT_FOUND);
     }
+    this.auditLogsRepo.create({
+      actorUserId: req.user.id,
+      targetUserId: id,
+      category: 'admin',
+      action: 'redeem_code_enabled',
+      status: 'success',
+      detail: {
+        title: current?.title || next.title,
+        codeMask: next.codeMask,
+        before: { enabled: current?.enabled ?? false, status: current ? undefined : null },
+        after: { enabled: true },
+      },
+    });
     return { code: next };
   }
 
   @Post(':id/disable')
   disable(@Req() req: RequestWithUser, @Param('id') id: string) {
+    const current = this.redeemCodesRepo.findById(id);
     const next = this.redeemCodesRepo.setEnabled(id, false, req.user.id);
     if (!next) {
       throw new HttpException('兑换码不存在', HttpStatus.NOT_FOUND);
     }
+    this.auditLogsRepo.create({
+      actorUserId: req.user.id,
+      targetUserId: id,
+      category: 'admin',
+      action: 'redeem_code_disabled',
+      status: 'success',
+      detail: {
+        title: current?.title || next.title,
+        codeMask: next.codeMask,
+        before: { enabled: current?.enabled ?? true },
+        after: { enabled: false },
+      },
+    });
     return { code: next };
   }
 }

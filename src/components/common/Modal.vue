@@ -144,8 +144,8 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   background:
-    radial-gradient(900px 340px at 10% 0%, rgba(99, 102, 241, 0.12), transparent 55%),
-    radial-gradient(820px 340px at 95% 10%, rgba(236, 72, 153, 0.10), transparent 55%),
+    radial-gradient(900px 340px at 10% 0%, rgba(37, 99, 235, 0.12), transparent 55%),
+    radial-gradient(820px 340px at 95% 10%, rgba(14, 165, 233, 0.06), transparent 55%),
     rgba(255, 255, 255, 0.96);
   border: 1px solid rgba(255, 255, 255, 0.75);
   box-shadow: 0 28px 90px rgba(15, 23, 42, 0.22);

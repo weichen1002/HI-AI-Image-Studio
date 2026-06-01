@@ -1,0 +1,12 @@
+{
+  "id": "compact-dialogue-workspace",
+  "title": "压缩对话创作界面并支持图片放大预览",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已完成，待归档",
+  "createdAt": "2026-06-01T09:41:47Z",
+  "branch": "main"
+}

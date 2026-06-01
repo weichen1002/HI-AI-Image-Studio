@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, reactive, ref, watch } from 'vue'
+import { apiFetch } from '../utils/api'
 
 const STORAGE_KEY = 'hi-image-studio:preferences:v1'
 const ANONYMOUS_SCOPE = 'anonymous'
@@ -185,6 +186,43 @@ export const usePreferencesStore = defineStore('preferences', () => {
       : [value, ...favoriteTemplateIds.value]
   }
 
+  function setFavoriteTemplates(ids = []) {
+    favoriteTemplateIds.value = normalizeStringList(ids)
+  }
+
+  async function loadServerTemplateFavorites() {
+    const data = await apiFetch('/api/templates/favorites', undefined, { toast: false })
+    const ids = normalizeStringList(data?.templateIds)
+    setFavoriteTemplates(ids)
+    return ids
+  }
+
+  async function importServerTemplateFavorites(ids = []) {
+    const values = normalizeStringList(ids)
+    if (!values.length) return favoriteTemplateIds.value
+    const data = await apiFetch('/api/templates/favorites/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ templateIds: values })
+    }, { toast: false })
+    const nextIds = normalizeStringList(data?.templateIds)
+    setFavoriteTemplates(nextIds)
+    return nextIds
+  }
+
+  async function setServerTemplateFavorite(id, favorite) {
+    const value = String(id || '').trim()
+    if (!value) return favoriteTemplateIds.value
+    const data = await apiFetch('/api/templates/favorites', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ templateId: value, favorite: Boolean(favorite) })
+    })
+    const ids = normalizeStringList(data?.templateIds)
+    setFavoriteTemplates(ids)
+    return ids
+  }
+
   function assetMeta(id) {
     const key = String(id || '').trim()
     return assetMetaByImageId.value[key] || { folder: '', tags: [] }
@@ -245,6 +283,10 @@ export const usePreferencesStore = defineStore('preferences', () => {
     removeImagePreferences,
     isFavoriteTemplate,
     toggleFavoriteTemplate,
+    setFavoriteTemplates,
+    loadServerTemplateFavorites,
+    importServerTemplateFavorites,
+    setServerTemplateFavorite,
     assetMeta,
     updateAssetMeta,
     removeAssetMeta

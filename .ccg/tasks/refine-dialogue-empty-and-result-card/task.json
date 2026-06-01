@@ -1,0 +1,12 @@
+{
+  "id": "refine-dialogue-empty-and-result-card",
+  "title": "调整默认对话空态和结果卡尺寸",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已完成：默认空会话留白，结果卡恢复受控宽高",
+  "createdAt": "2026-06-01T12:35:49Z",
+  "branch": "main"
+}

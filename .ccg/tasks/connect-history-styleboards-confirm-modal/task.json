@@ -1,0 +1,12 @@
+{
+  "id": "connect-history-styleboards-confirm-modal",
+  "title": "Connect history works to style boards and replace native confirms with a shared modal",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "Archive task after implementation and verification",
+  "createdAt": "2026-06-01T12:55:54Z",
+  "branch": "main"
+}

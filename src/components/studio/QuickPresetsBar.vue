@@ -224,16 +224,16 @@ onBeforeUnmount(() => {
 }
 
 .preset-chip:hover {
-  border-color: rgba(99, 102, 241, 0.35);
+  border-color: rgba(37, 99, 235, 0.35);
   color: var(--primary);
-  background: rgba(99, 102, 241, 0.04);
+  background: rgba(37, 99, 235, 0.04);
 }
 
 .preset-chip.active {
-  border-color: rgba(99, 102, 241, 0.38);
+  border-color: rgba(37, 99, 235, 0.38);
   color: var(--primary);
-  background: rgba(99, 102, 241, 0.08);
-  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.12);
+  background: rgba(37, 99, 235, 0.08);
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.12);
 }
 
 .edge-fade {
@@ -282,8 +282,8 @@ onBeforeUnmount(() => {
 }
 
 .hint-btn:hover {
-  border-color: rgba(99, 102, 241, 0.25);
-  background: rgba(99, 102, 241, 0.06);
+  border-color: rgba(37, 99, 235, 0.25);
+  background: rgba(37, 99, 235, 0.06);
   color: var(--primary);
 }
 

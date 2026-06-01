@@ -1,0 +1,12 @@
+{
+  "id": "evaluate-infinite-canvas-integration",
+  "title": "Evaluate whether to integrate basketikun/infinite-canvas or keep it as a separate jump target",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "Archive task after delivering recommendation",
+  "createdAt": "2026-06-01T12:08:49Z",
+  "branch": "main"
+}

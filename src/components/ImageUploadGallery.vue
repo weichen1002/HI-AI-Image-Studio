@@ -182,8 +182,8 @@ function onDrop(event) {
 }
 
 .upload-dropzone {
-  border: 1px dashed rgba(99, 102, 241, 0.35);
-  background: rgba(99, 102, 241, 0.03);
+  border: 1px dashed rgba(37, 99, 235, 0.35);
+  background: rgba(37, 99, 235, 0.03);
   border-radius: 14px;
   padding: 12px;
   cursor: pointer;
@@ -191,8 +191,8 @@ function onDrop(event) {
 }
 
 .upload-dropzone.dragging {
-  border-color: rgba(99, 102, 241, 0.7);
-  background: rgba(99, 102, 241, 0.06);
+  border-color: rgba(37, 99, 235, 0.7);
+  background: rgba(37, 99, 235, 0.06);
   transform: translateY(-1px);
 }
 
@@ -275,7 +275,7 @@ function onDrop(event) {
 
 .upload-btn.danger {
   color: var(--accent);
-  border-color: rgba(236, 72, 153, 0.18);
+  border-color: rgba(220, 38, 38, 0.18);
 }
 
 .upload-input {

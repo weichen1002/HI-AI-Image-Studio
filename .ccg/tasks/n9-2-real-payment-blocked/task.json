@@ -1,0 +1,12 @@
+{
+  "id": "n9-2-real-payment-blocked",
+  "title": "真实支付渠道接入待资料",
+  "status": "completed",
+  "complexity": "L",
+  "risk": "high",
+  "domain": "backend",
+  "currentPhase": "completed",
+  "nextAction": "等待支付渠道、官方验签规则和 payload 示例",
+  "createdAt": "2026-05-29T04:22:04Z",
+  "branch": "main"
+}

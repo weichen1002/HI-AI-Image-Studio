@@ -1,0 +1,13 @@
+{
+  "id": "polish-admin-dashboard-metrics",
+  "title": "优化管理中心指标总览的专业数据呈现",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "等待人工验收指标总览页面",
+  "createdAt": "2026-06-01T09:40:35Z",
+  "completedAt": "2026-06-01T10:00:00Z",
+  "branch": "main"
+}

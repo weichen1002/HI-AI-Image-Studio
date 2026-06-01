@@ -1,0 +1,12 @@
+{
+  "id": "refine-history-filter-interaction",
+  "title": "优化灵感记录筛选交互层级",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已完成，待归档",
+  "createdAt": "2026-06-01T12:13:26Z",
+  "branch": "main"
+}

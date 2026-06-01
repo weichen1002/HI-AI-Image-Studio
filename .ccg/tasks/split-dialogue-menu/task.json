@@ -1,0 +1,12 @@
+{
+  "id": "split-dialogue-menu",
+  "title": "对话创作拆分为独立左侧菜单",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "后续可按 N13.1 做侧边栏收起和二级菜单",
+  "createdAt": "2026-05-29T11:20:00+08:00",
+  "branch": "main"
+}

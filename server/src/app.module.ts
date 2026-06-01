@@ -9,6 +9,11 @@ import { AdminModule } from './admin/admin.module';
 import { PromptsModule } from './prompts/prompts.module';
 import { AnnouncementsModule } from './announcements/announcements.module';
 import { RedeemCodesModule } from './redeem-codes/redeem-codes.module';
+import { TemplatesModule } from './templates/templates.module';
+import { BillingModule } from './billing/billing.module';
+import { StyleBoardsModule } from './style-boards/style-boards.module';
+import { HealthModule } from './health/health.module';
+import { HiapiModule } from './hiapi/hiapi.module';
 
 @Module({
   imports: [
@@ -24,6 +29,11 @@ import { RedeemCodesModule } from './redeem-codes/redeem-codes.module';
     PromptsModule,
     AnnouncementsModule,
     RedeemCodesModule,
+    TemplatesModule,
+    BillingModule,
+    StyleBoardsModule,
+    HealthModule,
+    HiapiModule,
   ],
 })
 export class AppModule {}

@@ -1,0 +1,12 @@
+{
+  "id": "n9-1-payment-provider-adapter",
+  "title": "支付渠道适配接口",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "high",
+  "domain": "backend",
+  "currentPhase": "completed",
+  "nextAction": "等待后续任务；按用户要求不归档不提交",
+  "createdAt": "2026-05-29T03:45:40Z",
+  "branch": "main"
+}

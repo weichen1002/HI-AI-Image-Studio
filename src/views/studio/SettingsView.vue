@@ -5,8 +5,8 @@
         <div class="hero-avatar">{{ userInitial }}</div>
         <div class="hero-copy">
           <div class="hero-eyebrow">Preferences</div>
-          <h2>偏好设置</h2>
-          <p>保存你的默认创作参数，新建作品时会自动带入。</p>
+          <h2>账户与偏好</h2>
+          <p>查看账户状态，并保存新建作品时自动带入的默认创作参数。</p>
         </div>
       </div>
       <div class="hero-meta">
@@ -20,6 +20,45 @@
         </div>
         <div class="meta-chip strong">
           {{ (authStore.user?.plan || 'free').toUpperCase() }}
+        </div>
+      </div>
+    </section>
+
+    <section class="account-section">
+      <div class="section-head account-head">
+        <div class="section-icon">
+          <UserIcon :size="18" />
+        </div>
+        <div>
+          <div class="section-title">账户资料</div>
+          <div class="section-desc">这些信息来自当前登录账户，仅用于状态确认。</div>
+        </div>
+      </div>
+      <div class="account-grid">
+        <div class="account-item">
+          <span>用户名</span>
+          <strong>{{ authStore.user?.username || '' }}</strong>
+        </div>
+        <div class="account-item">
+          <span>角色</span>
+          <strong>{{ authStore.user?.role || '' }}</strong>
+        </div>
+        <div class="account-item">
+          <span>套餐</span>
+          <strong>{{ authStore.user?.plan || '' }}</strong>
+        </div>
+        <div class="account-item">
+          <span>余额</span>
+          <strong>{{ authStore.user?.creditBalance ?? 0 }}</strong>
+        </div>
+        <div class="account-item account-id">
+          <span>用户 ID</span>
+          <strong>{{ authStore.user?.id || '' }}</strong>
+          <Button variant="ghost" size="xs" @click="copyUserId">复制</Button>
+        </div>
+        <div v-if="authStore.user?.createdAt" class="account-item">
+          <span>创建时间</span>
+          <strong>{{ formatTime(authStore.user.createdAt) }}</strong>
         </div>
       </div>
     </section>
@@ -212,7 +251,7 @@ import {
 } from 'lucide-vue-next'
 import { useAuthStore } from '../../stores/auth'
 import { DEFAULT_CREATE_SETTINGS, usePreferencesStore } from '../../stores/preferences'
-import { Button, SelectMenu, toastSuccess } from '../../components/common'
+import { Button, SelectMenu, toastError, toastSuccess } from '../../components/common'
 
 const authStore = useAuthStore()
 const preferencesStore = usePreferencesStore()
@@ -295,6 +334,28 @@ function labelFor(options, value) {
   return options.find((item) => item.value === value)?.label || String(value || '')
 }
 
+function formatTime(val) {
+  if (!val) return ''
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(new Date(val))
+}
+
+async function copyUserId() {
+  const value = String(authStore.user?.id || '').trim()
+  if (!value) return
+  try {
+    await navigator.clipboard.writeText(value)
+    toastSuccess('已复制用户 ID')
+  } catch {
+    toastError('复制失败')
+  }
+}
+
 </script>
 
 <style scoped>
@@ -302,7 +363,6 @@ function labelFor(options, value) {
   display: grid;
   gap: 18px;
   width: 100%;
-  max-width: 1180px;
 }
 
 .settings-hero {
@@ -314,8 +374,8 @@ function labelFor(options, value) {
   border: 1px solid rgba(255, 255, 255, 0.72);
   border-radius: calc(var(--radius-lg) + 6px);
   background:
-    radial-gradient(920px 320px at 8% -20%, rgba(99, 102, 241, 0.18), transparent 58%),
-    radial-gradient(820px 320px at 94% 0%, rgba(236, 72, 153, 0.12), transparent 58%),
+    radial-gradient(920px 320px at 8% -20%, rgba(37, 99, 235, 0.12), transparent 58%),
+    radial-gradient(820px 320px at 94% 0%, rgba(14, 165, 233, 0.08), transparent 58%),
     rgba(255, 255, 255, 0.72);
   box-shadow: 0 18px 60px rgba(15, 23, 42, 0.08);
   backdrop-filter: blur(20px);
@@ -339,7 +399,7 @@ function labelFor(options, value) {
   color: #fff;
   font-size: 16px;
   font-weight: 950;
-  box-shadow: 0 16px 36px rgba(99, 102, 241, 0.26);
+  box-shadow: 0 16px 32px rgba(37, 99, 235, 0.18);
 }
 
 .hero-copy {
@@ -394,8 +454,8 @@ function labelFor(options, value) {
 
 .meta-chip.strong {
   color: var(--primary);
-  border-color: rgba(99, 102, 241, 0.2);
-  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(37, 99, 235, 0.2);
+  background: rgba(37, 99, 235, 0.08);
 }
 
 .settings-layout {
@@ -406,7 +466,8 @@ function labelFor(options, value) {
 }
 
 .settings-surface,
-.settings-preview {
+.settings-preview,
+.account-section {
   border: 1px solid rgba(255, 255, 255, 0.78);
   border-radius: calc(var(--radius-lg) + 4px);
   background: rgba(255, 255, 255, 0.74);
@@ -416,6 +477,63 @@ function labelFor(options, value) {
 
 .settings-surface {
   overflow: hidden;
+}
+
+.account-section {
+  padding: 20px 22px 22px;
+}
+
+.account-head {
+  margin-bottom: 14px;
+}
+
+.account-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.account-item {
+  min-width: 0;
+  min-height: 74px;
+  display: grid;
+  align-content: center;
+  gap: 7px;
+  padding: 13px 14px;
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.account-item span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.account-item strong {
+  min-width: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 950;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-id {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.account-id span,
+.account-id strong {
+  grid-column: 1 / 2;
+}
+
+.account-id :deep(.btn) {
+  grid-column: 2 / 3;
+  grid-row: 1 / 3;
+  align-self: center;
 }
 
 .settings-section {
@@ -441,8 +559,8 @@ function labelFor(options, value) {
   place-items: center;
   flex: none;
   border-radius: 14px;
-  border: 1px solid rgba(99, 102, 241, 0.14);
-  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.14);
+  background: rgba(37, 99, 235, 0.08);
   color: var(--primary);
 }
 
@@ -504,16 +622,16 @@ function labelFor(options, value) {
 }
 
 .ratio-option:hover {
-  border-color: rgba(99, 102, 241, 0.24);
+  border-color: rgba(37, 99, 235, 0.24);
   background: rgba(255, 255, 255, 0.94);
   transform: translateY(-1px);
 }
 
 .ratio-option.active {
   color: var(--primary);
-  border-color: rgba(99, 102, 241, 0.38);
-  background: rgba(99, 102, 241, 0.07);
-  box-shadow: 0 12px 28px rgba(99, 102, 241, 0.12);
+  border-color: rgba(37, 99, 235, 0.38);
+  background: rgba(37, 99, 235, 0.07);
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.12);
 }
 
 .ratio-frame {
@@ -659,8 +777,8 @@ function labelFor(options, value) {
   height: 10px;
   margin-top: 5px;
   border-radius: 999px;
-  background: var(--accent);
-  box-shadow: 0 0 0 6px rgba(236, 72, 153, 0.10);
+  background: var(--primary);
+  box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.10);
 }
 
 .preview-canvas {
@@ -669,15 +787,15 @@ function labelFor(options, value) {
   place-items: center;
   margin: 0 auto 16px;
   overflow: hidden;
-  border: 1px solid rgba(99, 102, 241, 0.18);
+  border: 1px solid rgba(37, 99, 235, 0.18);
   border-radius: 18px;
   background:
-    linear-gradient(135deg, rgba(99, 102, 241, 0.16), rgba(236, 72, 153, 0.13)),
+    linear-gradient(135deg, rgba(37, 99, 235, 0.14), rgba(14, 165, 233, 0.09)),
     rgba(255, 255, 255, 0.72);
   color: var(--primary);
   font-size: 13px;
   font-weight: 950;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.62), 0 18px 36px rgba(99, 102, 241, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.62), 0 18px 36px rgba(37, 99, 235, 0.12);
 }
 
 .preview-shine {
@@ -749,9 +867,9 @@ function labelFor(options, value) {
   gap: 8px;
   margin-top: 16px;
   padding: 12px;
-  border: 1px solid rgba(99, 102, 241, 0.14);
+  border: 1px solid rgba(37, 99, 235, 0.14);
   border-radius: 14px;
-  background: rgba(99, 102, 241, 0.06);
+  background: rgba(37, 99, 235, 0.06);
   color: var(--muted);
   font-size: 12px;
   line-height: 1.45;
@@ -765,6 +883,10 @@ function labelFor(options, value) {
 }
 
 @media (max-width: 1020px) {
+  .account-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .settings-layout {
     grid-template-columns: 1fr;
   }
@@ -777,6 +899,10 @@ function labelFor(options, value) {
 @media (max-width: 760px) {
   .settings-hero {
     flex-direction: column;
+  }
+
+  .account-grid {
+    grid-template-columns: 1fr;
   }
 
   .hero-meta {

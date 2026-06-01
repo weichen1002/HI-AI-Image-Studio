@@ -1,0 +1,12 @@
+{
+  "id": "n13-1-collapsible-sidebar",
+  "title": "N13.1 侧边栏收起和二级菜单",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "继续按路线图推进 N8.2 结构化日志",
+  "createdAt": "2026-05-29T11:35:00+08:00",
+  "branch": "main"
+}

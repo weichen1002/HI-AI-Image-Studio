@@ -370,19 +370,19 @@ onUnmounted(() => {
 
 <style scoped>
 .selectmenu-portal {
-  border-radius: 14px;
+  border-radius: 12px;
   border: 1px solid rgba(15, 23, 42, 0.10);
   background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 18px 60px rgba(15, 23, 42, 0.18);
+  box-shadow: 0 14px 44px rgba(15, 23, 42, 0.16);
   backdrop-filter: blur(18px);
   overflow: hidden;
   pointer-events: auto;
 }
 
 .selectmenu-options {
-  max-height: 240px;
+  max-height: 220px;
   overflow: auto;
-  padding: 6px;
+  padding: 5px;
   outline: none;
 }
 
@@ -391,10 +391,10 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  font-size: 13px;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 12px;
   color: var(--text);
   cursor: pointer;
 }
@@ -408,7 +408,7 @@ onUnmounted(() => {
 }
 
 .selectmenu-option-selected {
-  background: rgba(99, 102, 241, 0.10);
+  background: rgba(37, 99, 235, 0.10);
   color: var(--primary);
 }
 

@@ -1,0 +1,13 @@
+{
+  "id": "polish-creator-workbench-spacing",
+  "title": "优化创作工作台表单间距和重置入口",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "等待人工验收创作工作台间距",
+  "createdAt": "2026-06-01T12:12:40Z",
+  "completedAt": "2026-06-01T12:18:00Z",
+  "branch": "main"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "n10-1-history-advanced-filters",
+  "title": "N10.1 历史资产高级筛选",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "fullstack",
+  "currentPhase": "completed",
+  "nextAction": "后续可按路线图推进 N10.2 变体对比视图",
+  "createdAt": "2026-06-01T02:35:00Z",
+  "branch": "main"
+}

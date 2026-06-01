@@ -1,0 +1,12 @@
+{
+  "id": "refine-platform-theme-colors",
+  "title": "收敛平台主题色为专业工作台风格",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已完成：主题色收敛、旧紫粉清理、构建验证通过",
+  "createdAt": "2026-06-01T12:17:42Z",
+  "branch": "main"
+}

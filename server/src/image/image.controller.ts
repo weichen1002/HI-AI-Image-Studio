@@ -18,7 +18,6 @@ import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { AuthGuard } from '../auth/auth.guard';
 import type { RequestWithUser } from '../auth/auth.guard';
 import {
-  HiapiService,
   type SupportedBackground,
   type SupportedModeration,
   type SupportedImageQuality,
@@ -33,14 +32,23 @@ import * as fs from 'fs';
 import * as fsp from 'fs/promises';
 import * as path from 'path';
 import { ImagesRepo } from '../db/repositories/images.repo';
-import { CreditsRepo } from '../credits/credits.repo';
-import { costFor } from '../credits/pricing';
+import { ImageJobsRepo, type ImageJobEntity, type ImageJobStatus } from '../db/repositories/image-jobs.repo';
 import { SqliteService } from '../db/sqlite.service';
 import { SystemSettingsRepo } from '../db/repositories/system-settings.repo';
 import { DialogueRepo } from '../db/repositories/dialogue.repo';
+import { ImageFeedbackRepo, type ImageFeedbackRating } from '../db/repositories/image-feedback.repo';
 import type { ImageMode, ImageOperationType } from '../db/repositories/images.repo';
-import { logError, toErrorDetails } from '../logging/logger';
-import { createImageJobLifecycle } from './image-job-lifecycle';
+import { logError, logInfo, toErrorDetails } from '../logging/logger';
+import { TextToImageWorkflow } from './text-to-image-workflow';
+import { ImageToImageWorkflow } from './image-to-image-workflow';
+import { ImageEditWorkflow } from './image-edit-workflow';
+import { DialogueImageWorkflow } from './dialogue-image-workflow';
+import { ImageJobQueueService } from './image-job-queue.service';
+import {
+  assertEditRequestSupported,
+  assertGenerationRequestSupported,
+  getModelCapabilities,
+} from '../hiapi/model-capabilities';
 
 function normalizeLimit(value: string | undefined) {
   const limit = Number(value || 12);
@@ -52,6 +60,14 @@ function normalizeOffset(value: string | undefined) {
   const offset = Number(value || 0);
   if (!Number.isFinite(offset)) return 0;
   return Math.max(0, Math.floor(offset));
+}
+
+function normalizeJobStatuses(value: string | undefined): ImageJobStatus[] {
+  const allowed = new Set(['queued', 'running', 'succeeded', 'failed', 'cancelled']);
+  return String(value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item): item is ImageJobStatus => allowed.has(item));
 }
 
 function normalizeImageModeFilter(value: string | undefined): ImageMode | 'all' {
@@ -75,6 +91,22 @@ function normalizeSearchQuery(value: string | undefined) {
 
 function normalizeAssetFilterValue(value: string | undefined) {
   return String(value || '').trim().slice(0, 80);
+}
+
+function normalizeDateFilterValue(value: string | undefined, endOfDay = false) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return `${raw}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}Z`;
+  }
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toISOString();
+}
+
+function normalizeBooleanQuery(value: string | undefined) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === '1' || normalized === 'true' || normalized === 'yes';
 }
 
 function normalizePrompt(value: any) {
@@ -265,36 +297,54 @@ function normalizeAssetTags(value: any) {
   return tags;
 }
 
+function normalizeImageIds(value: any) {
+  return Array.isArray(value)
+    ? Array.from(new Set(value.map((item) => String(item || '').trim()).filter(Boolean)))
+    : [];
+}
+
+function normalizeFeedbackRating(value: any): ImageFeedbackRating {
+  const rating = String(value || 'none').trim();
+  if (rating === 'like' || rating === 'dislike') return rating;
+  return 'none';
+}
+
+function normalizeFeedbackIssueType(value: any) {
+  const issueType = String(value || '').trim();
+  if (
+    issueType === 'bad_quality' ||
+    issueType === 'wrong_subject' ||
+    issueType === 'bad_text' ||
+    issueType === 'composition' ||
+    issueType === 'unsafe' ||
+    issueType === 'other'
+  ) {
+    return issueType;
+  }
+  return '';
+}
+
+function normalizeFeedbackNote(value: any) {
+  return String(value || '').trim().slice(0, 500);
+}
+
 function toListImage(image: any) {
   return {
     ...image,
     mode: image.mode || 'text',
     imageUrls: (image.imageUrls || []).filter(Boolean),
     inputImageUrls: (image.inputImageUrls || []).filter(Boolean),
+    previewImageUrls: (image.previewImageUrls || []).filter(Boolean),
     generationParams:
       image.generationParams && typeof image.generationParams === 'object'
         ? image.generationParams
         : {},
     folder: String(image.folder || ''),
     tags: Array.isArray(image.tags) ? image.tags.filter(Boolean) : [],
+    favoriteAt: String(image.favoriteAt || ''),
+    isFavorite: Boolean(image.isFavorite || image.favoriteAt),
     continuationChainId: image.continuationChainId || '',
   };
-}
-
-function createGenerationParams(params: {
-  qualityTier?: string;
-  count?: number;
-  outputFormat?: string;
-  outputCompression?: number;
-  background?: string;
-  moderation?: string;
-  size?: string;
-  quality?: string;
-  operationType?: string;
-}) {
-  return Object.fromEntries(
-    Object.entries(params).filter(([, value]) => value !== undefined && value !== ''),
-  );
 }
 
 function toPublicDialogueMessage(message: any) {
@@ -303,6 +353,25 @@ function toPublicDialogueMessage(message: any) {
     imageId: String(message?.imageId || ''),
     prompt: String(message?.prompt || ''),
     createdAt: String(message?.createdAt || ''),
+  };
+}
+
+function toPublicDialogueChain(chain: any) {
+  const firstImage = toListImage(chain?.firstImage || {});
+  const lastImage = toListImage(chain?.lastImage || {});
+  return {
+    chainId: String(chain?.chainId || ''),
+    title: String(chain?.title || lastImage.prompt || '对话创作'),
+    firstImage,
+    lastImage,
+    roundCount: Math.max(1, Math.floor(Number(chain?.roundCount || 1))),
+    updatedAt: String(chain?.updatedAt || lastImage.createdAt || firstImage.createdAt || ''),
+    coverUrl:
+      lastImage.imageUrls?.[0] ||
+      lastImage.previewImageUrls?.[0] ||
+      firstImage.imageUrls?.[0] ||
+      firstImage.previewImageUrls?.[0] ||
+      '',
   };
 }
 
@@ -333,47 +402,6 @@ function toUploadFilePath(url: string) {
   const fileName = path.basename(val);
   if (!fileName) return '';
   return path.join(uploadDir(), fileName);
-}
-
-async function removeUploadedFile(filePath: string) {
-  if (!filePath) return;
-  try {
-    await fsp.unlink(filePath);
-  } catch {
-    void 0;
-  }
-}
-
-async function filePathToDataUrl(filePath: string, mimeType?: string) {
-  const buffer = await fsp.readFile(filePath);
-  return `data:${mimeType || mimeForFileName(filePath)};base64,${buffer.toString('base64')}`;
-}
-
-async function urlToInputImage(url: string) {
-  const value = String(url || '').trim();
-  if (!value) return '';
-  if (value.startsWith('data:')) return value;
-  if (value.startsWith('/uploads/')) {
-    const filePath = toUploadFilePath(value);
-    if (!filePath) return '';
-    return filePathToDataUrl(filePath);
-  }
-  return value;
-}
-
-async function saveUploadedBuffer(file: Express.Multer.File) {
-  const ext = extForMime(file.mimetype);
-  if (!ext) {
-    throw new HttpException('不支持的图片格式', HttpStatus.BAD_REQUEST);
-  }
-  const fileName = `${crypto.randomUUID()}${ext}`;
-  const filePath = path.join(uploadDir(), fileName);
-  await fsp.writeFile(filePath, file.buffer);
-  return {
-    fileName,
-    filePath,
-    url: `/uploads/${fileName}`,
-  };
 }
 
 function parseDataUrl(value: string, fallbackMimeType: string = 'image/png') {
@@ -453,45 +481,21 @@ async function persistImageAssets(urls: string[], fallbackMimeType: string = 'im
   }>;
 }
 
-async function persistImageAssetsSafely(
-  urls: string[],
-  fallbackMimeType: string = 'image/png',
-) {
-  try {
-    const persisted = await persistImageAssets(urls, fallbackMimeType);
-    return {
-      urls: persisted.map((item) => item.url),
-      persisted,
-      degraded: false,
-    };
-  } catch (error) {
-    logError('ImageController', 'Persisting generated assets failed, fallback to source URLs', {
-      error: toErrorDetails(error),
-    });
-    // 结果落地失败时回退到原始地址，避免把本来成功的生成请求变成失败。
-    return {
-      urls: (Array.isArray(urls) ? urls : []).filter(Boolean).map((item) => String(item)),
-      persisted: [] as Array<{
-        fileName: string;
-        filePath: string;
-        url: string;
-        created: boolean;
-      }>,
-      degraded: true,
-    };
-  }
-}
-
 @Controller('api/images')
 @UseGuards(AuthGuard)
 export class ImageController {
   constructor(
     private readonly imagesRepo: ImagesRepo,
+    private readonly imageJobsRepo: ImageJobsRepo,
     private readonly dialogueRepo: DialogueRepo,
-    private readonly hiapiService: HiapiService,
-    private readonly creditsRepo: CreditsRepo,
+    private readonly imageFeedbackRepo: ImageFeedbackRepo,
     private readonly sqlite: SqliteService,
     private readonly settingsRepo: SystemSettingsRepo,
+    private readonly textToImageWorkflow: TextToImageWorkflow,
+    private readonly imageToImageWorkflow: ImageToImageWorkflow,
+    private readonly imageEditWorkflow: ImageEditWorkflow,
+    private readonly dialogueImageWorkflow: DialogueImageWorkflow,
+    private readonly imageJobQueue: ImageJobQueueService,
   ) {}
 
   private async materializeImageAssets(image: any, userId: string) {
@@ -527,6 +531,92 @@ export class ImageController {
     }
   }
 
+  private createQueuedJob(params: {
+    userId: string;
+    mode: ImageMode;
+    operationType: ImageOperationType;
+    prompt: string;
+    payload?: Record<string, any>;
+  }) {
+    return this.imageJobsRepo.create({
+      userId: params.userId,
+      mode: params.mode,
+      operationType: params.operationType,
+      prompt: params.prompt,
+      status: 'queued',
+      payload: params.payload,
+    });
+  }
+
+  private enqueueJob(job: { id: string }, run?: () => Promise<unknown>) {
+    this.imageJobQueue.enqueue({
+      jobId: job.id,
+      run: run || (() => this.runPersistedJob(job.id)),
+    });
+    return { job };
+  }
+
+  private async runPersistedJob(jobId: string) {
+    const job = this.imageJobsRepo.findById(jobId);
+    if (!job) throw new Error('image job not found');
+    const payload = job.payload || {};
+    const user = {
+      id: job.userId,
+      plan: payload.userPlan === 'pro' ? 'pro' : 'free',
+      role: 'user',
+    } as RequestWithUser['user'];
+
+    if (payload.kind === 'text-to-image') {
+      return this.textToImageWorkflow.run({
+        user,
+        prompt: job.prompt,
+        aspectRatio: payload.aspectRatio || '1:1',
+        mode: job.mode,
+        qualityTier: payload.qualityTier || '1k',
+        count: payload.count || 1,
+        outputFormat: payload.outputFormat || 'png',
+        outputCompression: payload.outputCompression ?? 100,
+        background: payload.background || 'auto',
+        moderation: payload.moderation || 'auto',
+        jobId: job.id,
+      });
+    }
+
+    throw new HttpException(
+      '该任务缺少可重放参数，请回到工作台重新提交',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+
+  private enqueueRetryJob(job: ImageJobEntity) {
+    return this.enqueueJob(job);
+  }
+
+  private async toPublicJob(job: any, userId: string) {
+    const image = job?.imageId
+      ? await this.getImageForJob(job.imageId, userId)
+      : null;
+    const dialogueMessages = image?.continuationChainId
+      ? this.dialogueRepo.listRecentByChain({
+          chainId: image.continuationChainId,
+          userId,
+          limit: 5,
+        }).map(toPublicDialogueMessage)
+      : [];
+    return {
+      job,
+      image,
+      chainId: image?.continuationChainId || '',
+      dialogueMessages,
+    };
+  }
+
+  private async getImageForJob(imageId: string, userId: string) {
+    const image = this.imagesRepo.findById({ id: imageId, userId });
+    if (!image) return null;
+    return this.materializeImageAssets(image, userId);
+  }
+
   @Get()
   async getImages(
     @Req() req: RequestWithUser,
@@ -536,6 +626,13 @@ export class ImageController {
     @Query('q') qValue?: string,
     @Query('folder') folderValue?: string,
     @Query('tag') tagValue?: string,
+    @Query('favorite') favoriteValue?: string,
+    @Query('ratio') ratioValue?: string,
+    @Query('quality') qualityValue?: string,
+    @Query('hasReference') hasReferenceValue?: string,
+    @Query('inStyleBoard') inStyleBoardValue?: string,
+    @Query('dateFrom') dateFromValue?: string,
+    @Query('dateTo') dateToValue?: string,
   ) {
     const limit = normalizeLimit(limitValue);
     const offset = normalizeOffset(offsetValue);
@@ -543,6 +640,13 @@ export class ImageController {
     const q = normalizeSearchQuery(qValue);
     const folder = normalizeAssetFilterValue(folderValue);
     const tag = normalizeAssetFilterValue(tagValue);
+    const favorite = normalizeBooleanQuery(favoriteValue);
+    const aspectRatio = normalizeAssetFilterValue(ratioValue);
+    const qualityTier = normalizeAssetFilterValue(qualityValue);
+    const hasReference = normalizeBooleanQuery(hasReferenceValue);
+    const inStyleBoard = normalizeBooleanQuery(inStyleBoardValue);
+    const dateFrom = normalizeDateFilterValue(dateFromValue);
+    const dateTo = normalizeDateFilterValue(dateToValue, true);
     const page = this.imagesRepo.listByUserPaged({
       userId: req.user.id,
       limit,
@@ -551,6 +655,13 @@ export class ImageController {
       q,
       folder,
       tag,
+      favorite,
+      aspectRatio,
+      qualityTier,
+      hasReference,
+      inStyleBoard,
+      dateFrom,
+      dateTo,
     });
     const images = await Promise.all(
       page.items
@@ -600,6 +711,20 @@ export class ImageController {
     return { chainId, messages: messages.map(toPublicDialogueMessage) };
   }
 
+  @Get('dialogue/chains')
+  getDialogueChains(
+    @Req() req: RequestWithUser,
+    @Query('limit') limitValue?: string,
+  ) {
+    const limit = normalizeLimit(limitValue);
+    return {
+      chains: this.imagesRepo
+        .listDialogueChains({ userId: req.user.id, limit })
+        .map(toPublicDialogueChain),
+      limit,
+    };
+  }
+
   @Get('dialogue/chain')
   async getDialogueChain(
     @Req() req: RequestWithUser,
@@ -636,6 +761,125 @@ export class ImageController {
     };
   }
 
+  @Get('jobs')
+  async listJobs(
+    @Req() req: RequestWithUser,
+    @Query('status') statusValue?: string,
+    @Query('limit') limitValue?: string,
+    @Query('offset') offsetValue?: string,
+  ) {
+    const page = this.imageJobsRepo.listByUserPaged({
+      userId: req.user.id,
+      statuses: normalizeJobStatuses(statusValue),
+      limit: normalizeLimit(limitValue),
+      offset: normalizeOffset(offsetValue),
+    });
+    return {
+      jobs: await Promise.all(
+        page.jobs.map((job) => this.toPublicJob(job, req.user.id)),
+      ),
+      total: page.total,
+      stats: this.imageJobsRepo.getStatsByUser({ userId: req.user.id }),
+      queue: this.imageJobQueue.getStats(),
+    };
+  }
+
+  @Get('jobs/stats')
+  getJobStats(@Req() req: RequestWithUser) {
+    return {
+      stats: this.imageJobsRepo.getStatsByUser({ userId: req.user.id }),
+      queue: this.imageJobQueue.getStats(),
+    };
+  }
+
+  @Get('jobs/:id')
+  async getJob(@Req() req: RequestWithUser, @Param('id') id: string) {
+    const job = this.imageJobsRepo.findByIdForUser({
+      id: String(id || '').trim(),
+      userId: req.user.id,
+    });
+    if (!job) {
+      throw new HttpException('任务不存在', HttpStatus.NOT_FOUND);
+    }
+    return this.toPublicJob(job, req.user.id);
+  }
+
+  @Post('jobs/:id/cancel')
+  async cancelJob(@Req() req: RequestWithUser, @Param('id') id: string) {
+    const normalizedId = String(id || '').trim();
+    const existing = this.imageJobsRepo.findByIdForUser({
+      id: normalizedId,
+      userId: req.user.id,
+    });
+    if (!existing) {
+      throw new HttpException('任务不存在', HttpStatus.NOT_FOUND);
+    }
+    if (existing.status !== 'queued') {
+      throw new HttpException('只能取消排队中的任务', HttpStatus.BAD_REQUEST);
+    }
+    const job = this.imageJobsRepo.cancelQueued({
+      id: normalizedId,
+      userId: req.user.id,
+    });
+    if (!job) {
+      throw new HttpException('任务状态已变化，请刷新后重试', HttpStatus.CONFLICT);
+    }
+    this.imageJobQueue.cancelQueued(job.id);
+    logInfo('ImageController', 'Image job cancellation accepted', {
+      correlationId: `job:${job.id}`,
+      jobId: job.id,
+      userId: req.user.id,
+      mode: job.mode,
+      operationType: job.operationType,
+    });
+    return this.toPublicJob(job, req.user.id);
+  }
+
+  @Post('jobs/:id/retry')
+  async retryJob(@Req() req: RequestWithUser, @Param('id') id: string) {
+    const normalizedId = String(id || '').trim();
+    const existing = this.imageJobsRepo.findByIdForUser({
+      id: normalizedId,
+      userId: req.user.id,
+    });
+    if (!existing) {
+      throw new HttpException('任务不存在', HttpStatus.NOT_FOUND);
+    }
+    if (existing.status !== 'failed') {
+      throw new HttpException('只能重试失败任务', HttpStatus.BAD_REQUEST);
+    }
+    if (existing.payload?.retryable !== true) {
+      throw new HttpException(
+        '该任务缺少可重放参数，请回到工作台重新提交',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    const job = this.imageJobsRepo.requeueFailed({
+      id: normalizedId,
+      userId: req.user.id,
+    });
+    if (!job) {
+      throw new HttpException('任务状态已变化，请刷新后重试', HttpStatus.CONFLICT);
+    }
+    logInfo('ImageController', 'Image job retry queued', {
+      correlationId: `job:${job.id}`,
+      jobId: job.id,
+      userId: req.user.id,
+      mode: job.mode,
+      operationType: job.operationType,
+    });
+    this.enqueueRetryJob(job);
+    return this.toPublicJob(job, req.user.id);
+  }
+
+  @Delete('jobs/completed')
+  clearCompletedJobs(@Req() req: RequestWithUser) {
+    const deleted = this.imageJobsRepo.deleteCompletedByUser({
+      userId: req.user.id,
+    });
+    return { deleted };
+  }
+
   @Put(':id/meta')
   updateImageMeta(
     @Req() req: RequestWithUser,
@@ -669,6 +913,40 @@ export class ImageController {
         ...next,
       }),
     };
+  }
+
+  @Put(':id/favorite')
+  updateImageFavorite(
+    @Req() req: RequestWithUser,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    const image = this.imagesRepo.findById({ id, userId: req.user.id });
+    if (!image) {
+      throw new HttpException('记录不存在', HttpStatus.NOT_FOUND);
+    }
+
+    const favorite = Boolean(body?.favorite);
+    this.imagesRepo.updateFavorite({
+      id,
+      userId: req.user.id,
+      favorite,
+    });
+    const nextImage = this.imagesRepo.findById({ id, userId: req.user.id });
+    return {
+      image: toListImage(nextImage || image),
+    };
+  }
+
+  @Post('favorites/import')
+  importImageFavorites(@Req() req: RequestWithUser, @Body() body: any) {
+    const ids = normalizeImageIds(body?.imageIds || body?.ids);
+    const imported = this.imagesRepo.markFavorites({
+      ids,
+      userId: req.user.id,
+      favorite: true,
+    });
+    return { imported };
   }
 
   @Delete('dialogue/chain/:chainId')
@@ -748,9 +1026,18 @@ export class ImageController {
     const chainIdValue = String(body.chainId || '').trim();
     const sourceImageId = String(body.sourceImageId || '').trim();
     const referenceFile = files?.image?.[0];
-    const pricing = this.settingsRepo.getPricingSettings();
     const uploadSettings = this.settingsRepo.getUploadSettings();
-    const userId = req.user.id;
+    const capabilities = getModelCapabilities(this.settingsRepo.getModelSettings());
+
+    assertGenerationRequestSupported(capabilities, {
+      mode: 'dialogue',
+      aspectRatio,
+      qualityTier,
+      count,
+      outputFormat,
+      background,
+      moderation,
+    });
 
     if (referenceFile) {
       const maxBytes = uploadSettings.maxFileSizeMb * 1024 * 1024;
@@ -772,106 +1059,17 @@ export class ImageController {
       );
     }
 
-    const sourceImage = sourceImageId
-      ? this.imagesRepo.findById({ id: sourceImageId, userId })
-      : null;
-    if (sourceImageId && !sourceImage) {
-      throw new HttpException('来源图片不存在', HttpStatus.NOT_FOUND);
-    }
-
-    const candidateChainId =
-      chainIdValue || String(sourceImage?.continuationChainId || '').trim();
-    const historyTurns = candidateChainId
-      ? this.dialogueRepo.listByChainAsc({
-          chainId: candidateChainId,
-          userId,
-          limit: 20,
-        })
-      : [];
-    const latestMessage = historyTurns.length
-      ? historyTurns[historyTurns.length - 1]
-      : null;
-    const latestImage = latestMessage?.imageId
-      ? this.imagesRepo.findById({ id: latestMessage.imageId, userId })
-      : null;
-    const chainId = historyTurns.length && candidateChainId
-      ? candidateChainId
-      : this.dialogueRepo.createChainId();
-
-    const usesImageContext = Boolean(
-      historyTurns.length || referenceFile || sourceImage?.imageUrls?.[0],
-    );
-    const cost =
-      costFor(
-        req.user.plan === 'pro' ? 'pro' : 'free',
-        usesImageContext ? 'image_to_image' : 'text_to_image',
-        pricing,
-      ) * count;
-    const refId = crypto.randomUUID();
-    let uploadedReference:
-      | {
-          fileName: string;
-          filePath: string;
-          url: string;
-        }
-      | undefined;
-    const lifecycle = createImageJobLifecycle({
-      creditsRepo: this.creditsRepo,
-      userId,
-      cost,
-      chargeReason: usesImageContext ? 'image_to_image' : 'text_to_image',
-      refundReason: 'dialogue_refund',
-      refId,
-      refundFailureMessage: 'Refund failed after dialogue error',
-      removeFile: removeUploadedFile,
+    const job = this.createQueuedJob({
+      userId: req.user.id,
+      mode: 'dialogue',
+      operationType:
+        chainIdValue || sourceImageId || referenceFile ? 'image_to_image' : 'generate',
+      prompt,
     });
-
-    try {
-      lifecycle.charge();
-
-      if (referenceFile) {
-        uploadedReference = await saveUploadedBuffer(referenceFile);
-        lifecycle.trackTemporaryFile(uploadedReference.filePath);
-      }
-
-      const bootstrapImageInputs = historyTurns.length
-        ? []
-        : [
-            ...(uploadedReference
-              ? [
-                  await filePathToDataUrl(
-                    uploadedReference.filePath,
-                    referenceFile?.mimetype,
-                  ),
-                ]
-              : []),
-            ...(!uploadedReference && sourceImage?.imageUrls?.[0]
-              ? [await urlToInputImage(sourceImage.imageUrls[0])]
-              : []),
-          ].filter(Boolean);
-      const continuationImageInputs =
-        historyTurns.length && latestImage?.imageUrls?.[0]
-          ? [await urlToInputImage(latestImage.imageUrls[0])].filter(Boolean)
-          : bootstrapImageInputs;
-      const storedInputImageUrls = uploadedReference
-        ? [uploadedReference.url]
-        : historyTurns.length && latestImage?.imageUrls?.[0]
-          ? [latestImage.imageUrls[0]]
-          : sourceImage?.imageUrls?.[0]
-            ? [sourceImage.imageUrls[0]]
-            : [];
-
-      const result = await this.hiapiService.createDialogueImage({
+    return this.enqueueJob(job, () =>
+      this.dialogueImageWorkflow.run({
+        user: req.user,
         prompt,
-        userId,
-        inputImageUrls: bootstrapImageInputs,
-        fallbackInputImageUrls: continuationImageInputs,
-        historyTurns: historyTurns.map((item) => ({
-          prompt: item.prompt,
-          inputImageUrls: [],
-          outputItems: [],
-        })),
-        previousResponseId: latestMessage?.responseId || '',
         aspectRatio,
         qualityTier,
         count,
@@ -879,77 +1077,12 @@ export class ImageController {
         outputCompression,
         background,
         moderation,
-      });
-      const persistedResults = await persistImageAssetsSafely(
-        result.imageUrls,
-        mimeForFileName(`result.${outputFormat}`),
-      );
-      lifecycle.trackResultAssets(
-        persistedResults.persisted.map((item) => ({
-          filePath: item.filePath,
-          created: item.created,
-        })),
-      );
-
-      const saved = this.sqlite.transaction(() => {
-        const created = this.imagesRepo.create({
-          userId,
-          mode: 'dialogue',
-          operationType: usesImageContext ? 'image_to_image' : 'generate',
-          prompt,
-          aspectRatio,
-          generationParams: createGenerationParams({
-            qualityTier,
-            count,
-            outputFormat,
-            outputCompression,
-            background,
-            moderation,
-          }),
-          content: result.content,
-          imageUrls: persistedResults.urls,
-          inputImageUrls: storedInputImageUrls,
-          sourceImageId: sourceImage?.id || latestMessage?.imageId || '',
-          continuationChainId: chainId,
-        });
-        this.dialogueRepo.createMessage({
-          chainId,
-          userId,
-          imageId: created.id,
-          parentImageId: sourceImage?.id || latestMessage?.imageId || '',
-          responseId: result.responseId,
-          previousResponseId: latestMessage?.responseId || '',
-          inputImageUrls: storedInputImageUrls,
-          outputItems: result.outputItems || [],
-          prompt,
-        });
-        return created;
-      });
-
-      return {
-        image: saved,
-        chainId,
-        messages: this.dialogueRepo
-          .listRecentByChain({
-            chainId,
-            userId,
-            limit: 5,
-          })
-          .map(toPublicDialogueMessage),
-      };
-    } catch (error: any) {
-      await lifecycle.cleanupFailure();
-      logError('ImageController', 'Dialogue image generation failed', {
-        userId,
-        refId,
-        chainId,
-        error: toErrorDetails(error),
-      });
-      const status = error.getStatus
-        ? error.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
-      throw new HttpException(error.message || '对话创作失败', status);
-    }
+        chainIdValue,
+        sourceImageId,
+        referenceFile,
+        jobId: job.id,
+      }),
+    );
   }
 
   @Get(':id')
@@ -959,6 +1092,14 @@ export class ImageController {
       throw new HttpException('记录不存在', HttpStatus.NOT_FOUND);
     }
     const nextImage = await this.materializeImageAssets(image, req.user.id);
+    const sourceImage = nextImage.sourceImageId
+      ? this.imagesRepo.findById({ id: nextImage.sourceImageId, userId: req.user.id })
+      : null;
+    const variants = await Promise.all(
+      this.imagesRepo
+        .listVariantsForImage({ id: nextImage.id, userId: req.user.id, limit: 8 })
+        .map((item) => this.materializeImageAssets(item, req.user.id)),
+    );
     const dialogueMessages = nextImage.continuationChainId
       ? this.dialogueRepo.listRecentByChain({
           chainId: nextImage.continuationChainId,
@@ -967,8 +1108,50 @@ export class ImageController {
         })
       : [];
     return {
-      image: nextImage,
+      image: {
+        ...nextImage,
+        feedback: this.imageFeedbackRepo.findByImage({
+          imageId: nextImage.id,
+          userId: req.user.id,
+        }),
+      },
+      sourceImage: sourceImage ? await this.materializeImageAssets(sourceImage, req.user.id) : null,
+      variants,
       dialogueMessages: dialogueMessages.map(toPublicDialogueMessage),
+    };
+  }
+
+  @Put(':id/feedback')
+  updateImageFeedback(
+    @Req() req: RequestWithUser,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    const image = this.imagesRepo.findById({ id, userId: req.user.id });
+    if (!image) {
+      throw new HttpException('记录不存在', HttpStatus.NOT_FOUND);
+    }
+
+    const rating = normalizeFeedbackRating(body?.rating);
+    const issueType = normalizeFeedbackIssueType(body?.issueType);
+    const note = normalizeFeedbackNote(body?.note);
+
+    if (rating === 'none' && !issueType && !note) {
+      this.imageFeedbackRepo.deleteByImage({
+        imageId: image.id,
+        userId: req.user.id,
+      });
+      return { feedback: null };
+    }
+
+    return {
+      feedback: this.imageFeedbackRepo.upsert({
+        imageId: image.id,
+        userId: req.user.id,
+        rating,
+        issueType,
+        note,
+      }),
     };
   }
 
@@ -984,11 +1167,13 @@ export class ImageController {
       if (changes <= 0) {
         throw new HttpException('记录不存在', HttpStatus.NOT_FOUND);
       }
+      this.imageFeedbackRepo.deleteByImage({ imageId: id, userId: req.user.id });
     });
 
     const urls = [
       ...(Array.isArray(image.imageUrls) ? image.imageUrls : []),
       ...(Array.isArray(image.inputImageUrls) ? image.inputImageUrls : []),
+      ...(Array.isArray(image.previewImageUrls) ? image.previewImageUrls : []),
     ];
     for (const u of urls) {
       const filePath = toUploadFilePath(u);
@@ -1009,7 +1194,9 @@ export class ImageController {
       userId: req.user.id,
     });
     const deleted = this.sqlite.transaction(() => {
-      return this.imagesRepo.deleteAllByUser({ userId: req.user.id });
+      const changes = this.imagesRepo.deleteAllByUser({ userId: req.user.id });
+      this.imageFeedbackRepo.deleteAllByUser({ userId: req.user.id });
+      return changes;
     });
 
     for (const u of urls) {
@@ -1043,89 +1230,51 @@ export class ImageController {
     const moderation = normalizeModeration(body.moderation);
     const count = normalizeImageCount(body.count);
     const mode = normalizeCreateMode(body.mode, 'text');
-    const pricing = this.settingsRepo.getPricingSettings();
+    const capabilities = getModelCapabilities(this.settingsRepo.getModelSettings());
 
-    if (background === 'transparent' && outputFormat === 'jpeg') {
-      throw new HttpException(
-        '透明背景仅支持 PNG 或 WEBP 输出',
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-
-    const cost =
-      costFor(
-        req.user.plan === 'pro' ? 'pro' : 'free',
-        'text_to_image',
-        pricing,
-      ) * count;
-    const userId = req.user.id;
-    const refId = crypto.randomUUID();
-    const lifecycle = createImageJobLifecycle({
-      creditsRepo: this.creditsRepo,
-      userId,
-      cost,
-      chargeReason: 'text_to_image',
-      refundReason: 'text_to_image_refund',
-      refId,
-      refundFailureMessage: 'Refund failed after text-to-image error',
-      removeFile: removeUploadedFile,
+    assertGenerationRequestSupported(capabilities, {
+      mode: 'text',
+      aspectRatio,
+      qualityTier,
+      count,
+      outputFormat,
+      background,
+      moderation,
     });
 
-    try {
-      lifecycle.charge();
-
-      const result = await this.hiapiService.generateImage(prompt, aspectRatio, {
+    const job = this.createQueuedJob({
+      userId: req.user.id,
+      mode,
+      operationType: 'generate',
+      prompt,
+      payload: {
+        kind: 'text-to-image',
+        retryable: true,
+        userPlan: req.user.plan === 'pro' ? 'pro' : 'free',
+        aspectRatio,
         qualityTier,
         count,
         outputFormat,
         outputCompression,
         background,
         moderation,
-      });
-      const persistedResults = await persistImageAssetsSafely(
-        result.imageUrls,
-        mimeForFileName(`result.${outputFormat}`),
-      );
-      lifecycle.trackResultAssets(
-        persistedResults.persisted.map((item) => ({
-          filePath: item.filePath,
-          created: item.created,
-        })),
-      );
-      const image = this.sqlite.transaction(() => {
-        return this.imagesRepo.create({
-          userId,
-          mode,
-          prompt,
-          aspectRatio,
-          generationParams: createGenerationParams({
-            qualityTier,
-            count,
-            outputFormat,
-            outputCompression,
-            background,
-            moderation,
-          }),
-          content: result.content,
-          imageUrls: persistedResults.urls,
-        });
-      });
-      return { image };
-    } catch (error: any) {
-      await lifecycle.cleanupFailure();
-      logError('ImageController', 'Text-to-image failed', {
-        userId,
-        refId,
+      },
+    });
+    return this.enqueueJob(job, () =>
+      this.textToImageWorkflow.run({
+        user: req.user,
         prompt,
         aspectRatio,
         mode,
-        error: toErrorDetails(error),
-      });
-      const status = error.getStatus
-        ? error.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
-      throw new HttpException(error.message || '生图请求失败', status);
-    }
+        qualityTier,
+        count,
+        outputFormat,
+        outputCompression,
+        background,
+        moderation,
+        jobId: job.id,
+      }),
+    );
   }
 
   @Post('from-image')
@@ -1167,23 +1316,26 @@ export class ImageController {
     const moderation = normalizeModeration(body.moderation);
     const count = normalizeImageCount(body.count);
     const mode = normalizeCreateMode(body.mode, 'image');
-    const pricing = this.settingsRepo.getPricingSettings();
     const uploadSettings = this.settingsRepo.getUploadSettings();
     const referenceFiles = [
       ...(files?.images || []),
       ...(files?.image || []),
     ].slice(0, 4);
+    const capabilities = getModelCapabilities(this.settingsRepo.getModelSettings());
 
     if (!referenceFiles.length) {
       throw new HttpException('请上传参考图', HttpStatus.BAD_REQUEST);
     }
 
-    if (background === 'transparent' && outputFormat === 'jpeg') {
-      throw new HttpException(
-        '透明背景仅支持 PNG 或 WEBP 输出',
-        HttpStatus.BAD_REQUEST,
-      );
-    }
+    assertGenerationRequestSupported(capabilities, {
+      mode: 'image',
+      aspectRatio,
+      qualityTier,
+      count,
+      outputFormat,
+      background,
+      moderation,
+    });
 
     const maxBytes = uploadSettings.maxFileSizeMb * 1024 * 1024;
     for (const [index, file] of referenceFiles.entries()) {
@@ -1201,106 +1353,28 @@ export class ImageController {
       }
     }
 
-    const cost =
-      costFor(
-        req.user.plan === 'pro' ? 'pro' : 'free',
-        'image_to_image',
-        pricing,
-      ) * count;
-    const userId = req.user.id;
-    const refId = crypto.randomUUID();
-    const uploaded: Array<{
-      fileName: string;
-      filePath: string;
-      url: string;
-      fileType: string;
-    }> = [];
-    const lifecycle = createImageJobLifecycle({
-      creditsRepo: this.creditsRepo,
-      userId,
-      cost,
-      chargeReason: 'image_to_image',
-      refundReason: 'image_to_image_refund',
-      refId,
-      refundFailureMessage: 'Refund failed after image-to-image error',
-      removeFile: removeUploadedFile,
+    const job = this.createQueuedJob({
+      userId: req.user.id,
+      mode,
+      operationType: 'image_to_image',
+      prompt,
     });
-
-    try {
-      lifecycle.charge();
-
-      for (const file of referenceFiles) {
-        const saved = await saveUploadedBuffer(file);
-        uploaded.push({
-          ...saved,
-          fileType: file.mimetype,
-        });
-        lifecycle.trackTemporaryFile(saved.filePath);
-      }
-
-      const result = await this.hiapiService.editImageFromFiles({
-        imageFiles: uploaded.map((item) => ({
-          filePath: item.filePath,
-          fileType: item.fileType,
-          fileName: item.fileName,
-        })),
+    return this.enqueueJob(job, () =>
+      this.imageToImageWorkflow.run({
+        user: req.user,
+        referenceFiles,
         prompt,
         aspectRatio,
+        mode,
         qualityTier,
         count,
         outputFormat,
         outputCompression,
         background,
         moderation,
-      });
-      const persistedResults = await persistImageAssetsSafely(
-        result.imageUrls,
-        mimeForFileName(`result.${outputFormat}`),
-      );
-      lifecycle.trackResultAssets(
-        persistedResults.persisted.map((item) => ({
-          filePath: item.filePath,
-          created: item.created,
-        })),
-      );
-
-      const image = {
-        userId,
-        mode,
-        prompt,
-        aspectRatio,
-        generationParams: createGenerationParams({
-          qualityTier,
-          count,
-          outputFormat,
-          outputCompression,
-          background,
-          moderation,
-        }),
-        content: result.content,
-        imageUrls: persistedResults.urls,
-        inputImageUrls: uploaded.map((item) => item.url),
-        operationType: 'image_to_image' as const,
-      };
-      const saved = this.sqlite.transaction(() => {
-        return this.imagesRepo.create(image);
-      });
-      return { image: saved };
-    } catch (error: any) {
-      await lifecycle.cleanupFailure();
-      logError('ImageController', 'Image-to-image failed', {
-        userId,
-        refId,
-        prompt,
-        aspectRatio,
-        imageCount: uploaded.length,
-        error: toErrorDetails(error),
-      });
-      const status = error.getStatus
-        ? error.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
-      throw new HttpException(error.message || '生图请求失败', status);
-    }
+        jobId: job.id,
+      }),
+    );
   }
 
   @Post('edit')
@@ -1342,9 +1416,14 @@ export class ImageController {
     const operationType = normalizeOperationType(body.operationType);
     const sourceImageId = String(body.sourceImageId || '').trim();
     const sourceImageUrl = normalizeSourceImageUrl(body.sourceImageUrl);
-    const pricing = this.settingsRepo.getPricingSettings();
     const uploadSettings = this.settingsRepo.getUploadSettings();
-    const modelSettings = this.settingsRepo.getModelSettings();
+    const capabilities = getModelCapabilities(this.settingsRepo.getModelSettings());
+
+    assertEditRequestSupported(capabilities, {
+      operationType,
+      size,
+      quality,
+    });
 
     if (!imageFile) {
       throw new HttpException('请上传待编辑图片', HttpStatus.BAD_REQUEST);
@@ -1376,149 +1455,30 @@ export class ImageController {
       }
     }
 
-    const cost = costFor(
-      req.user.plan === 'pro' ? 'pro' : 'free',
-      'image_to_image',
-      pricing,
-    );
-    const userId = req.user.id;
-    const refId = crypto.randomUUID();
-    let uploadedImage:
-      | {
-          fileName: string;
-          filePath: string;
-          url: string;
-        }
-      | undefined;
-    let uploadedMask:
-      | {
-          fileName: string;
-          filePath: string;
-          url: string;
-        }
-      | undefined;
-    const lifecycle = createImageJobLifecycle({
-      creditsRepo: this.creditsRepo,
-      userId,
-      cost,
-      chargeReason: operationType,
-      refundReason: `${operationType}_refund`,
-      refId,
-      refundFailureMessage: 'Refund failed after image edit error',
-      refundFailureMeta: { operationType },
-      removeFile: removeUploadedFile,
+    const mode = modeForOperationType(operationType);
+
+    const job = this.createQueuedJob({
+      userId: req.user.id,
+      mode,
+      operationType,
+      prompt,
     });
-
-    try {
-      lifecycle.charge();
-
-      uploadedImage = await saveUploadedBuffer(imageFile);
-      lifecycle.trackTemporaryFile(uploadedImage.filePath);
-      if (maskFile) {
-        uploadedMask = await saveUploadedBuffer(maskFile);
-        lifecycle.trackTemporaryFile(uploadedMask.filePath);
-      }
-
-      const result = await this.hiapiService.editImageFromFiles({
-        imageFiles: [
-          {
-            filePath: uploadedImage.filePath,
-            fileType: imageFile.mimetype,
-            fileName: uploadedImage.fileName,
-          },
-        ],
-        maskFilePath: uploadedMask?.filePath,
-        maskFileType: maskFile?.mimetype,
-        maskFileName: uploadedMask?.fileName,
-        prompt: finalPrompt,
+    return this.enqueueJob(job, () =>
+      this.imageEditWorkflow.run({
+        user: req.user,
+        imageFile,
+        maskFile,
+        prompt,
+        finalPrompt,
         aspectRatio,
         size,
         quality,
-        ...(operationType === 'cutout'
-          ? {
-              modelOverride:
-                modelSettings.cutoutModel || modelSettings.imageModel,
-              outputFormat: 'png' as const,
-              background: 'transparent' as const,
-            }
-          : operationType === 'upscale'
-            ? {
-                qualityTier: '4k' as const,
-                quality: 'high' as const,
-              }
-          : {}),
-      });
-      const persistedResults = await persistImageAssetsSafely(
-        result.imageUrls,
-        mimeForFileName('result.png'),
-      );
-      lifecycle.trackResultAssets(
-        persistedResults.persisted.map((item) => ({
-          filePath: item.filePath,
-          created: item.created,
-        })),
-      );
-
-      const inputUrl =
-        sourceImage?.imageUrls?.[0] ||
-        sourceImageUrl ||
-        uploadedImage.url;
-      const keepUploadedSource = !sourceImage?.imageUrls?.[0] && !sourceImageUrl;
-
-      const saved = this.sqlite.transaction(() => {
-        const mode = modeForOperationType(operationType);
-        return this.imagesRepo.create({
-          userId,
-          mode,
-          operationType,
-          prompt,
-          aspectRatio,
-          generationParams: createGenerationParams({
-            qualityTier: operationType === 'upscale' ? '4k' : undefined,
-            size,
-            quality: operationType === 'upscale' ? 'high' : quality,
-            operationType,
-            outputFormat: operationType === 'cutout' ? 'png' : undefined,
-            background: operationType === 'cutout' ? 'transparent' : undefined,
-          }),
-          content: result.content,
-          imageUrls: persistedResults.urls,
-          inputImageUrls: inputUrl ? [inputUrl] : [],
-          sourceImageId: sourceImage?.id || '',
-        });
-      });
-      if (!keepUploadedSource) {
-        await removeUploadedFile(uploadedImage.filePath);
-      }
-      await removeUploadedFile(uploadedMask?.filePath || '');
-      return { image: saved };
-    } catch (error: any) {
-      await lifecycle.cleanupFailure();
-      logError('ImageController', 'Image edit failed', {
-        userId,
-        refId,
+        mode,
         operationType,
-        prompt,
-        error: toErrorDetails(error),
-      });
-      const message = String(error?.message || '').trim();
-      if (
-        operationType === 'cutout' &&
-        (
-          message.includes('transparent') ||
-          message.includes('背景') ||
-          message.includes('Upstream request failed')
-        )
-      ) {
-        throw new HttpException(
-          '当前抠图模型不支持透明背景编辑，或上游未开通该模型。请在后台模型设置中单独配置 `cutoutModel`，并填写支持透明背景编辑的模型后重试。',
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-      const status = error.getStatus
-        ? error.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
-      throw new HttpException(message || '编辑失败', status);
-    }
+        sourceImage,
+        sourceImageUrl,
+        jobId: job.id,
+      }),
+    );
   }
 }

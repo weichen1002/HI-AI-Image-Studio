@@ -1,0 +1,12 @@
+{
+  "id": "polish-tool-panel-left-tools",
+  "title": "优化创作工作台工具左侧样式",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已完成：工具左侧按钮已重排并优化 active 视觉层级",
+  "createdAt": "2026-06-01T13:04:43Z",
+  "branch": "main"
+}

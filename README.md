@@ -22,6 +22,7 @@ cp .env.example .env
 HIAPI_API_KEY=你的_HiAPI_Key
 SESSION_SECRET=一段足够长的随机字符串
 ADMIN_TOKEN=一段足够长的后台初始化令牌
+BILLING_WEBHOOK_SECRET=一段足够长的支付回调验签密钥
 SQLITE_FILE=data/app.db
 ```
 
@@ -79,6 +80,49 @@ HIAPI_SIZE_FORMAT=ratio
 
 旧版本的 `data/db.json` 会在空 SQLite 数据库首次启动时自动导入，并重命名为 `data/db.json.bak`。
 
+### 备份和恢复
+
+备份脚本会在线复制 SQLite 数据库，并把 uploads 目录一起复制到一个备份目录。默认输出到 `backups/<timestamp>/`，备份目录中包含 `manifest.json`、`app.db` 和 `uploads/`。
+
+```bash
+npm run backup:data
+```
+
+可先查看将要备份的路径：
+
+```bash
+npm run backup:data -- --dry-run
+```
+
+也可以显式指定路径：
+
+```bash
+npm run backup:data -- --sqlite-file data/app.db --uploads-dir data/uploads --out /tmp/hi-image-backup
+```
+
+恢复脚本默认是 dry-run，只打印恢复计划，不会覆盖当前数据：
+
+```bash
+npm run restore:data -- --from /tmp/hi-image-backup
+```
+
+确认无误后再传 `--force` 执行恢复。恢复时如果目标数据库或 uploads 已存在，脚本会先把现有路径重命名为 `.before-restore-<timestamp>`，再写入备份内容。
+
+```bash
+npm run restore:data -- --from /tmp/hi-image-backup --force
+```
+
+## 支付回调
+
+开发和测试环境提供 mock 支付回调：
+
+```text
+POST /api/billing/webhooks/mock
+Header: x-billing-signature: <hex hmac-sha256>
+```
+
+验签密钥来自 `BILLING_WEBHOOK_SECRET`。签名内容为 `orderId.paymentRef.amountCents.CURRENCY`，例如 `order-1.mock:pay-1.990.CNY`。真实支付渠道接入时，应复用服务端订单完成和幂等入账逻辑，并替换为对应渠道的官方验签规则。
+
 ## 测试
 
 后端测试：
@@ -91,6 +135,8 @@ npm run test:e2e --prefix server
 当前优化建议见：
 
 ```text
+docs/goal-mode-roadmap-next.md
+docs/goal-mode-roadmap.md
 docs/architecture-optimization.md
 docs/performance-optimization.md
 ```

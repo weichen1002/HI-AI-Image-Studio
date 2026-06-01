@@ -17,7 +17,10 @@
           <span class="meta-pill meta-primary">{{ (authStore.user?.plan || '').toUpperCase() }}</span>
           <span class="meta-pill">余额 {{ authStore.user?.creditBalance ?? 0 }}</span>
         </div>
-        <div class="profile-hint">仅展示个人资料信息，不支持在此编辑。</div>
+        <div class="profile-actions">
+          <Button size="sm" @click="router.push('/studio/billing')">充值</Button>
+          <div class="profile-hint">仅展示个人资料信息，不支持在此编辑。</div>
+        </div>
       </div>
     </div>
 
@@ -110,8 +113,8 @@ async function copy(text) {
   border-radius: calc(var(--radius-lg) + 6px);
   border: 1px solid rgba(255, 255, 255, 0.7);
   background:
-    radial-gradient(1200px 420px at 10% 0%, rgba(99, 102, 241, 0.18), transparent 55%),
-    radial-gradient(980px 420px at 92% 10%, rgba(236, 72, 153, 0.14), transparent 55%),
+    radial-gradient(1200px 420px at 10% 0%, rgba(37, 99, 235, 0.18), transparent 55%),
+    radial-gradient(980px 420px at 92% 10%, rgba(14, 165, 233, 0.09), transparent 55%),
     rgba(255, 255, 255, 0.68);
   box-shadow: 0 18px 60px rgba(15, 23, 42, 0.08);
   backdrop-filter: blur(18px);
@@ -143,7 +146,7 @@ async function copy(text) {
   color: #fff;
   font-weight: 950;
   font-size: 15px;
-  box-shadow: 0 14px 34px rgba(99, 102, 241, 0.28);
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.18);
 }
 
 .profile-identity-text {
@@ -186,6 +189,13 @@ async function copy(text) {
   flex-wrap: wrap;
 }
 
+.profile-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .meta-pill {
   height: 28px;
   padding: 0 10px;
@@ -199,7 +209,7 @@ async function copy(text) {
 
 .meta-primary {
   color: var(--primary);
-  border-color: rgba(99, 102, 241, 0.22);
+  border-color: rgba(37, 99, 235, 0.22);
   background: var(--gradient-subtle);
 }
 
@@ -238,7 +248,7 @@ async function copy(text) {
 }
 
 .info-row:hover {
-  background: rgba(99, 102, 241, 0.04);
+  background: rgba(37, 99, 235, 0.04);
 }
 
 .info-k {

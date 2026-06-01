@@ -1,0 +1,12 @@
+{
+  "id": "polish-billing-card-spacing",
+  "title": "调整充值中心下方卡片圆角和间距",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已压低充值中心圆角并收紧下方卡片间距",
+  "createdAt": "2026-06-01T02:18:00Z",
+  "branch": "main"
+}

@@ -213,8 +213,8 @@ const pageItems = computed(() => makePageItems(page.value, totalPages.value))
 }
 
 .page-btn.active {
-  border-color: rgba(99, 102, 241, 0.35);
-  background: rgba(99, 102, 241, 0.10);
+  border-color: rgba(37, 99, 235, 0.35);
+  background: rgba(37, 99, 235, 0.10);
   color: var(--primary);
 }
 

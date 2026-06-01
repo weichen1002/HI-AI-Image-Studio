@@ -1,0 +1,12 @@
+{
+  "id": "sidebar-logo-only",
+  "title": "后台菜单顶部仅展示平台 logo",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已完成 logo-only 侧边栏调整",
+  "createdAt": "2026-06-01T12:58:53Z",
+  "branch": "main"
+}

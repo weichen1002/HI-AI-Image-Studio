@@ -461,8 +461,8 @@ onMounted(() => {
 }
 
 .error-container {
-  background: rgba(236, 72, 153, 0.1);
-  border: 1px solid rgba(236, 72, 153, 0.2);
+  background: rgba(220, 38, 38, 0.08);
+  border: 1px solid rgba(220, 38, 38, 0.18);
 }
 
 .field-error {
@@ -518,7 +518,7 @@ onMounted(() => {
   border-radius: 12px;
   border: 1px solid rgba(79, 70, 229, 0.16);
   background: rgba(79, 70, 229, 0.08);
-  color: #4338ca;
+  color: #1e40af;
   font-size: 13px;
   font-weight: 600;
   line-height: 1.6;
@@ -613,18 +613,18 @@ onMounted(() => {
 .orb-1 {
   top: -10%; left: -10%;
   width: 300px; height: 300px;
-  background: radial-gradient(circle, #6366f1, transparent 70%);
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.72), transparent 70%);
 }
 .orb-2 {
   bottom: -10%; right: -10%;
   width: 400px; height: 400px;
-  background: radial-gradient(circle, #ec4899, transparent 70%);
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.58), transparent 70%);
   animation-delay: -5s;
 }
 .orb-3 {
   top: 40%; left: 50%;
   width: 250px; height: 250px;
-  background: radial-gradient(circle, #8b5cf6, transparent 70%);
+  background: radial-gradient(circle, rgba(15, 23, 42, 0.18), transparent 70%);
   animation-duration: 15s;
 }
 .grid-overlay {
@@ -786,14 +786,14 @@ onMounted(() => {
   left: 20%;
   width: 40vw;
   height: 40vw;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.15) 0%, transparent 70%);
 }
 .shape-2 {
   bottom: 10%;
   right: 20%;
   width: 50vw;
   height: 50vw;
-  background: radial-gradient(circle, rgba(236, 72, 153, 0.15) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.12) 0%, transparent 70%);
 }
 
 @media (max-width: 1100px) {

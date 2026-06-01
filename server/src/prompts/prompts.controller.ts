@@ -15,6 +15,7 @@ import { costFor } from '../credits/pricing';
 import * as crypto from 'crypto';
 import { SystemSettingsRepo } from '../db/repositories/system-settings.repo';
 import { logError, toErrorDetails } from '../logging/logger';
+import { checkPromptQuality } from './prompt-quality';
 
 function normalizePrompt(value: any) {
   const prompt = String(value || '').trim();
@@ -49,6 +50,31 @@ function normalizeDirection(value: any) {
   return normalized;
 }
 
+function normalizeImageUrl(value: any) {
+  const imageUrl = String(value || '').trim();
+  if (!imageUrl) {
+    throw new HttpException('请先选择要反推的图片', HttpStatus.BAD_REQUEST);
+  }
+  if (imageUrl.length > 2_000_000) {
+    throw new HttpException('图片地址过长', HttpStatus.BAD_REQUEST);
+  }
+  if (!/^https?:\/\//i.test(imageUrl) && !/^data:image\//i.test(imageUrl)) {
+    throw new HttpException(
+      '仅支持在线图片地址或 data:image 图片',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+  return imageUrl;
+}
+
+function normalizeOptionalPrompt(value: any) {
+  const prompt = String(value || '').trim();
+  if (prompt.length > 4000) {
+    throw new HttpException('提示词不能超过 4000 字符', HttpStatus.BAD_REQUEST);
+  }
+  return prompt;
+}
+
 @Controller('api/prompts')
 @UseGuards(AuthGuard)
 export class PromptsController {
@@ -57,6 +83,12 @@ export class PromptsController {
     private readonly creditsRepo: CreditsRepo,
     private readonly settingsRepo: SystemSettingsRepo,
   ) {}
+
+  @Post('check')
+  check(@Body() body: any) {
+    const prompt = normalizeOptionalPrompt(body?.prompt);
+    return checkPromptQuality(prompt);
+  }
 
   @Post('enhance')
   async enhance(@Req() req: RequestWithUser, @Body() body: any) {
@@ -96,6 +128,63 @@ export class PromptsController {
           });
         } catch (refundError) {
           logError('PromptsController', 'Refund failed after prompt enhance error', {
+            userId,
+            refId,
+            cost,
+            error: toErrorDetails(refundError),
+          });
+        }
+      }
+      throw error;
+    }
+  }
+
+  @Post('describe')
+  async describe(@Req() req: RequestWithUser, @Body() body: any) {
+    const imageUrl = normalizeImageUrl(body?.imageUrl);
+    const sourcePrompt = normalizeOptionalPrompt(body?.sourcePrompt);
+    const pricing = this.settingsRepo.getPricingSettings();
+    const cost = costFor(
+      req.user.plan === 'pro' ? 'pro' : 'free',
+      'prompt_enhance',
+      pricing,
+    );
+    const refId = crypto.randomUUID();
+    const userId = req.user.id;
+    let charged = false;
+
+    try {
+      this.creditsRepo.charge({
+        userId,
+        cost,
+        reason: 'prompt_describe',
+        refType: 'prompt',
+        refId,
+      });
+      charged = cost > 0;
+
+      const prompt = await this.hiapiService.describeImage({
+        imageUrl,
+        sourcePrompt,
+      });
+      return {
+        prompt,
+        cost,
+        billingReason: 'prompt_describe',
+        billingPolicy: '按提示词工具价格计费；上游失败自动退回点数',
+      };
+    } catch (error) {
+      if (charged) {
+        try {
+          this.creditsRepo.refund({
+            userId,
+            amount: cost,
+            reason: 'prompt_describe_refund',
+            refType: 'prompt',
+            refId,
+          });
+        } catch (refundError) {
+          logError('PromptsController', 'Refund failed after prompt describe error', {
             userId,
             refId,
             cost,

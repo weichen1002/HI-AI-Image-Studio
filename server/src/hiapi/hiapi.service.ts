@@ -353,6 +353,31 @@ async function parseResponsesImageResponse(
   };
 }
 
+async function parseResponsesTextResponse(response: Response) {
+  const text = await response.text();
+  const data = readJsonSafely(text);
+
+  if (!response.ok) {
+    const message = data?.error?.message || data?.message || text || '请求失败';
+    throw new HttpException(message, response.status);
+  }
+
+  if (data?.error) {
+    const message = data.error.message || data.error || '请求失败';
+    throw new HttpException(message, HttpStatus.BAD_GATEWAY);
+  }
+
+  const output = Array.isArray(data?.output) ? data.output : [];
+  const content =
+    String(data?.output_text || '').trim() || collectMessageText(output);
+
+  if (!content) {
+    throw new HttpException('HiAPI 返回结果为空', HttpStatus.BAD_GATEWAY);
+  }
+
+  return content;
+}
+
 @Injectable()
 export class HiapiService {
   constructor(private readonly settingsRepo: SystemSettingsRepo) {}
@@ -865,6 +890,78 @@ export class HiapiService {
       }
 
       return parseChatResponse(response);
+    });
+  }
+
+  async describeImage(params: { imageUrl: string; sourcePrompt?: string }) {
+    const imageUrl = String(params.imageUrl || '').trim();
+    if (!imageUrl) {
+      throw new HttpException('请先选择要反推的图片', HttpStatus.BAD_REQUEST);
+    }
+
+    const modelSettings = this.settingsRepo.getModelSettings();
+    if (!modelSettings.textModel) {
+      throw new HttpException(
+        '请先在 .env 中配置 HIAPI_TEXT_MODEL',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
+    const sourcePrompt = String(params.sourcePrompt || '').trim();
+    const instruction = [
+      '你是提示词工程师。请观察用户提供的图片，反推出一段可直接用于图像生成模型的新提示词。',
+      '要求：描述主体、材质、风格、构图、光线、色彩、镜头/视角和关键细节；如果适合商业作图，补充背景、留白和“不要文字/水印/Logo”。',
+      '输出仅包含最终提示词，不要解释，不要编号，不要代码块。',
+      sourcePrompt
+        ? `原始提示词仅供参考，不要照抄，也不要覆盖它：${sourcePrompt}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    return withHiapiRetry('responses', async () => {
+      const currentModelSettings = this.settingsRepo.getModelSettings();
+      const controller = new AbortController();
+      const timeout = setTimeout(
+        () => controller.abort(),
+        currentModelSettings.timeoutMs,
+      );
+      let response: Response;
+
+      try {
+        response = await fetch(`${currentModelSettings.baseUrl}/responses`, {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            Authorization: `Bearer ${config.HIAPI_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: currentModelSettings.textModel,
+            input: [
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'input_text',
+                    text: instruction,
+                  },
+                  {
+                    type: 'input_image',
+                    image_url: imageUrl,
+                  },
+                ],
+              },
+            ],
+          }),
+        });
+      } catch (error: any) {
+        throw normalizeHiapiError(error);
+      } finally {
+        clearTimeout(timeout);
+      }
+
+      return parseResponsesTextResponse(response);
     });
   }
 }

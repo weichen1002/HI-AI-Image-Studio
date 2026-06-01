@@ -1,0 +1,12 @@
+{
+  "id": "unify-loading-art-engine-copy",
+  "title": "统一 loading 文案为正在唤醒艺术引擎",
+  "status": "in_progress",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已完成，待归档",
+  "createdAt": "2026-06-01T09:22:49Z",
+  "branch": "main"
+}

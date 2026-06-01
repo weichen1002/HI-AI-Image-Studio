@@ -16,6 +16,9 @@
         <Toggle v-model="lowBalanceOnly" size="sm" label="仅余额不足" class="toggle" />
       </template>
       <template #filterActions>
+        <Button variant="ghost" size="sm" :disabled="loading" @click="exportCsv">
+          导出当前筛选
+        </Button>
         <Button variant="ghost" size="sm" :disabled="loading" @click="load">
           <template #icon><RefreshCcwIcon :size="16" aria-hidden="true" /></template>
           刷新数据
@@ -351,7 +354,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useAuthStore } from '../../../stores/auth'
 import { RefreshCcwIcon } from 'lucide-vue-next'
-import { Button, DataTable, Drawer, Input, Modal, Pagination, SearchInput, SelectMenu, Toggle, toastError, toastSuccess } from '../../../components/common'
+import { Button, DataTable, Drawer, Input, Modal, Pagination, SearchInput, SelectMenu, Toggle, confirmAction, toastError, toastSuccess } from '../../../components/common'
 import { AdminListLayout, TablePageLayout } from '../../../components/layout'
 import { apiFetch } from '../../../utils/api'
 
@@ -476,6 +479,31 @@ function handlePageSizeChange(next) {
   load()
 }
 
+function buildFilterParams() {
+  const params = new URLSearchParams()
+  params.set('search', String(q.value || ''))
+  if (planFilter.value) params.set('plan', String(planFilter.value))
+  if (roleFilter.value) params.set('role', String(roleFilter.value))
+  if (statusFilter.value) params.set('status', String(statusFilter.value))
+  if (String(minBalance.value || '').trim() !== '') params.set('minBalance', String(minBalance.value))
+  if (String(maxBalance.value || '').trim() !== '') params.set('maxBalance', String(maxBalance.value))
+  if (lowBalanceOnly.value) params.set('lowBalanceOnly', '1')
+  return params
+}
+
+function downloadUrl(url) {
+  const link = document.createElement('a')
+  link.href = url
+  link.download = ''
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+}
+
+function exportCsv() {
+  downloadUrl(`/api/admin/exports/users?${buildFilterParams().toString()}`)
+}
+
 let filterTimer = null
 
 function scheduleFilterLoad() {
@@ -580,6 +608,17 @@ async function savePlan() {
 
 async function saveRole() {
   if (!selected.value?.id) return
+  if (editRole.value === selected.value?.role) return
+  const ok = await confirmAction({
+    title: '修改用户角色',
+    tone: 'warning',
+    objectName: selected.value?.username || selected.value?.id,
+    message: `确认将角色从 ${selected.value?.role} 改为 ${editRole.value}？`,
+    details: '角色变更会立即影响该用户的后台权限。',
+    confirmText: '修改',
+    destructive: false
+  })
+  if (!ok) return
   saving.value = { ...saving.value, role: true }
   try {
     await api(`/api/admin/users/${selected.value.id}/role`, {
@@ -605,6 +644,16 @@ async function setRole(role) {
 async function toggleStatus() {
   if (!selected.value?.id) return
   const nextStatus = selected.value.status === 'banned' ? 'active' : 'banned'
+  const ok = await confirmAction({
+    title: nextStatus === 'banned' ? '封禁用户' : '解除封禁',
+    tone: nextStatus === 'banned' ? 'danger' : 'warning',
+    objectName: selected.value?.username || selected.value?.id,
+    message: nextStatus === 'banned' ? '确认封禁这个用户吗？' : '确认解除该用户的封禁吗？',
+    details: nextStatus === 'banned' ? '封禁后该账号将无法继续使用。' : '解除后该账号会恢复正常访问。',
+    confirmText: nextStatus === 'banned' ? '封禁' : '解除',
+    destructive: nextStatus === 'banned'
+  })
+  if (!ok) return
   saving.value = { ...saving.value, status: true }
   try {
     const data = await api(`/api/admin/users/${selected.value.id}/status`, {
@@ -686,6 +735,17 @@ async function submitAdjust() {
     return
   }
   if (!selected.value?.id) return
+  const actionText = amount > 0 ? '增加' : '扣减'
+  const ok = await confirmAction({
+    title: '手动调账',
+    tone: amount > 0 ? 'warning' : 'danger',
+    objectName: selected.value?.username || selected.value?.id,
+    message: `确认为用户${actionText} ${Math.abs(amount)} 积分？`,
+    details: `原因：${adjustReason.value || 'manual_adjust'}。该操作会写入账务流水。`,
+    confirmText: '确认调账',
+    destructive: amount < 0
+  })
+  if (!ok) return
   adjustLoading.value = true
   try {
     const data = await api(`/api/admin/users/${selected.value.id}/credits/adjust`, {
@@ -758,8 +818,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .error {
   padding: 12px 14px;
   border-radius: 14px;
-  border: 1px solid rgba(236, 72, 153, 0.25);
-  background: rgba(236, 72, 153, 0.06);
+  border: 1px solid rgba(220, 38, 38, 0.18);
+  background: rgba(220, 38, 38, 0.06);
   color: var(--accent);
   font-weight: 800;
   margin: 12px 14px;
@@ -820,14 +880,14 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 .chip.admin {
   color: var(--primary);
-  background: rgba(99, 102, 241, 0.08);
-  border-color: rgba(99, 102, 241, 0.18);
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.18);
 }
 
 .chip.superadmin {
   color: var(--accent);
-  background: rgba(236, 72, 153, 0.08);
-  border-color: rgba(236, 72, 153, 0.18);
+  background: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.18);
 }
 
 .chip.active {
@@ -928,7 +988,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 }
 
 .tab.active {
-  border-color: rgba(99, 102, 241, 0.22);
+  border-color: rgba(37, 99, 235, 0.22);
   background: var(--gradient-subtle);
   color: var(--primary);
 }

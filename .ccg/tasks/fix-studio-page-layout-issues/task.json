@@ -1,0 +1,12 @@
+{
+  "id": "fix-studio-page-layout-issues",
+  "title": "修复对话创作空白和中心页布局问题",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "等待用户反馈下一批问题；按用户要求暂不归档、不提交",
+  "createdAt": "2026-05-29T17:04:33Z",
+  "branch": "main"
+}

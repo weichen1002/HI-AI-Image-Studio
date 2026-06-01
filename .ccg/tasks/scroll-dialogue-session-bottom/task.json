@@ -1,0 +1,12 @@
+{
+  "id": "scroll-dialogue-session-bottom",
+  "title": "切换对话会话后滚动到底部",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已完成：切换会话和消息更新后自动滚动到底部",
+  "createdAt": "2026-06-01T12:46:27Z",
+  "branch": "main"
+}

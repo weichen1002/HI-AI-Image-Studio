@@ -95,7 +95,7 @@ const activeIndex = computed(() => {
   width: calc((100% - (var(--mode-pad) * 2) - (var(--mode-gap) * (var(--mode-count) - 1))) / var(--mode-count));
   border-radius: 999px;
   background: var(--gradient-subtle);
-  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.14);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.14);
   transform: translateX(calc(var(--mode-index) * (100% + var(--mode-gap))));
   transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), width 0.2s ease;
 }

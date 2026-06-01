@@ -1,0 +1,12 @@
+{
+  "id": "replace-platform-logo",
+  "title": "替换平台 logo 资源",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已完成替换并通过构建验证",
+  "createdAt": "2026-06-01T12:52:37Z",
+  "branch": "main"
+}

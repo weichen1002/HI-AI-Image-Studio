@@ -1,0 +1,12 @@
+{
+  "id": "add-operations-center-menu",
+  "title": "新增后台运营中心菜单分组",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已完成：新增运营中心菜单、运营看板并归集公告/兑换码/反馈样本",
+  "createdAt": "2026-06-01T13:09:00Z",
+  "branch": "main"
+}

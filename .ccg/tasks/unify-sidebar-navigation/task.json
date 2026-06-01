@@ -1,0 +1,12 @@
+{
+  "id": "unify-sidebar-navigation",
+  "title": "统一左侧菜单分组样式",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "low",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已完成：左侧菜单已统一为分区导航样式",
+  "createdAt": "2026-06-01T13:42:35Z",
+  "branch": "main"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "plan-full-roadmap-goal-mode",
+  "title": "规划可供 Codex 目标模式执行的优化点和新功能",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "low",
+  "domain": "planning",
+  "currentPhase": "completed",
+  "nextAction": "归档任务",
+  "createdAt": "2026-05-27T00:00:00+08:00",
+  "branch": "main"
+}

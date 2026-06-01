@@ -1,0 +1,12 @@
+{
+  "id": "n11-1-model-capabilities",
+  "title": "N11.1 模型能力配置中心",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "frontend/backend",
+  "currentPhase": "completed",
+  "nextAction": "后续可按路线图推进 N11.2 Prompt 质量检查和自动补全",
+  "createdAt": "2026-06-01T07:57:53Z",
+  "branch": "main"
+}

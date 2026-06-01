@@ -1,0 +1,12 @@
+{
+  "id": "g5-3-payment-webhook-foundation",
+  "title": "补齐 G5.3 支付回调渠道无关底座",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "high",
+  "domain": "backend",
+  "currentPhase": "completed",
+  "nextAction": "等待真实支付渠道选择后接入官方回调验签",
+  "createdAt": "2026-05-29T00:00:00+08:00",
+  "branch": "main"
+}

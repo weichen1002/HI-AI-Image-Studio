@@ -8,6 +8,11 @@ import { SystemSettingsRepo } from './repositories/system-settings.repo';
 import { DialogueRepo } from './repositories/dialogue.repo';
 import { AuditLogsRepo } from './repositories/audit-logs.repo';
 import { EmailVerificationRepo } from './repositories/email-verification.repo';
+import { ImageJobsRepo } from './repositories/image-jobs.repo';
+import { TemplateFavoritesRepo } from './repositories/template-favorites.repo';
+import { UserPromptTemplatesRepo } from './repositories/user-prompt-templates.repo';
+import { StyleBoardsRepo } from './repositories/style-boards.repo';
+import { ImageFeedbackRepo } from './repositories/image-feedback.repo';
 import { CreditsRepo } from '../credits/credits.repo';
 
 @Module({
@@ -21,6 +26,11 @@ import { CreditsRepo } from '../credits/credits.repo';
     DialogueRepo,
     AuditLogsRepo,
     EmailVerificationRepo,
+    ImageJobsRepo,
+    TemplateFavoritesRepo,
+    UserPromptTemplatesRepo,
+    StyleBoardsRepo,
+    ImageFeedbackRepo,
     CreditsRepo,
   ],
   exports: [
@@ -33,6 +43,11 @@ import { CreditsRepo } from '../credits/credits.repo';
     DialogueRepo,
     AuditLogsRepo,
     EmailVerificationRepo,
+    ImageJobsRepo,
+    TemplateFavoritesRepo,
+    UserPromptTemplatesRepo,
+    StyleBoardsRepo,
+    ImageFeedbackRepo,
     CreditsRepo,
   ],
 })

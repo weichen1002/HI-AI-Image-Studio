@@ -197,6 +197,55 @@
               </div>
             </div>
           </div>
+
+          <div class="section-card">
+            <div class="section-title">当前模型能力</div>
+            <div class="capability-grid">
+              <div class="capability-item">
+                <div class="capability-label">图片生成</div>
+                <div class="capability-value" :class="{ disabled: !modelCapabilities.features.textToImage }">
+                  {{ modelCapabilities.features.textToImage ? '已启用' : '未配置图片模型' }}
+                </div>
+              </div>
+              <div class="capability-item">
+                <div class="capability-label">对话创作</div>
+                <div class="capability-value" :class="{ disabled: !modelCapabilities.features.dialogue }">
+                  {{ modelCapabilities.features.dialogue ? '已启用' : '未配置文本模型' }}
+                </div>
+              </div>
+              <div class="capability-item">
+                <div class="capability-label">反推提示词</div>
+                <div class="capability-value" :class="{ disabled: !modelCapabilities.features.describe }">
+                  {{ modelCapabilities.features.describe ? '已启用' : '未配置文本模型' }}
+                </div>
+              </div>
+              <div class="capability-item">
+                <div class="capability-label">透明背景</div>
+                <div class="capability-value" :class="{ disabled: !modelCapabilities.features.transparentBackground }">
+                  {{ modelCapabilities.features.transparentBackground ? 'PNG / WEBP' : '不可用' }}
+                </div>
+              </div>
+            </div>
+            <div class="capability-list">
+              <div>
+                <span>比例</span>
+                <strong>{{ modelCapabilities.generation.aspectRatios.join(' / ') }}</strong>
+              </div>
+              <div>
+                <span>质量</span>
+                <strong>{{ modelCapabilities.generation.qualityTiers.join(' / ') }}</strong>
+              </div>
+              <div>
+                <span>格式</span>
+                <strong>{{ modelCapabilities.generation.outputFormats.map((item) => item.toUpperCase()).join(' / ') }}</strong>
+              </div>
+              <div>
+                <span>编辑尺寸</span>
+                <strong>{{ modelCapabilities.edit.sizes.join(' / ') }}</strong>
+              </div>
+            </div>
+            <div class="field-help">工作台会按这些能力隐藏不支持的选项；服务端也会在提交时做同样的兜底校验。</div>
+          </div>
         </div>
 
         <div v-else class="settings-body">
@@ -295,6 +344,24 @@ const forms = reactive({
   }
 })
 
+const defaultModelCapabilities = {
+  generation: {
+    aspectRatios: ['1:1', '16:9', '9:16', '4:3', '3:4'],
+    qualityTiers: ['1k', '2k', '4k'],
+    outputFormats: ['png', 'jpeg', 'webp']
+  },
+  edit: {
+    sizes: ['auto', '1024x1024', '1536x1024', '1024x1536']
+  },
+  features: {
+    textToImage: true,
+    dialogue: true,
+    describe: true,
+    transparentBackground: true
+  }
+}
+const modelCapabilities = ref(clone(defaultModelCapabilities))
+
 const activeTabMeta = computed(() => tabs.find((item) => item.key === activeTab.value) || tabs[0])
 
 function clone(value) {
@@ -333,6 +400,22 @@ function applyBootstrap(data) {
   forms.model.timeoutMs = String(data?.model?.timeoutMs ?? 60000)
   forms.model.responseFormat = data?.model?.responseFormat === 'b64_json' ? 'b64_json' : 'url'
   forms.model.sizeFormat = data?.model?.sizeFormat === 'ratio' ? 'ratio' : 'pixel'
+  modelCapabilities.value = {
+    ...clone(defaultModelCapabilities),
+    ...(data?.modelCapabilities || {}),
+    generation: {
+      ...defaultModelCapabilities.generation,
+      ...(data?.modelCapabilities?.generation || {})
+    },
+    edit: {
+      ...defaultModelCapabilities.edit,
+      ...(data?.modelCapabilities?.edit || {})
+    },
+    features: {
+      ...defaultModelCapabilities.features,
+      ...(data?.modelCapabilities?.features || {})
+    }
+  }
 
   forms.upload.maxFileSizeMb = String(data?.upload?.maxFileSizeMb ?? 25)
   forms.upload.allowedMimeTypes = Array.isArray(data?.upload?.allowedMimeTypes)
@@ -514,8 +597,8 @@ onMounted(() => {
 
 .settings-tab.active {
   color: var(--primary);
-  background: rgba(99, 102, 241, 0.1);
-  border-color: rgba(99, 102, 241, 0.16);
+  background: rgba(37, 99, 235, 0.1);
+  border-color: rgba(37, 99, 235, 0.16);
 }
 
 .settings-card {
@@ -614,6 +697,63 @@ onMounted(() => {
   line-height: 1.6;
 }
 
+.capability-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.capability-item {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.capability-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.capability-value {
+  margin-top: 6px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.capability-value.disabled {
+  color: #dc2626;
+}
+
+.capability-list {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 10px;
+}
+
+.capability-list > div {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+  font-size: 13px;
+}
+
+.capability-list span {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.capability-list strong {
+  color: var(--text);
+  font-weight: 900;
+  word-break: break-word;
+}
+
 .pricing-grid {
   display: grid;
   grid-template-columns: 1.2fr 1fr 1fr;
@@ -675,7 +815,8 @@ onMounted(() => {
   }
 
   .field-grid,
-  .pricing-grid {
+  .pricing-grid,
+  .capability-grid {
     grid-template-columns: 1fr;
   }
 

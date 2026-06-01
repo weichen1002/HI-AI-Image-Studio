@@ -17,6 +17,7 @@ import type { RequestWithUser } from '../auth/auth.guard';
 import { AdminRoleGuard } from '../admin/role.guard';
 import {
   AnnouncementsRepo,
+  AnnouncementAudience,
   AnnouncementNotifyMode,
   AnnouncementRepeatMode,
   AnnouncementStatus,
@@ -49,6 +50,29 @@ function normalizeStatus(value: any): AnnouncementStatus {
 function normalizeOptionalIso(value: any) {
   const v = String(value || '').trim();
   return v ? v : null;
+}
+
+function normalizeAudience(value: any): AnnouncementAudience {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const statuses = Array.isArray(value.statuses)
+    ? value.statuses
+        .map((item: any) => String(item || '').trim())
+        .filter((item: string) => ['active', 'banned', 'pending_verification'].includes(item))
+    : [];
+  const roles = Array.isArray(value.roles)
+    ? value.roles
+        .map((item: any) => String(item || '').trim())
+        .filter((item: string) => ['user', 'admin', 'superadmin'].includes(item))
+    : [];
+  const audience: AnnouncementAudience = {};
+  if (statuses.length) audience.statuses = Array.from(new Set(statuses));
+  if (roles.length) audience.roles = Array.from(new Set(roles));
+  const createdAfter = normalizeOptionalIso(value.createdAfter);
+  const createdBefore = normalizeOptionalIso(value.createdBefore);
+  if (createdAfter) audience.createdAfter = createdAfter;
+  if (createdBefore) audience.createdBefore = createdBefore;
+  if (value.paidOnly === true) audience.paidOnly = true;
+  return audience;
 }
 
 @Controller('api/admin/announcements')
@@ -92,9 +116,17 @@ export class AdminAnnouncementsController {
       repeatMode,
       startAt,
       endAt,
+      audience: normalizeAudience(body?.audience),
       createdBy: req.user.id,
     });
     return { announcement };
+  }
+
+  @Post('audience/preview')
+  previewAudience(@Body() body: any) {
+    return this.announcementsRepo.previewAudience({
+      audience: normalizeAudience(body?.audience),
+    });
   }
 
   @Put(':id')
@@ -120,6 +152,7 @@ export class AdminAnnouncementsController {
       repeatMode: body?.repeatMode === undefined ? undefined : normalizeRepeatMode(body?.repeatMode),
       startAt: body?.startAt === undefined ? undefined : normalizeOptionalIso(body?.startAt),
       endAt: body?.endAt === undefined ? undefined : normalizeOptionalIso(body?.endAt),
+      audience: body?.audience === undefined ? undefined : normalizeAudience(body?.audience),
       updatedBy: req.user.id,
     });
 
@@ -153,4 +186,3 @@ export class AdminAnnouncementsController {
     return { deleted: changes > 0 };
   }
 }
-

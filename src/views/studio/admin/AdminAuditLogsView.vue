@@ -7,6 +7,7 @@
         <SelectMenu v-model="statusFilter" size="sm" :options="statusOptions" placeholder="全部结果" class="sel" />
       </template>
       <template #filterActions>
+        <Button variant="ghost" size="sm" :disabled="loading" @click="exportCsv">导出当前筛选</Button>
         <Button variant="ghost" size="sm" :disabled="loading" @click="load">刷新数据</Button>
       </template>
 
@@ -66,7 +67,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { Button, DataTable, Pagination, SearchInput, SelectMenu } from '../../../components/common'
 import { AdminListLayout, TablePageLayout } from '../../../components/layout'
 import { apiFetch } from '../../../utils/api'
@@ -100,6 +101,7 @@ const pageSize = ref(50)
 const userId = ref('')
 const categoryFilter = ref('')
 const statusFilter = ref('')
+let userIdTimer = null
 
 async function load() {
   errorMsg.value = ''
@@ -114,6 +116,12 @@ async function load() {
     const data = await apiFetch(`/api/admin/audit-logs?${params.toString()}`)
     entries.value = data.entries || []
     total.value = Number(data.total || 0)
+
+    const totalPages = Math.max(1, Math.ceil((total.value || 0) / pageSize.value))
+    if (page.value > totalPages) {
+      page.value = totalPages
+      await load()
+    }
   } catch (e) {
     errorMsg.value = e.message || '加载失败'
   } finally {
@@ -122,6 +130,7 @@ async function load() {
 }
 
 function search() {
+  if (userIdTimer) window.clearTimeout(userIdTimer)
   page.value = 1
   load()
 }
@@ -135,6 +144,35 @@ function handlePageSizeChange(next) {
   pageSize.value = next
   page.value = 1
   load()
+}
+
+function buildFilterParams() {
+  const params = new URLSearchParams()
+  if (userId.value) params.set('userId', String(userId.value))
+  if (categoryFilter.value) params.set('category', String(categoryFilter.value))
+  if (statusFilter.value) params.set('status', String(statusFilter.value))
+  return params
+}
+
+function downloadUrl(url) {
+  const link = document.createElement('a')
+  link.href = url
+  link.download = ''
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+}
+
+function exportCsv() {
+  downloadUrl(`/api/admin/exports/audit-logs?${buildFilterParams().toString()}`)
+}
+
+function scheduleUserFilterLoad() {
+  if (userIdTimer) window.clearTimeout(userIdTimer)
+  userIdTimer = window.setTimeout(() => {
+    page.value = 1
+    load()
+  }, 300)
 }
 
 function formatTime(val) {
@@ -157,7 +195,15 @@ watch([categoryFilter, statusFilter], () => {
   load()
 })
 
+watch([userId], () => {
+  scheduleUserFilterLoad()
+})
+
 onMounted(load)
+
+onUnmounted(() => {
+  if (userIdTimer) window.clearTimeout(userIdTimer)
+})
 </script>
 
 <style scoped>
@@ -168,8 +214,8 @@ onMounted(load)
 .error {
   padding: 12px 14px;
   border-radius: 14px;
-  border: 1px solid rgba(236, 72, 153, 0.25);
-  background: rgba(236, 72, 153, 0.06);
+  border: 1px solid rgba(220, 38, 38, 0.18);
+  background: rgba(220, 38, 38, 0.06);
   color: var(--accent);
   font-weight: 800;
   margin: 12px 14px;

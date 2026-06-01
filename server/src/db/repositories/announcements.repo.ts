@@ -5,6 +5,13 @@ import { SqliteService } from '../sqlite.service';
 export type AnnouncementStatus = 'draft' | 'published' | 'archived';
 export type AnnouncementNotifyMode = 'silent' | 'modal';
 export type AnnouncementRepeatMode = 'once' | 'always';
+export type AnnouncementAudience = {
+  statuses?: string[];
+  roles?: string[];
+  createdAfter?: string;
+  createdBefore?: string;
+  paidOnly?: boolean;
+};
 
 export type AnnouncementEntity = {
   id: string;
@@ -13,6 +20,7 @@ export type AnnouncementEntity = {
   status: AnnouncementStatus;
   notifyMode: AnnouncementNotifyMode;
   repeatMode: AnnouncementRepeatMode;
+  audience: AnnouncementAudience;
   startAt: string | null;
   endAt: string | null;
   createdBy: string;
@@ -34,6 +42,7 @@ function toAnnouncement(row: any): AnnouncementEntity | null {
     status: (row.status || 'draft') as AnnouncementStatus,
     notifyMode: (row.notify_mode || 'silent') as AnnouncementNotifyMode,
     repeatMode: (row.repeat_mode || 'once') as AnnouncementRepeatMode,
+    audience: normalizeAudience(row.audience_json),
     startAt: row.start_at ? String(row.start_at) : null,
     endAt: row.end_at ? String(row.end_at) : null,
     createdBy: String(row.created_by || ''),
@@ -41,6 +50,58 @@ function toAnnouncement(row: any): AnnouncementEntity | null {
     createdAt: String(row.created_at || ''),
     updatedAt: String(row.updated_at || ''),
   };
+}
+
+function normalizeAudience(value: any): AnnouncementAudience {
+  let parsed = value;
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value || '{}');
+    } catch {
+      parsed = {};
+    }
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+  const statuses = Array.isArray(parsed.statuses)
+    ? parsed.statuses
+        .map((item: any) => String(item || '').trim())
+        .filter((item: string) => ['active', 'banned', 'pending_verification'].includes(item))
+    : [];
+  const roles = Array.isArray(parsed.roles)
+    ? parsed.roles
+        .map((item: any) => String(item || '').trim())
+        .filter((item: string) => ['user', 'admin', 'superadmin'].includes(item))
+    : [];
+  const audience: AnnouncementAudience = {};
+  if (statuses.length) audience.statuses = Array.from(new Set(statuses));
+  if (roles.length) audience.roles = Array.from(new Set(roles));
+  const createdAfter = String(parsed.createdAfter || '').trim();
+  const createdBefore = String(parsed.createdBefore || '').trim();
+  if (createdAfter) audience.createdAfter = createdAfter;
+  if (createdBefore) audience.createdBefore = createdBefore;
+  if (parsed.paidOnly === true) audience.paidOnly = true;
+  return audience;
+}
+
+function audienceMatchesUser(audience: AnnouncementAudience, user: any) {
+  if (!user) return false;
+  const normalized = normalizeAudience(audience);
+  if (normalized.statuses?.length && !normalized.statuses.includes(String(user?.status || 'active'))) {
+    return false;
+  }
+  if (normalized.roles?.length && !normalized.roles.includes(String(user?.role || 'user'))) {
+    return false;
+  }
+  if (normalized.createdAfter && String(user?.created_at || '') < normalized.createdAfter) {
+    return false;
+  }
+  if (normalized.createdBefore && String(user?.created_at || '') > normalized.createdBefore) {
+    return false;
+  }
+  if (normalized.paidOnly && Number(user?.paid_order_count || 0) <= 0) {
+    return false;
+  }
+  return true;
 }
 
 function toAnnouncementWithRead(row: any): AnnouncementWithRead | null {
@@ -106,6 +167,7 @@ export class AnnouncementsRepo {
     repeatMode: AnnouncementRepeatMode;
     startAt?: string | null;
     endAt?: string | null;
+    audience?: AnnouncementAudience;
     createdBy: string;
   }) {
     const now = new Date().toISOString();
@@ -116,6 +178,7 @@ export class AnnouncementsRepo {
       status: 'draft',
       notifyMode: params.notifyMode,
       repeatMode: params.repeatMode,
+      audience: normalizeAudience(params.audience),
       startAt: params.startAt || null,
       endAt: params.endAt || null,
       createdBy: params.createdBy,
@@ -128,10 +191,10 @@ export class AnnouncementsRepo {
       .prepare(
         `INSERT INTO announcements(
           id, title, content_md, status, notify_mode, repeat_mode, start_at, end_at,
-          created_by, updated_by, created_at, updated_at
+          audience_json, created_by, updated_by, created_at, updated_at
         ) VALUES(
           @id, @title, @content_md, @status, @notify_mode, @repeat_mode, @start_at, @end_at,
-          @created_by, @updated_by, @created_at, @updated_at
+          @audience_json, @created_by, @updated_by, @created_at, @updated_at
         )`,
       )
       .run({
@@ -141,6 +204,7 @@ export class AnnouncementsRepo {
         status: announcement.status,
         notify_mode: announcement.notifyMode,
         repeat_mode: announcement.repeatMode,
+        audience_json: JSON.stringify(announcement.audience || {}),
         start_at: announcement.startAt,
         end_at: announcement.endAt,
         created_by: announcement.createdBy,
@@ -161,6 +225,7 @@ export class AnnouncementsRepo {
       repeatMode?: AnnouncementRepeatMode;
       startAt?: string | null;
       endAt?: string | null;
+      audience?: AnnouncementAudience;
       updatedBy: string;
     },
   ) {
@@ -173,6 +238,8 @@ export class AnnouncementsRepo {
       contentMd: params.contentMd ?? current.contentMd,
       notifyMode: params.notifyMode ?? current.notifyMode,
       repeatMode: params.repeatMode ?? current.repeatMode,
+      audience:
+        params.audience === undefined ? current.audience : normalizeAudience(params.audience),
       startAt:
         params.startAt === undefined ? current.startAt : (params.startAt ?? null),
       endAt: params.endAt === undefined ? current.endAt : (params.endAt ?? null),
@@ -187,6 +254,7 @@ export class AnnouncementsRepo {
           content_md = @content_md,
           notify_mode = @notify_mode,
           repeat_mode = @repeat_mode,
+          audience_json = @audience_json,
           start_at = @start_at,
           end_at = @end_at,
           updated_by = @updated_by,
@@ -199,6 +267,7 @@ export class AnnouncementsRepo {
         content_md: next.contentMd,
         notify_mode: next.notifyMode,
         repeat_mode: next.repeatMode,
+        audience_json: JSON.stringify(next.audience || {}),
         start_at: next.startAt,
         end_at: next.endAt,
         updated_by: next.updatedBy,
@@ -229,7 +298,18 @@ export class AnnouncementsRepo {
 
   listActiveForUser(params: { userId: string; limit: number }) {
     const limit = Math.max(1, Math.min(50, Math.floor(params.limit)));
+    const fetchLimit = Math.max(limit, Math.min(200, limit * 4));
     const now = new Date().toISOString();
+    const user = this.sqlite.connection
+      .prepare(
+        `SELECT u.*, COUNT(o.id) AS paid_order_count
+         FROM users u
+         LEFT JOIN billing_orders o
+           ON o.user_id = u.id AND o.status = 'paid'
+         WHERE u.id = ?
+         GROUP BY u.id`,
+      )
+      .get(params.userId);
     const rows = this.sqlite.connection
       .prepare(
         `SELECT a.*, r.read_at
@@ -242,8 +322,50 @@ export class AnnouncementsRepo {
          ORDER BY COALESCE(a.start_at, a.created_at) DESC
          LIMIT ?`,
       )
-      .all(params.userId, now, now, limit);
-    return rows.map(toAnnouncementWithRead).filter(Boolean) as AnnouncementWithRead[];
+      .all(params.userId, now, now, fetchLimit);
+    return rows
+      .map(toAnnouncementWithRead)
+      .filter(Boolean)
+      .filter((item: AnnouncementWithRead) => audienceMatchesUser(item.audience || {}, user))
+      .slice(0, limit) as AnnouncementWithRead[];
+  }
+
+  previewAudience(params: { audience?: AnnouncementAudience }) {
+    const audience = normalizeAudience(params.audience);
+    const where: string[] = [];
+    const values: any[] = [];
+    if (audience.statuses?.length) {
+      where.push(`u.status IN (${audience.statuses.map(() => '?').join(', ')})`);
+      values.push(...audience.statuses);
+    }
+    if (audience.roles?.length) {
+      where.push(`u.role IN (${audience.roles.map(() => '?').join(', ')})`);
+      values.push(...audience.roles);
+    }
+    if (audience.createdAfter) {
+      where.push('u.created_at >= ?');
+      values.push(audience.createdAfter);
+    }
+    if (audience.createdBefore) {
+      where.push('u.created_at <= ?');
+      values.push(audience.createdBefore);
+    }
+    if (audience.paidOnly) {
+      where.push(
+        `EXISTS (
+          SELECT 1 FROM billing_orders
+          WHERE billing_orders.user_id = u.id AND billing_orders.status = 'paid'
+        )`,
+      );
+    }
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const row = this.sqlite.connection
+      .prepare(`SELECT COUNT(1) AS total FROM users u ${whereSql}`)
+      .get(...values) as { total?: number } | undefined;
+    return {
+      audience,
+      matchedUsers: Number(row?.total || 0),
+    };
   }
 
   markRead(params: { announcementId: string; userId: string }) {
@@ -259,4 +381,3 @@ export class AnnouncementsRepo {
     return { announcementId: params.announcementId, userId: params.userId, readAt: now };
   }
 }
-

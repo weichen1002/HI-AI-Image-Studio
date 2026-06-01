@@ -66,7 +66,7 @@ function runAction(t) {
 }
 
 .toast.error {
-  border-color: rgba(236, 72, 153, 0.25);
+  border-color: rgba(220, 38, 38, 0.18);
 }
 
 .toast-icon {
@@ -86,8 +86,8 @@ function runAction(t) {
 }
 
 .toast.error .toast-icon {
-  color: rgba(236, 72, 153, 0.95);
-  background: rgba(236, 72, 153, 0.08);
+  color: rgba(220, 38, 38, 0.95);
+  background: rgba(220, 38, 38, 0.08);
 }
 
 .toast-message {
