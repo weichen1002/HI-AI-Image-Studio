@@ -1,0 +1,12 @@
+{
+  "id": "build-standalone-sso-center",
+  "title": "新建独立自研 SSO 账号中心项目",
+  "status": "completed",
+  "complexity": "L+",
+  "risk": "high",
+  "domain": "backend",
+  "currentPhase": "completed",
+  "nextAction": "独立 SSO 账号中心 MVP 已实现并验证",
+  "createdAt": "2026-06-02T13:23:14Z",
+  "branch": "main"
+}
