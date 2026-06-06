@@ -1,0 +1,12 @@
+{
+  "id": "add-sso-account-security",
+  "title": "为独立 SSO 账号中心增加账号安全基础能力",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "high",
+  "domain": "backend",
+  "currentPhase": "completed",
+  "nextAction": "归档任务",
+  "createdAt": "2026-06-06T05:58:29Z",
+  "branch": "main"
+}
