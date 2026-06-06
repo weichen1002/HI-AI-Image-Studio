@@ -8,6 +8,7 @@ import request from 'supertest';
 import { loadConfig } from '../src/config.js';
 import { createApp } from '../src/app.js';
 import { hashPassword } from '../src/crypto-utils.js';
+import { loadOrCreateKeyPair } from '../src/keys.js';
 
 function pkcePair() {
   const verifier = crypto.randomBytes(32).toString('base64url');
@@ -890,4 +891,20 @@ test('production-safe config can disable demo client seeding', () => {
   });
   const app = createApp({ config });
   assert.equal(app.locals.repo.findClient('demo-web'), null);
+});
+
+test('existing JWT keypair can be loaded on restart', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sso-auth-center-keypair-'));
+  const config = loadConfig({
+    issuer: 'http://localhost:4100',
+    dataDir: tmp,
+    dbFile: path.join(tmp, 'auth.db'),
+    keyFile: path.join(tmp, 'jwt-keypair.json'),
+  });
+
+  const first = loadOrCreateKeyPair(config);
+  const second = loadOrCreateKeyPair(config);
+
+  assert.equal(second.kid, first.kid);
+  assert.equal(second.publicJwk.kid, first.publicJwk.kid);
 });

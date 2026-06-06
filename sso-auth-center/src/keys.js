@@ -10,8 +10,8 @@ export function loadOrCreateKeyPair(config) {
     const saved = JSON.parse(fs.readFileSync(config.keyFile, 'utf8'));
     return {
       kid: saved.kid,
-      privateKey: crypto.createPrivateKey(saved.privateJwk),
-      publicKey: crypto.createPublicKey(saved.publicJwk),
+      privateKey: crypto.createPrivateKey({ key: saved.privateJwk, format: 'jwk' }),
+      publicKey: crypto.createPublicKey({ key: saved.publicJwk, format: 'jwk' }),
       publicJwk: saved.publicJwk,
     };
   }
