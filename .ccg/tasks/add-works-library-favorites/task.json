@@ -1,0 +1,12 @@
+{
+  "id": "add-works-library-favorites",
+  "title": "为 HI Light Studio 增加我的作品与收藏能力",
+  "status": "in_progress",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "fullstack",
+  "currentPhase": "implementation",
+  "nextAction": "实现作品持久化、收藏、作品页与投稿复用",
+  "createdAt": "2026-06-06T00:00:00+08:00",
+  "branch": "main"
+}

@@ -21,6 +21,53 @@ function extForMime(mime: string) {
   return '';
 }
 
+function sniffMimeType(buffer: Buffer) {
+  if (
+    buffer.length >= 8 &&
+    buffer
+      .subarray(0, 8)
+      .equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+  ) {
+    return 'image/png';
+  }
+  if (
+    buffer.length >= 3 &&
+    buffer[0] === 0xff &&
+    buffer[1] === 0xd8 &&
+    buffer[2] === 0xff
+  ) {
+    return 'image/jpeg';
+  }
+  if (
+    buffer.length >= 12 &&
+    buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    buffer.subarray(8, 12).toString('ascii') === 'WEBP'
+  ) {
+    return 'image/webp';
+  }
+  const head = buffer
+    .subarray(0, 256)
+    .toString('utf8')
+    .trimStart()
+    .toLowerCase();
+  if (head.startsWith('<svg') || head.startsWith('<?xml')) {
+    return 'image/svg+xml';
+  }
+  return '';
+}
+
+function resolveImageMimeType(
+  headerMimeType: string,
+  buffer: Buffer,
+  fallbackMimeType: string,
+) {
+  if (extForMime(headerMimeType)) return headerMimeType;
+  const sniffed = sniffMimeType(buffer);
+  if (sniffed) return sniffed;
+  if (extForMime(fallbackMimeType)) return fallbackMimeType;
+  return '';
+}
+
 export function mimeForFileName(fileName: string) {
   const ext = path.extname(String(fileName || '')).toLowerCase();
   if (ext === '.png') return 'image/png';
@@ -64,6 +111,9 @@ function parseDataUrl(value: string, fallbackMimeType: string = 'image/png') {
 }
 
 async function saveImageBuffer(buffer: Buffer, mimeType: string) {
+  if (!buffer.length) {
+    throw new HttpException('上游返回了空图片数据', HttpStatus.BAD_GATEWAY);
+  }
   const ext = extForMime(mimeType);
   if (!ext) {
     throw new HttpException('上游返回了不支持的图片格式', HttpStatus.BAD_GATEWAY);
@@ -180,10 +230,13 @@ async function persistImageAsset(url: string, fallbackMimeType: string = 'image/
       throw new HttpException('下载上游图片失败', HttpStatus.BAD_GATEWAY);
     }
     const arrayBuffer = await response.arrayBuffer();
-    const mimeType =
-      response.headers.get('content-type')?.split(';')[0]?.trim() ||
-      fallbackMimeType;
-    return saveImageBuffer(Buffer.from(arrayBuffer), mimeType);
+    const buffer = Buffer.from(arrayBuffer);
+    const mimeType = resolveImageMimeType(
+      response.headers.get('content-type')?.split(';')[0]?.trim() || '',
+      buffer,
+      fallbackMimeType,
+    );
+    return saveImageBuffer(buffer, mimeType);
   } catch (error) {
     if (error instanceof HttpException) throw error;
     throw new HttpException('保存上游图片失败', HttpStatus.BAD_GATEWAY);
@@ -210,6 +263,12 @@ export async function persistImageAssetsSafely(
 ) {
   try {
     const persisted = await persistImageAssets(urls, fallbackMimeType);
+    if (
+      !persisted.length &&
+      (Array.isArray(urls) ? urls.filter(Boolean).length : 0) > 0
+    ) {
+      throw new HttpException('保存上游图片失败', HttpStatus.BAD_GATEWAY);
+    }
     return {
       urls: persisted.map((item) => item.url),
       persisted,

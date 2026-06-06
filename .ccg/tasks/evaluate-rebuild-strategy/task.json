@@ -1,0 +1,12 @@
+{
+  "id": "evaluate-rebuild-strategy",
+  "title": "评估平台是否需要重建与重建路径",
+  "status": "in_progress",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "architecture",
+  "currentPhase": "analysis",
+  "nextAction": "分析当前项目结构、耦合点和重建取舍",
+  "createdAt": "2026-06-02T11:58:08Z",
+  "branch": "main"
+}

@@ -278,6 +278,15 @@
               <PanelsTopLeftIcon :size="16" />
             </button>
             <button
+              class="cover-action"
+              type="button"
+              title="投稿灵感广场"
+              aria-label="投稿灵感广场"
+              @click="submitHistoryToSquare(item)"
+            >
+              <SendIcon :size="16" />
+            </button>
+            <button
               v-if="downloadUrl(item)"
               class="cover-action"
               type="button"
@@ -407,7 +416,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { CheckIcon, CheckSquareIcon, CopyIcon, DownloadIcon, FolderOpenIcon, PanelsTopLeftIcon, RefreshCwIcon, ImageOffIcon, SearchIcon, TagIcon, Wand2Icon, Trash2Icon, StarIcon, XIcon } from 'lucide-vue-next'
+import { CheckIcon, CheckSquareIcon, CopyIcon, DownloadIcon, FolderOpenIcon, PanelsTopLeftIcon, RefreshCwIcon, ImageOffIcon, SearchIcon, SendIcon, TagIcon, Wand2Icon, Trash2Icon, StarIcon, XIcon } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import { useImagesStore } from '../../stores/images'
 import { usePreferencesStore } from '../../stores/preferences'
@@ -532,6 +541,11 @@ function isDialogueImage(image) {
   return image?.mode === 'dialogue' || image?.mode === 'continuous'
 }
 
+function normalizeRoundCount(value, fallback = 1) {
+  const count = Math.floor(Number(value || 0))
+  return Number.isFinite(count) && count > 0 ? count : fallback
+}
+
 function modeLabel(item) {
   if (item?.type === 'dialogue-chain') return `对话创作 · ${item.roundCount}轮`
   const image = item?.image || item
@@ -601,7 +615,10 @@ const historyItems = computed(() => {
       const existing = dialogueChains.get(chainId)
       if (existing) {
         existing.images.push(image)
-        existing.roundCount += 1
+        existing.roundCount = Math.max(
+          existing.roundCount,
+          normalizeRoundCount(image.chainRoundCount, existing.images.length)
+        )
         continue
       }
       const item = {
@@ -610,7 +627,7 @@ const historyItems = computed(() => {
         chainId,
         image,
         images: [image],
-        roundCount: Math.max(1, Number(image.chainRoundCount || 1))
+        roundCount: normalizeRoundCount(image.chainRoundCount)
       }
       dialogueChains.set(chainId, item)
       items.push(item)
@@ -963,6 +980,22 @@ function reuseQueryForImage(image, mode = 'text') {
     }
   }
   return query
+}
+
+function submitHistoryToSquare(item) {
+  const image = item?.image || item
+  const id = String(image?.id || '').trim()
+  if (!id) {
+    toastError('这条记录暂时不能投稿')
+    return
+  }
+  router.push({
+    path: '/studio/inspiration-square',
+    query: {
+      submitSource: 'history',
+      sourceId: id
+    }
+  })
 }
 
 function variantInputUrl(image) {

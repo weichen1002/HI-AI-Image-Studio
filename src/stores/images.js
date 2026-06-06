@@ -347,11 +347,27 @@ export const useImagesStore = defineStore('images', () => {
     throw new Error('余额不足')
   }
 
+  function isTransientGeneratedUrl(url) {
+    const value = String(url || '').trim()
+    if (!value) return false
+    try {
+      const parsed = new URL(value, window.location.origin)
+      return parsed.hostname === 'chatgpt.com' && parsed.pathname.startsWith('/backend-api/estuary/content')
+    } catch {
+      return value.includes('chatgpt.com/backend-api/estuary/content')
+    }
+  }
+
+  function normalizeDisplayImageUrls(urls) {
+    return (Array.isArray(urls) ? urls : [])
+      .map((item) => String(item || '').trim())
+      .filter((item) => item && !isTransientGeneratedUrl(item))
+  }
+
   function toListImage(image) {
     return {
       ...image,
-      imageUrls: (image.imageUrls || [])
-        .filter(Boolean),
+      imageUrls: normalizeDisplayImageUrls(image.imageUrls),
       inputImageUrls: (image.inputImageUrls || [])
         .filter(Boolean),
       previewImageUrls: (image.previewImageUrls || [])

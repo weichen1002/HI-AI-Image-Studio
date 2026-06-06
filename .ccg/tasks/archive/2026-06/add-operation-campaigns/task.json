@@ -1,0 +1,12 @@
+{
+  "id": "add-operation-campaigns",
+  "title": "继续增加运营能力，新增投放活动管理",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "fullstack",
+  "currentPhase": "completed",
+  "nextAction": "已完成，待归档",
+  "createdAt": "2026-06-01T14:28:34Z",
+  "branch": "main"
+}

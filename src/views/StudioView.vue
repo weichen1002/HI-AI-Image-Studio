@@ -47,6 +47,10 @@
             <LayoutTemplateIcon :size="18" />
             <span class="nav-label">灵感库</span>
           </router-link>
+          <router-link to="/studio/inspiration-square" class="nav-link" title="灵感广场" aria-label="灵感广场">
+            <SparklesIcon :size="18" />
+            <span class="nav-label">灵感广场</span>
+          </router-link>
           <router-link to="/studio/billing" class="nav-link" title="充值中心" aria-label="充值中心">
             <ReceiptIcon :size="18" />
             <span class="nav-label">充值中心</span>
@@ -80,6 +84,10 @@
           <MegaphoneIcon :size="18" />
           公告
         </router-link>
+        <router-link v-if="isAdmin" to="/studio/admin/operation-campaigns" class="nav-link nav-link-admin-mobile">
+          <RocketIcon :size="18" />
+          活动
+        </router-link>
         <router-link v-if="isAdmin" to="/studio/admin/redeem-codes" class="nav-link nav-link-admin-mobile">
           <GiftIcon :size="18" />
           兑换
@@ -87,6 +95,10 @@
         <router-link v-if="isAdmin" to="/studio/admin/image-feedback" class="nav-link nav-link-admin-mobile">
           <ImageIcon :size="18" />
           反馈
+        </router-link>
+        <router-link v-if="isAdmin" to="/studio/admin/community-submissions" class="nav-link nav-link-admin-mobile">
+          <SparklesIcon :size="18" />
+          灵感
         </router-link>
         <div v-if="isAdmin" class="nav-section nav-group">
           <div class="nav-group-label">后台</div>
@@ -151,6 +163,10 @@
               <ChartNoAxesCombinedIcon :size="18" />
               <span class="nav-label">运营看板</span>
             </router-link>
+            <router-link to="/studio/admin/operation-campaigns" class="nav-link nav-sub-link">
+              <RocketIcon :size="18" />
+              <span class="nav-label">运营活动</span>
+            </router-link>
             <router-link to="/studio/admin/announcements" class="nav-link nav-sub-link">
               <MegaphoneIcon :size="18" />
               <span class="nav-label">公告投放</span>
@@ -162,6 +178,10 @@
             <router-link to="/studio/admin/image-feedback" class="nav-link nav-sub-link">
               <ImageIcon :size="18" />
               <span class="nav-label">反馈样本</span>
+            </router-link>
+            <router-link to="/studio/admin/community-submissions" class="nav-link nav-sub-link">
+              <SparklesIcon :size="18" />
+              <span class="nav-label">灵感审核</span>
             </router-link>
           </div>
         </div>
@@ -194,12 +214,7 @@
         
         <div class="topbar-right" v-if="authStore.user">
           <div class="topbar-meta">
-            <span class="meta-tag plan">{{ authStore.user.plan === 'pro' ? 'PRO' : 'FREE' }}</span>
             <span class="meta-tag balance">余额 {{ authStore.user.creditBalance ?? 0 }}</span>
-            <button class="redeem-entry" type="button" @click="openRedeemModal">
-              <GiftIcon :size="14" />
-              <span>兑换码</span>
-            </button>
           </div>
           <Popover v-model:open="noticeOpen" placement="bottom-end">
             <template #trigger>
@@ -244,7 +259,6 @@
                 </span>
                 <span class="user-trigger-text">
                   <span class="user-trigger-name">{{ authStore.user.username }}</span>
-                  <span class="user-trigger-role">{{ authStore.user.role }}</span>
                 </span>
                 <ChevronDownIcon :size="16" class="user-trigger-chevron" />
               </button>
@@ -257,10 +271,17 @@
                 </span>
                 <div class="user-menu-head-text">
                   <div class="user-menu-name">{{ authStore.user.username }}</div>
-                  <div class="user-menu-sub">{{ authStore.user.role }}</div>
+                  <div class="user-menu-sub">
+                    <span>{{ authStore.user.plan === 'pro' ? 'PRO' : 'FREE' }}</span>
+                    <span>{{ authStore.user.role }}</span>
+                  </div>
                 </div>
               </div>
               <div class="user-menu-list">
+                <button type="button" class="user-menu-item" @click="openRedeemFromMenu">
+                  <GiftIcon :size="16" />
+                  <span>兑换余额</span>
+                </button>
                 <button type="button" class="user-menu-item" @click="goProfile">
                   <UserIcon :size="16" />
                   <span>账户与偏好</span>
@@ -378,7 +399,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useImagesStore } from '../stores/images'
 import { useSiteStore } from '../stores/site'
-import { AlertCircleIcon, BarChart3Icon, BellIcon, BotMessageSquareIcon, ChartNoAxesCombinedIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ClipboardListIcon, GiftIcon, HeadphonesIcon, ImageIcon, LoaderIcon, LogOutIcon, MegaphoneIcon, PenToolIcon, FolderIcon, LayoutTemplateIcon, PanelsTopLeftIcon, SettingsIcon, SlidersHorizontalIcon, TargetIcon, UserIcon, UsersIcon, ReceiptIcon, WrenchIcon } from 'lucide-vue-next'
+import { AlertCircleIcon, BarChart3Icon, BellIcon, BotMessageSquareIcon, ChartNoAxesCombinedIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ClipboardListIcon, GiftIcon, HeadphonesIcon, ImageIcon, LoaderIcon, LogOutIcon, MegaphoneIcon, PenToolIcon, FolderIcon, LayoutTemplateIcon, PanelsTopLeftIcon, RocketIcon, SettingsIcon, SlidersHorizontalIcon, SparklesIcon, TargetIcon, UserIcon, UsersIcon, ReceiptIcon, WrenchIcon } from 'lucide-vue-next'
 import { Button, Input, LinkButton, Modal, Popover, toastError, toastSuccess } from '../components/common'
 import logoUrl from '../hi-image-logo.png'
 import { useAnnouncementsStore } from '../stores/announcements'
@@ -406,9 +427,11 @@ const adminManagementRouteNames = new Set([
 ])
 const operationsRouteNames = new Set([
   'studio-admin-operations',
+  'studio-admin-operation-campaigns',
   'studio-admin-announcements',
   'studio-admin-redeem-codes',
-  'studio-admin-image-feedback'
+  'studio-admin-image-feedback',
+  'studio-admin-community-submissions'
 ])
 const isAdminManagementRoute = computed(() => adminManagementRouteNames.has(route.name))
 const isOperationsRoute = computed(() => operationsRouteNames.has(route.name))
@@ -421,6 +444,7 @@ const routeNames = {
   'studio-tasks': '任务中心',
   'studio-style-boards': '风格板',
   'studio-models': '灵感库',
+  'studio-inspiration-square': '灵感广场',
   'studio-profile': '账户与偏好',
   'studio-billing': '充值中心',
   'studio-settings': '账户与偏好',
@@ -431,10 +455,12 @@ const routeNames = {
   'studio-admin-ledger': '管理中心 / 账务流水',
   'studio-admin-billing-orders': '管理中心 / 订单',
   'studio-admin-operations': '运营中心 / 运营看板',
+  'studio-admin-operation-campaigns': '运营中心 / 运营活动',
   'studio-admin-announcements': '运营中心 / 公告投放',
   'studio-admin-redeem-codes': '运营中心 / 兑换码',
   'studio-admin-audit-logs': '管理中心 / 审计日志',
-  'studio-admin-image-feedback': '运营中心 / 反馈样本'
+  'studio-admin-image-feedback': '运营中心 / 反馈样本',
+  'studio-admin-community-submissions': '运营中心 / 灵感审核'
 }
 
 const routeDescs = {
@@ -444,7 +470,8 @@ const routeDescs = {
   'studio-history-detail': '查看生成详情，复用提示词、下载图片或删除记录。',
   'studio-tasks': '跟踪排队、运行、成功和失败的生成任务。',
   'studio-style-boards': '保存项目风格参考，按需带入本次创作。',
-  'studio-models': '浏览社区灵感模板，一键带入工作台。',
+  'studio-models': '浏览固定灵感模板，一键带入工作台。',
+  'studio-inspiration-square': '浏览用户公开分享的提示词和创作方法。',
   'studio-profile': '查看账户信息，并管理默认创作参数。',
   'studio-billing': '查看可用套餐，创建待支付订单并跟踪订单状态。',
   'studio-settings': '查看账户信息，并管理默认创作参数。',
@@ -454,11 +481,13 @@ const routeDescs = {
   'studio-admin-users': '管理用户套餐、余额与权限。',
   'studio-admin-ledger': '查看充值、扣费等账务流水记录。',
   'studio-admin-billing-orders': '查看充值订单，筛选用户与状态，并确认人工补单入账。',
-  'studio-admin-operations': '集中管理公告投放、活动码和反馈样本，规划后续运营活动能力。',
+  'studio-admin-operations': '集中管理运营活动、公告投放、活动码和反馈样本。',
+  'studio-admin-operation-campaigns': '记录一次运营活动为什么做、给谁做、用公告还是兑换码落地。',
   'studio-admin-announcements': '创建公告投放，支持全站可见与自动弹窗（读过不弹 / 每次必读）。',
   'studio-admin-redeem-codes': '创建和管理单次码、活动码，承接运营活动。',
   'studio-admin-audit-logs': '查看注册、登录、封禁、删号等关键安全与管理操作记录。',
-  'studio-admin-image-feedback': '查看用户对生成结果的低分反馈，沉淀运营和质量优化样本。'
+  'studio-admin-image-feedback': '查看用户对生成结果的低分反馈，沉淀运营和质量优化样本。',
+  'studio-admin-community-submissions': '审核用户投稿到灵感广场的模板与历史作品。'
 }
 
 const currentRouteName = computed(() => {
@@ -707,6 +736,11 @@ async function logout() {
 function openRedeemModal() {
   redeemCode.value = ''
   redeemOpen.value = true
+}
+
+function openRedeemFromMenu() {
+  userMenuOpen.value = false
+  openRedeemModal()
 }
 
 async function submitRedeem() {
@@ -1040,25 +1074,6 @@ async function logoutFromMenu() {
   color: var(--text);
 }
 
-.redeem-entry {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 9px;
-  border-radius: 999px;
-  border: 1px solid rgba(37, 99, 235, 0.16);
-  background: rgba(37, 99, 235, 0.08);
-  color: var(--primary);
-  font-size: 11px;
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.redeem-entry:hover {
-  background: rgba(37, 99, 235, 0.12);
-}
-
 .meta-tag {
   display: inline-flex;
   align-items: center;
@@ -1069,11 +1084,6 @@ async function logoutFromMenu() {
   background: transparent;
   color: var(--text);
   letter-spacing: 0.02em;
-}
-
-.meta-tag.plan {
-  color: var(--primary);
-  border-color: rgba(37, 99, 235, 0.18);
 }
 
 .user-trigger {
@@ -1107,9 +1117,8 @@ async function logoutFromMenu() {
 
 .user-trigger-text {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  line-height: 1.2;
+  align-items: center;
+  line-height: 1;
   min-width: 0;
 }
 
@@ -1120,14 +1129,6 @@ async function logoutFromMenu() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.user-trigger-role {
-  font-size: 10px;
-  font-weight: 900;
-  color: var(--muted);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .user-trigger-chevron {
@@ -1180,6 +1181,10 @@ async function logoutFromMenu() {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 
 .user-menu-list {
@@ -1676,8 +1681,7 @@ async function logoutFromMenu() {
     flex: 1 1 auto;
   }
 
-  .meta-tag,
-  .redeem-entry {
+  .meta-tag {
     height: 28px;
     padding: 0 8px;
     max-width: 100%;

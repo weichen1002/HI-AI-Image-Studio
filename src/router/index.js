@@ -10,12 +10,15 @@ const CreateView = () => import('../views/studio/CreateView.vue')
 const HistoryView = () => import('../views/studio/HistoryView.vue')
 const HistoryDetailView = () => import('../views/studio/HistoryDetailView.vue')
 const ModelsView = () => import('../views/studio/ModelsView.vue')
+const InspirationSquareView = () => import('../views/studio/InspirationSquareView.vue')
 const SettingsView = () => import('../views/studio/SettingsView.vue')
 const AnnouncementsView = () => import('../views/studio/AnnouncementsView.vue')
 const TasksView = () => import('../views/studio/TasksView.vue')
 const StyleBoardsView = () => import('../views/studio/StyleBoardsView.vue')
 const AdminDashboardView = () => import('../views/studio/admin/AdminDashboardView.vue')
 const AdminOperationsView = () => import('../views/studio/admin/AdminOperationsView.vue')
+const AdminOperationCampaignsView = () => import('../views/studio/admin/AdminOperationCampaignsView.vue')
+const AdminCommunitySubmissionsView = () => import('../views/studio/admin/AdminCommunitySubmissionsView.vue')
 const AdminUsersView = () => import('../views/studio/admin/AdminUsersView.vue')
 const AdminAnnouncementsView = () => import('../views/studio/admin/AdminAnnouncementsView.vue')
 const AdminSettingsView = () => import('../views/studio/admin/AdminSettingsView.vue')
@@ -118,6 +121,11 @@ const routes = [
         meta: { requiresAuth: false } // Models page should be accessible without auth for inspiration
       },
       {
+        path: 'inspiration-square',
+        name: 'studio-inspiration-square',
+        component: InspirationSquareView
+      },
+      {
         path: 'settings',
         name: 'studio-settings',
         component: SettingsView
@@ -155,6 +163,18 @@ const routes = [
         path: 'admin/operations',
         name: 'studio-admin-operations',
         component: AdminOperationsView,
+        meta: { requiresRole: ['admin', 'superadmin'] }
+      },
+      {
+        path: 'admin/operation-campaigns',
+        name: 'studio-admin-operation-campaigns',
+        component: AdminOperationCampaignsView,
+        meta: { requiresRole: ['admin', 'superadmin'] }
+      },
+      {
+        path: 'admin/community-submissions',
+        name: 'studio-admin-community-submissions',
+        component: AdminCommunitySubmissionsView,
         meta: { requiresRole: ['admin', 'superadmin'] }
       },
       {

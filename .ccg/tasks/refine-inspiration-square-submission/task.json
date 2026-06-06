@@ -1,0 +1,12 @@
+{
+  "id": "refine-inspiration-square-submission",
+  "title": "优化灵感广场投稿与审核入口",
+  "status": "in_progress",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "frontend",
+  "currentPhase": "implementation",
+  "nextAction": "实现引用式投稿、资产快捷投稿和后台审核入口",
+  "createdAt": "2026-06-01T15:23:01Z",
+  "branch": "main"
+}

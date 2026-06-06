@@ -14,6 +14,7 @@ import { BillingModule } from './billing/billing.module';
 import { StyleBoardsModule } from './style-boards/style-boards.module';
 import { HealthModule } from './health/health.module';
 import { HiapiModule } from './hiapi/hiapi.module';
+import { OperationsModule } from './operations/operations.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { HiapiModule } from './hiapi/hiapi.module';
     StyleBoardsModule,
     HealthModule,
     HiapiModule,
+    OperationsModule,
   ],
 })
 export class AppModule {}

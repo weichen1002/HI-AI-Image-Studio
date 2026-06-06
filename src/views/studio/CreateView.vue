@@ -926,7 +926,10 @@ onBeforeUnmount(() => {
 const errorMsg = ref('')
 const loading = computed(() => imagesStore.isGenerating)
 const currentImage = computed(() => imagesStore.activeJob?.image || null)
-const previewUrls = computed(() => (currentImage.value?.imageUrls || []).filter(Boolean))
+const previewUrls = computed(() => [
+  ...(currentImage.value?.imageUrls || []),
+  ...(currentImage.value?.previewImageUrls || [])
+].filter(Boolean))
 const canResetPreview = computed(() => Boolean(imagesStore.activeJob && !loading.value))
 const enhanceOriginalPrompt = computed(() => {
   return enhanceTarget.value === 'dialogue' ? dialoguePrompt.value : generationForm.prompt

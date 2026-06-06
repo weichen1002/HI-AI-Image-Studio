@@ -68,8 +68,8 @@
         </div>
 
         <div class="task-result">
-          <div v-if="job.image?.imageUrls?.[0]" class="task-thumb">
-            <img :src="job.image.imageUrls[0]" alt="" loading="lazy" />
+          <div v-if="jobThumbUrl(job)" class="task-thumb">
+            <img :src="jobThumbUrl(job)" alt="" loading="lazy" />
           </div>
           <div v-else class="task-thumb empty">
             <ImageIcon :size="18" />
@@ -159,6 +159,10 @@ const failureRateText = computed(() => {
   const rate = Number(imagesStore.jobStats.failureRate || 0)
   return `${Math.round(rate * 100)}%`
 })
+
+function jobThumbUrl(job) {
+  return job?.image?.imageUrls?.[0] || job?.image?.previewImageUrls?.[0] || ''
+}
 
 function pageOffset() {
   return (currentPage.value - 1) * pageSize.value

@@ -128,6 +128,25 @@ export function runSqliteMigrations(db: any) {
     CREATE INDEX IF NOT EXISTS idx_announcements_status_created ON announcements(status, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_announcements_status_time ON announcements(status, start_at, end_at);
 
+    CREATE TABLE IF NOT EXISTS operation_campaigns (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      channel TEXT NOT NULL,
+      status TEXT NOT NULL,
+      goal TEXT NOT NULL DEFAULT '',
+      audience_json TEXT NOT NULL DEFAULT '{}',
+      start_at TEXT,
+      end_at TEXT,
+      linked_ref_type TEXT,
+      linked_ref_id TEXT,
+      created_by TEXT NOT NULL,
+      updated_by TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_operation_campaigns_status_created ON operation_campaigns(status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_operation_campaigns_channel_created ON operation_campaigns(channel, created_at DESC);
+
     CREATE TABLE IF NOT EXISTS system_settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
@@ -212,6 +231,27 @@ export function runSqliteMigrations(db: any) {
       updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_user_prompt_templates_user_updated ON user_prompt_templates(user_id, updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS community_submissions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      category TEXT NOT NULL DEFAULT '',
+      prompt TEXT NOT NULL,
+      cover_image_url TEXT NOT NULL DEFAULT '',
+      aspect_ratio TEXT NOT NULL DEFAULT '',
+      source_type TEXT NOT NULL DEFAULT '',
+      source_id TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'pending',
+      review_note TEXT NOT NULL DEFAULT '',
+      reviewed_by TEXT,
+      reviewed_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_community_submissions_user_created ON community_submissions(user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_community_submissions_status_created ON community_submissions(status, created_at DESC);
 
     CREATE TABLE IF NOT EXISTS email_verification_tokens (
       id TEXT PRIMARY KEY,
@@ -483,4 +523,62 @@ export function runSqliteMigrations(db: any) {
   }
 
   markMigration(db, 21);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS operation_campaigns (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      channel TEXT NOT NULL,
+      status TEXT NOT NULL,
+      goal TEXT NOT NULL DEFAULT '',
+      audience_json TEXT NOT NULL DEFAULT '{}',
+      start_at TEXT,
+      end_at TEXT,
+      linked_ref_type TEXT,
+      linked_ref_id TEXT,
+      created_by TEXT NOT NULL,
+      updated_by TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_operation_campaigns_status_created ON operation_campaigns(status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_operation_campaigns_channel_created ON operation_campaigns(channel, created_at DESC);
+  `);
+
+  markMigration(db, 22);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS community_submissions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      category TEXT NOT NULL DEFAULT '',
+      prompt TEXT NOT NULL,
+      cover_image_url TEXT NOT NULL DEFAULT '',
+      aspect_ratio TEXT NOT NULL DEFAULT '',
+      source_type TEXT NOT NULL DEFAULT '',
+      source_id TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'pending',
+      review_note TEXT NOT NULL DEFAULT '',
+      reviewed_by TEXT,
+      reviewed_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_community_submissions_user_created ON community_submissions(user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_community_submissions_status_created ON community_submissions(status, created_at DESC);
+  `);
+
+  markMigration(db, 23);
+
+  const communitySubmissionColumns = columnNames(db, 'community_submissions');
+  if (!communitySubmissionColumns.has('source_type')) {
+    db.prepare(`ALTER TABLE community_submissions ADD COLUMN source_type TEXT NOT NULL DEFAULT ''`).run();
+  }
+  if (!communitySubmissionColumns.has('source_id')) {
+    db.prepare(`ALTER TABLE community_submissions ADD COLUMN source_id TEXT NOT NULL DEFAULT ''`).run();
+  }
+
+  markMigration(db, 24);
 }

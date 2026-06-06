@@ -61,12 +61,14 @@ describe('runSqliteMigrations', () => {
         'announcement_reads',
         'template_favorites',
         'user_prompt_templates',
+        'community_submissions',
         'email_verification_tokens',
         'billing_packages',
         'billing_orders',
         'style_boards',
         'style_board_refs',
         'image_feedbacks',
+        'operation_campaigns',
       ]),
     );
     expect([...columnNames('images')]).toEqual(
@@ -117,6 +119,21 @@ describe('runSqliteMigrations', () => {
     );
     expect([...columnNames('announcements')]).toEqual(
       expect.arrayContaining(['audience_json']),
+    );
+    expect([...columnNames('community_submissions')]).toEqual(
+      expect.arrayContaining([
+        'user_id',
+        'title',
+        'description',
+        'category',
+        'prompt',
+        'cover_image_url',
+        'aspect_ratio',
+        'source_type',
+        'source_id',
+        'status',
+        'review_note',
+      ]),
     );
   });
 
@@ -242,7 +259,8 @@ describe('runSqliteMigrations', () => {
       .map((row: { version: number }) => row.version);
 
     expect(versions).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+      24,
     ]);
   });
 });

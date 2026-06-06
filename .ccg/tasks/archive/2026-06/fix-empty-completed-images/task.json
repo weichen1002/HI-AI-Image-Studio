@@ -1,0 +1,12 @@
+{
+  "id": "fix-empty-completed-images",
+  "title": "修复文生图和图生图完成后图片为空",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "frontend/backend",
+  "currentPhase": "completed",
+  "nextAction": "已修复并通过回归测试",
+  "createdAt": "2026-06-02T07:53:29Z",
+  "branch": "main"
+}

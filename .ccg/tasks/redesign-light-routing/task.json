@@ -1,0 +1,12 @@
+{
+  "id": "redesign-light-routing",
+  "title": "按 l0veyou/image 方向轻量化 HI Light Studio 界面并改为页面跳转",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "已完成；独立项目不在当前 git 仓库内，未自动归档提交",
+  "createdAt": "2026-06-06T00:00:00+08:00",
+  "branch": "main"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "improve-operations-dashboard-copy",
+  "title": "完善运营看板并让运营活动更通俗易懂",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "fullstack",
+  "currentPhase": "completed",
+  "nextAction": "已完成，待归档",
+  "createdAt": "2026-06-01T15:04:19Z",
+  "branch": "main"
+}

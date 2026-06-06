@@ -1,0 +1,12 @@
+{
+  "id": "finish-operations-capabilities-followup",
+  "title": "继续收尾运营能力实现并修复校验问题",
+  "status": "in_progress",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "fullstack",
+  "currentPhase": "implementation",
+  "nextAction": "修复运营统计 SQL 口径并重新构建验证",
+  "createdAt": "2026-06-02T01:52:30Z",
+  "branch": "main"
+}

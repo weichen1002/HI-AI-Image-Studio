@@ -1,0 +1,12 @@
+{
+  "id": "compact-ui-real-api-platform",
+  "title": "缩小 HI Light Studio 整体界面并接入真实 API Provider 能力",
+  "status": "in_progress",
+  "complexity": "L",
+  "risk": "medium",
+  "domain": "fullstack",
+  "currentPhase": "completed",
+  "nextAction": "已完成输入框拉伸控件语义修正与浏览器验证；待用户确认是否继续新增平台能力",
+  "createdAt": "2026-06-02T00:00:00+08:00",
+  "branch": "main"
+}

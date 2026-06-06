@@ -124,6 +124,9 @@ export class ImageToImageWorkflow {
         result.imageUrls,
         mimeForFileName(`result.${params.outputFormat}`),
       );
+      if (persistedResults.degraded || persistedResults.urls.length === 0) {
+        throw new HttpException('保存生成图片失败，请稍后重试', HttpStatus.BAD_GATEWAY);
+      }
       lifecycle.trackResultAssets(
         persistedResults.persisted.map((item) => ({
           filePath: item.filePath,

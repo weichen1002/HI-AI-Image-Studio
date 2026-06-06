@@ -69,6 +69,15 @@
               v-if="tpl.sourceType === 'user'"
               type="button"
               class="icon-btn"
+              title="投稿灵感广场"
+              @click.stop="submitTemplateToSquare(tpl)"
+            >
+              <SendIcon :size="15" />
+            </button>
+            <button
+              v-if="tpl.sourceType === 'user'"
+              type="button"
+              class="icon-btn"
               title="编辑模板"
               @click.stop="openTemplateEditor(tpl)"
             >
@@ -233,7 +242,7 @@
 <script setup>
 import { reactive, ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { PencilIcon, PlusIcon, StarIcon, Trash2Icon } from 'lucide-vue-next'
+import { PencilIcon, PlusIcon, SendIcon, StarIcon, Trash2Icon } from 'lucide-vue-next'
 import { Button, Input, Modal, confirmDanger, toastError, toastSuccess } from '../../components/common'
 import { usePreferencesStore } from '../../stores/preferences'
 import { useAuthStore } from '../../stores/auth'
@@ -452,6 +461,25 @@ function useTemplate(tpl, prompt = tpl.prompt) {
     query: {
       prompt,
       ...(tpl.aspectRatio ? { ratio: tpl.aspectRatio } : {})
+    }
+  })
+}
+
+function submitTemplateToSquare(tpl) {
+  if (!authStore.user?.id) {
+    toastError('请先登录后再投稿')
+    return
+  }
+  const id = String(tpl?.id || '').trim()
+  if (!id) {
+    toastError('请先保存模板后再投稿')
+    return
+  }
+  router.push({
+    path: '/studio/inspiration-square',
+    query: {
+      submitSource: 'template',
+      sourceId: id
     }
   })
 }

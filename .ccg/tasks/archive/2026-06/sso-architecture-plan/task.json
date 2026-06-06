@@ -1,0 +1,12 @@
+{
+  "id": "sso-architecture-plan",
+  "title": "为多站点统一登录设计 SSO 方案",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "high",
+  "domain": "backend",
+  "currentPhase": "completed",
+  "nextAction": "方案已输出，等待实施决策",
+  "createdAt": "2026-06-02T12:30:59Z",
+  "branch": "main"
+}

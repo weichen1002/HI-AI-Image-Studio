@@ -1,0 +1,12 @@
+{
+  "id": "build-hi-light-full-system",
+  "title": "将 HI Light Studio 从单文件本地原型升级为带后端持久化的完整系统骨架",
+  "status": "in_progress",
+  "complexity": "L",
+  "risk": "medium",
+  "domain": "fullstack",
+  "currentPhase": "completed",
+  "nextAction": "下一阶段将 JSON DB 替换为 SQLite/PostgreSQL，并接入真实模型适配器与 OIDC",
+  "createdAt": "2026-06-02T00:00:00+08:00",
+  "branch": "main"
+}

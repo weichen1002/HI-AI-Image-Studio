@@ -1,0 +1,12 @@
+{
+  "id": "polish-topbar-and-styleboard-empty",
+  "title": "优化顶部信息密度和风格板空状态",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "frontend",
+  "currentPhase": "completed",
+  "nextAction": "等待归档",
+  "createdAt": "2026-06-01T14:44:19Z",
+  "branch": "main"
+}

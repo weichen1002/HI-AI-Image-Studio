@@ -1,0 +1,12 @@
+{
+  "id": "extract-backend-and-prompt-market",
+  "title": "拆分 HI-Image-Studio 后端为独立项目并优化 HI-Light 提示词市场交互",
+  "status": "in_progress",
+  "complexity": "L",
+  "risk": "medium",
+  "domain": "fullstack",
+  "currentPhase": "implementation",
+  "nextAction": "创建独立后端项目并接入提示词市场弹窗",
+  "createdAt": "2026-06-06T00:00:00+08:00",
+  "branch": "main"
+}

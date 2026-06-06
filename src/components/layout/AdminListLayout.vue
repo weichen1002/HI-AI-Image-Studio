@@ -1,5 +1,7 @@
 <template>
   <div class="admin-list">
+    <slot name="intro" />
+
     <div v-if="$slots.filterActions || $slots.tools" class="actions-row">
       <slot name="filterActions" />
       <slot name="tools" />

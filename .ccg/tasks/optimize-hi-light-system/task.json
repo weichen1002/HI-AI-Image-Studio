@@ -1,0 +1,12 @@
+{
+  "id": "optimize-hi-light-system",
+  "title": "继续优化 HI Light Studio 独立系统的创作复用与投稿体验",
+  "status": "in_progress",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "fullstack",
+  "currentPhase": "completed",
+  "nextAction": "已完成，下一阶段接真实 API 与压缩整体 UI 密度",
+  "createdAt": "2026-06-02T00:00:00+08:00",
+  "branch": "main"
+}

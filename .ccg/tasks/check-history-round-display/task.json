@@ -1,0 +1,12 @@
+{
+  "id": "check-history-round-display",
+  "title": "检查灵感记录列表轮次展示",
+  "status": "in_progress",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "frontend",
+  "currentPhase": "analysis",
+  "nextAction": "复现列表轮次展示并分析字段来源",
+  "createdAt": "2026-06-01T15:18:06Z",
+  "branch": "main"
+}

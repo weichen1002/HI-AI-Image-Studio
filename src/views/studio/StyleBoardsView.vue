@@ -10,9 +10,27 @@
 
     <div v-if="store.loading" class="state-card">加载风格板中...</div>
     <div v-else-if="!store.boards.length" class="empty-card">
-      <PanelsTopLeftIcon :size="42" />
-      <div class="empty-title">暂无风格板</div>
-      <Button size="sm" @click="openCreate">创建第一个风格板</Button>
+      <div class="empty-hero">
+        <PanelsTopLeftIcon :size="42" />
+        <div>
+          <div class="empty-title">先建一个可复用的风格板</div>
+          <div class="empty-sub">把本地参考图、历史作品或在线图片收进来，之后在创作时按需带入。</div>
+        </div>
+      </div>
+      <div class="empty-actions">
+        <button type="button" class="empty-action-card primary" :disabled="saving" @click="startFirstBoard('upload')">
+          <ImageUpIcon :size="20" />
+          <span>上传本地参考图</span>
+        </button>
+        <button type="button" class="empty-action-card" :disabled="saving" @click="startFirstBoard('history')">
+          <HistoryIcon :size="20" />
+          <span>从历史作品选择</span>
+        </button>
+        <button type="button" class="empty-action-card" :disabled="saving" @click="openCreate">
+          <PlusIcon :size="20" />
+          <span>创建第一个风格板</span>
+        </button>
+      </div>
     </div>
 
     <div v-else class="board-grid">
@@ -216,6 +234,25 @@ async function selectRefSource(source) {
   }
 }
 
+async function startFirstBoard(source) {
+  saving.value = true
+  try {
+    const board = await store.createBoard({
+      name: source === 'history' ? '历史作品参考' : '本地参考图',
+      description: '用于沉淀项目风格、构图、色彩、光影和材质参考。'
+    })
+    if (board?.id) {
+      openAddRef(board)
+      await selectRefSource(source)
+    }
+    toastSuccess('已创建风格板')
+  } catch (error) {
+    toastError(error.message || '创建失败')
+  } finally {
+    saving.value = false
+  }
+}
+
 async function reload() {
   await store.fetchBoards()
 }
@@ -416,8 +453,9 @@ onMounted(() => {
 .state-card,
 .empty-card {
   min-height: 260px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   gap: 12px;
   padding: 24px;
   border: 1px solid rgba(15, 23, 42, 0.07);
@@ -427,9 +465,72 @@ onMounted(() => {
   text-align: center;
 }
 
+.empty-card {
+  align-items: stretch;
+}
+
+.empty-hero {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+}
+
 .empty-title {
   color: var(--text);
   font-weight: 900;
+}
+
+.empty-sub {
+  max-width: 560px;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 750;
+}
+
+.empty-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  width: min(760px, 100%);
+  margin: 8px auto 0;
+}
+
+.empty-action-card {
+  min-width: 0;
+  min-height: 96px;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.78);
+  color: rgba(15, 23, 42, 0.72);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: transform 0.2s, border-color 0.2s, background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.empty-action-card:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(37, 99, 235, 0.24);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--primary);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+}
+
+.empty-action-card.primary {
+  border-color: rgba(37, 99, 235, 0.22);
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--primary);
+}
+
+.empty-action-card:disabled {
+  cursor: wait;
+  opacity: 0.65;
 }
 
 .board-grid {
@@ -706,6 +807,10 @@ onMounted(() => {
   }
 
   .ref-source-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  .empty-actions {
     grid-template-columns: 1fr;
   }
 }

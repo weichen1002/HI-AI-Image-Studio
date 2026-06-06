@@ -13,6 +13,8 @@ import { TemplateFavoritesRepo } from './repositories/template-favorites.repo';
 import { UserPromptTemplatesRepo } from './repositories/user-prompt-templates.repo';
 import { StyleBoardsRepo } from './repositories/style-boards.repo';
 import { ImageFeedbackRepo } from './repositories/image-feedback.repo';
+import { OperationCampaignsRepo } from './repositories/operation-campaigns.repo';
+import { CommunitySubmissionsRepo } from './repositories/community-submissions.repo';
 import { CreditsRepo } from '../credits/credits.repo';
 
 @Module({
@@ -31,6 +33,8 @@ import { CreditsRepo } from '../credits/credits.repo';
     UserPromptTemplatesRepo,
     StyleBoardsRepo,
     ImageFeedbackRepo,
+    OperationCampaignsRepo,
+    CommunitySubmissionsRepo,
     CreditsRepo,
   ],
   exports: [
@@ -48,6 +52,8 @@ import { CreditsRepo } from '../credits/credits.repo';
     UserPromptTemplatesRepo,
     StyleBoardsRepo,
     ImageFeedbackRepo,
+    OperationCampaignsRepo,
+    CommunitySubmissionsRepo,
     CreditsRepo,
   ],
 })

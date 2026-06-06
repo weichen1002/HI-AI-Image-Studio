@@ -1,0 +1,12 @@
+{
+  "id": "add-community-submissions",
+  "title": "新增用户投稿到公共灵感库能力",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "fullstack",
+  "currentPhase": "completed",
+  "nextAction": "等待归档",
+  "createdAt": "2026-06-01T15:02:43Z",
+  "branch": "main"
+}
