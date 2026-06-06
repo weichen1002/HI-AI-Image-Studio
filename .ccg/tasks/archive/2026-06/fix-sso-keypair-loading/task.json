@@ -1,0 +1,12 @@
+{
+  "id": "fix-sso-keypair-loading",
+  "title": "修复 SSO 开发服务读取已有 JWT keypair 崩溃",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "high",
+  "domain": "backend",
+  "currentPhase": "completed",
+  "nextAction": "归档任务",
+  "createdAt": "2026-06-06T07:16:26Z",
+  "branch": "main"
+}
