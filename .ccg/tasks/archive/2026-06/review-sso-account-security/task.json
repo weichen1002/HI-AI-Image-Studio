@@ -1,0 +1,12 @@
+{
+  "id": "review-sso-account-security",
+  "title": "审查并修复 SSO 账号安全切片",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "high",
+  "domain": "backend",
+  "currentPhase": "completed",
+  "nextAction": "归档任务",
+  "createdAt": "2026-06-06T06:35:00Z",
+  "branch": "main"
+}
