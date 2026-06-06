@@ -9,6 +9,7 @@ import {
   verifyPassword,
 } from './crypto-utils.js';
 import { loadOrCreateKeyPair } from './keys.js';
+import { createConsoleMailer } from './mailer.js';
 import {
   appendRedirect,
   authenticateAccessToken,
@@ -16,10 +17,11 @@ import {
   validateAuthorizeRequest,
   verifyPkce,
 } from './oauth.js';
+import { createRateLimiter } from './rate-limit.js';
 
 function requestMeta(req) {
   return {
-    ip: String(req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim(),
+    ip: String(req.ip || ''),
     userAgent: String(req.headers['user-agent'] || '').slice(0, 500),
   };
 }
@@ -102,11 +104,19 @@ function requireLogin(req, res, repo) {
 
 export function createApp({ config, db = openDatabase(config), keyPair = loadOrCreateKeyPair(config) }) {
   const repo = new AuthRepository(db, config);
+  const mailer = createConsoleMailer(config);
+  const authRateLimit = createRateLimiter({
+    windowSeconds: config.authRateLimitWindowSeconds,
+    max: config.authRateLimitMax,
+  });
   const app = express();
+  app.set('trust proxy', config.trustProxy);
 
   app.locals.repo = repo;
   app.locals.keyPair = keyPair;
   app.locals.config = config;
+  app.locals.mailer = mailer;
+  app.locals.sentEmails = mailer.sent;
 
   app.use(express.urlencoded({ extended: false }));
   app.use(express.json());
@@ -158,7 +168,7 @@ export function createApp({ config, db = openDatabase(config), keyPair = loadOrC
     );
   });
 
-  app.post('/register', (req, res) => {
+  app.post('/register', authRateLimit, async (req, res) => {
     if (!verifyCsrf(req)) return res.status(403).json({ error: 'invalid_csrf' });
     const email = cleanEmail(req.body.email);
     const password = String(req.body.password || '');
@@ -170,6 +180,11 @@ export function createApp({ config, db = openDatabase(config), keyPair = loadOrC
     if (repo.findUserByEmail(email)) return res.redirect(`/register?error=${encodeURIComponent('邮箱已注册')}&next=${encodeURIComponent(next)}`);
 
     const user = repo.createUser({ email, passwordHash: hashPassword(password), name });
+    const verificationToken = repo.createEmailVerificationToken({ userId: user.id, email: user.email });
+    await mailer.sendEmailVerification({
+      to: user.email,
+      verifyUrl: `${config.issuer}/verify-email?token=${encodeURIComponent(verificationToken)}`,
+    });
     const session = repo.createSession(user.id);
     repo.markLogin(user.id);
     repo.writeAudit({ actorUserId: user.id, category: 'auth', action: 'register', status: 'success', ...requestMeta(req) });
@@ -181,6 +196,26 @@ export function createApp({ config, db = openDatabase(config), keyPair = loadOrC
       maxAge: config.sessionTtlSeconds * 1000,
     });
     return res.redirect(next);
+  });
+
+  app.get('/verify-email', (req, res) => {
+    const token = String(req.query.token || '');
+    const record = repo.consumeEmailVerificationToken(token);
+    if (!record) {
+      return res.status(400).send(
+        renderPage('邮箱验证失败', '<h1>邮箱验证失败</h1><p class="muted">验证链接无效或已过期。</p>'),
+      );
+    }
+    repo.writeAudit({
+      actorUserId: record.user_id,
+      category: 'auth',
+      action: 'email_verified',
+      status: 'success',
+      ...requestMeta(req),
+    });
+    return res.send(
+      renderPage('邮箱已验证', '<h1>邮箱已验证</h1><p class="muted">你的邮箱已经完成验证。</p>'),
+    );
   });
 
   app.get('/login', (req, res) => {
@@ -203,7 +238,7 @@ export function createApp({ config, db = openDatabase(config), keyPair = loadOrC
     );
   });
 
-  app.post('/login', (req, res) => {
+  app.post('/login', authRateLimit, (req, res) => {
     if (!verifyCsrf(req)) return res.status(403).json({ error: 'invalid_csrf' });
     const email = cleanEmail(req.body.email);
     const password = String(req.body.password || '');
@@ -225,6 +260,101 @@ export function createApp({ config, db = openDatabase(config), keyPair = loadOrC
       maxAge: config.sessionTtlSeconds * 1000,
     });
     return res.redirect(next);
+  });
+
+  app.get('/forgot-password', (req, res) => {
+    const csrfToken = issueCsrf(req, res, config);
+    res.send(
+      renderPage(
+        '找回密码',
+        `<h1>找回密码</h1>
+        <form method="post" action="/forgot-password">
+          <input type="hidden" name="csrfToken" value="${escapeHtml(csrfToken)}" />
+          <label>邮箱</label><input name="email" type="email" autocomplete="email" required />
+          <button type="submit">发送重置链接</button>
+        </form>
+        <p class="muted">如果邮箱存在，我们会发送密码重置链接。</p>`,
+      ),
+    );
+  });
+
+  app.post('/forgot-password', authRateLimit, async (req, res) => {
+    if (!verifyCsrf(req)) return res.status(403).json({ error: 'invalid_csrf' });
+    const email = cleanEmail(req.body.email);
+    const user = isEmail(email) ? repo.findUserByEmail(email) : null;
+
+    if (user && user.status === 'active') {
+      const token = repo.createPasswordResetToken({ userId: user.id, email: user.email });
+      await mailer.sendPasswordReset({
+        to: user.email,
+        resetUrl: `${config.issuer}/reset-password?token=${encodeURIComponent(token)}`,
+      });
+      repo.writeAudit({
+        actorUserId: user.id,
+        category: 'auth',
+        action: 'password_reset_requested',
+        status: 'success',
+        ...requestMeta(req),
+      });
+    } else {
+      repo.writeAudit({
+        category: 'auth',
+        action: 'password_reset_requested',
+        status: 'ignored',
+        detail: { email },
+        ...requestMeta(req),
+      });
+    }
+
+    return res.send(
+      renderPage('检查邮箱', '<h1>检查邮箱</h1><p class="muted">如果邮箱存在，密码重置链接已经发送。</p>'),
+    );
+  });
+
+  app.get('/reset-password', (req, res) => {
+    const token = String(req.query.token || '');
+    const record = repo.findPasswordResetToken(token);
+    if (!record) {
+      return res.status(400).send(
+        renderPage('重置链接无效', '<h1>重置链接无效</h1><p class="muted">链接无效或已过期。</p>'),
+      );
+    }
+    const csrfToken = issueCsrf(req, res, config);
+    return res.send(
+      renderPage(
+        '重置密码',
+        `<h1>重置密码</h1>
+        <form method="post" action="/reset-password">
+          <input type="hidden" name="csrfToken" value="${escapeHtml(csrfToken)}" />
+          <input type="hidden" name="token" value="${escapeHtml(token)}" />
+          <label>新密码</label><input name="password" type="password" autocomplete="new-password" required />
+          <button type="submit">更新密码</button>
+        </form>`,
+      ),
+    );
+  });
+
+  app.post('/reset-password', authRateLimit, (req, res) => {
+    if (!verifyCsrf(req)) return res.status(403).json({ error: 'invalid_csrf' });
+    const token = String(req.body.token || '');
+    const password = String(req.body.password || '');
+    if (password.length < 8) {
+      return res.redirect(`/reset-password?token=${encodeURIComponent(token)}&error=${encodeURIComponent('密码至少 8 位')}`);
+    }
+    const record = repo.findPasswordResetToken(token);
+    if (!record) return res.status(400).json({ error: 'invalid_token' });
+    const consumed = repo.consumePasswordResetToken(record.tokenHash, hashPassword(password));
+    if (!consumed) return res.status(400).json({ error: 'invalid_token' });
+    repo.writeAudit({
+      actorUserId: consumed.user_id,
+      category: 'auth',
+      action: 'password_reset_completed',
+      status: 'success',
+      ...requestMeta(req),
+    });
+    return res.send(
+      renderPage('密码已更新', '<h1>密码已更新</h1><p class="muted">你现在可以使用新密码登录。</p>'),
+    );
   });
 
   app.post('/logout', (req, res) => {
@@ -266,7 +396,7 @@ export function createApp({ config, db = openDatabase(config), keyPair = loadOrC
     return res.redirect(appendRedirect(parsed.redirectUri, { code, state: parsed.state }));
   });
 
-  app.post('/oauth/token', (req, res) => {
+  app.post('/oauth/token', authRateLimit, (req, res) => {
     const grantType = String(req.body.grant_type || '');
     const basic = String(req.headers.authorization || '');
     let basicClientId = '';

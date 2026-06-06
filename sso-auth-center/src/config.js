@@ -28,6 +28,11 @@ function resolveFromRoot(value) {
   return path.isAbsolute(value) ? value : path.join(rootDir, value);
 }
 
+function booleanValue(value, fallback = false) {
+  if (value === undefined || value === null || value === '') return fallback;
+  return value === true || String(value).toLowerCase() === 'true';
+}
+
 export function loadConfig(overrides = {}) {
   loadDotEnv(path.join(rootDir, '.env'));
   const issuer = trimSlash(overrides.issuer || process.env.ISSUER || 'http://localhost:4100');
@@ -52,7 +57,12 @@ export function loadConfig(overrides = {}) {
     accessTokenTtlSeconds: Number(overrides.accessTokenTtlSeconds || process.env.ACCESS_TOKEN_TTL_SECONDS || 900),
     idTokenTtlSeconds: Number(overrides.idTokenTtlSeconds || process.env.ID_TOKEN_TTL_SECONDS || 900),
     refreshTokenTtlSeconds: Number(overrides.refreshTokenTtlSeconds || process.env.REFRESH_TOKEN_TTL_SECONDS || 60 * 60 * 24 * 30),
-    secureCookies: overrides.secureCookies ?? process.env.SECURE_COOKIES === 'true',
+    emailVerificationTtlSeconds: Number(overrides.emailVerificationTtlSeconds || process.env.EMAIL_VERIFICATION_TTL_SECONDS || 60 * 60 * 24),
+    passwordResetTtlSeconds: Number(overrides.passwordResetTtlSeconds || process.env.PASSWORD_RESET_TTL_SECONDS || 60 * 30),
+    authRateLimitWindowSeconds: Number(overrides.authRateLimitWindowSeconds || process.env.AUTH_RATE_LIMIT_WINDOW_SECONDS || 60),
+    authRateLimitMax: Number(overrides.authRateLimitMax || process.env.AUTH_RATE_LIMIT_MAX || 20),
+    secureCookies: booleanValue(overrides.secureCookies ?? process.env.SECURE_COOKIES),
+    trustProxy: booleanValue(overrides.trustProxy ?? process.env.TRUST_PROXY),
     seedDemoClient,
   };
 }

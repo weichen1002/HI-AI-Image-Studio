@@ -21,6 +21,7 @@
 - 多租户组织模型
 - 自动密钥轮换
 - 完整风控系统
+- 真实邮件服务集成
 
 这些是二阶段能力，不能挡住第一阶段账号中心内核落地。
 
@@ -28,7 +29,7 @@
 
 ```text
 accounts.example.com
-  注册 / 登录 / 会话 / OAuth / OIDC / JWKS
+  注册 / 登录 / 邮箱验证 / 找回密码 / 会话 / OAuth / OIDC / JWKS
 
 image.example.com
   业务站点，作为 OIDC client
@@ -131,6 +132,32 @@ Authorization: Bearer <access_token>
 - `email_verified`
 - `name`
 
+### Verify Email
+
+```text
+GET /verify-email?token=...
+```
+
+邮箱验证 token 只在注册后生成，服务端只保存 hash。token 未消费且未过期时，将 `users.email_verified` 标记为 `1`，并把 token 标记为已消费。
+
+### Forgot Password
+
+```text
+GET /forgot-password
+POST /forgot-password
+GET /reset-password?token=...
+POST /reset-password
+```
+
+找回密码请求对存在和不存在的邮箱返回相同页面，避免直接枚举账号。有效用户会生成一次性 password reset token，服务端只保存 hash。
+
+重置成功后：
+
+1. password reset token 标记为已消费。
+2. 更新用户 `password_hash`。
+3. 删除该用户已有账号中心 session。
+4. 撤销该用户已有 refresh token。
+
 ## 5. 数据模型
 
 ### users
@@ -207,7 +234,68 @@ created_at
 
 refresh token 轮换：每次刷新都会撤销旧 token，签发新 token。
 
-## 6. Web 业务站接入
+### email_verification_tokens
+
+```text
+token_hash
+user_id
+email
+expires_at
+consumed_at
+created_at
+```
+
+邮箱验证 token 只保存 hash，默认 24 小时过期，只能消费一次。
+
+### password_reset_tokens
+
+```text
+token_hash
+user_id
+email
+expires_at
+consumed_at
+created_at
+```
+
+密码重置 token 只保存 hash，默认 30 分钟过期，只能消费一次。消费成功会撤销用户已有 session 和 refresh token。
+
+### audit_events
+
+```text
+id
+actor_user_id
+client_id
+category
+action
+status
+ip
+user_agent
+detail_json
+created_at
+```
+
+审计 IP 默认使用 Express `req.ip`。只有反向代理可信且会覆盖转发头时，才应该设置 `TRUST_PROXY=true`。
+
+## 6. 账号安全控制
+
+### 邮件发送
+
+当前实现使用开发 mailer：邮件不会真正发出，只记录到 `app.locals.sentEmails` 并打印验证/重置链接。生产环境需要替换为真实 SMTP、SES、Resend、SendGrid 等邮件服务。
+
+### 限流
+
+以下认证敏感端点接入基础 IP 限流：
+
+- `POST /register`
+- `POST /login`
+- `POST /forgot-password`
+- `POST /reset-password`
+- `POST /oauth/token`
+
+默认每个来源 IP 每 60 秒最多 20 次。当前限流器是单进程内存桶，适合 MVP 和单实例部署；多实例或容器横向扩容时需要改成 Redis 等共享存储。
+
+## 7. Web 业务站接入
 
 业务站点登录流程：
 
@@ -234,7 +322,7 @@ created_at
 last_login_at
 ```
 
-## 7. Native App 接入
+## 8. Native App 接入
 
 手机 App / 桌面 App 使用 public client：
 
@@ -244,7 +332,7 @@ last_login_at
 - 回调用 custom scheme 或 loopback
 - App 只保存 refresh token 到系统安全存储
 
-## 8. 第三方接入
+## 9. 第三方接入
 
 第三方接入必须延后到开放平台阶段。需要补：
 

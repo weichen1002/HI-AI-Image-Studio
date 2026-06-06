@@ -5,6 +5,8 @@
 第一版实现一个小而标准的 OIDC/OAuth2 子集：
 
 - 用户注册、登录、服务端会话 Cookie
+- 邮箱验证
+- 找回密码 / 重置密码
 - OAuth2 Authorization Code
 - PKCE `S256`
 - OIDC discovery
@@ -14,6 +16,7 @@
 - `/oauth/userinfo`
 - client redirect URI 白名单
 - 登录/注册/退出 CSRF 防护
+- 登录、注册、找回密码、重置密码、token 端点基础限流
 - SQLite 持久化
 
 ## Quick Start
@@ -56,7 +59,12 @@ ISSUER=http://localhost:4100
 DB_FILE=./data/auth.db
 KEY_FILE=./data/jwt-keypair.json
 SECURE_COOKIES=false
+TRUST_PROXY=false
 SEED_DEMO_CLIENT=true
+EMAIL_VERIFICATION_TTL_SECONDS=86400
+PASSWORD_RESET_TTL_SECONDS=1800
+AUTH_RATE_LIMIT_WINDOW_SECONDS=60
+AUTH_RATE_LIMIT_MAX=20
 ```
 
 可以从示例配置开始：
@@ -70,10 +78,21 @@ cp .env.example .env
 ```text
 ISSUER=https://accounts.example.com
 SECURE_COOKIES=true
+TRUST_PROXY=true
 SEED_DEMO_CLIENT=false
 ```
 
 内置 `demo-web/demo-secret` 只适合本地开发。生产环境默认不会 seed demo client，建议显式设置 `SEED_DEMO_CLIENT=false`。
+
+如果账号中心部署在 Nginx、Caddy、Cloudflare 等反向代理后面，并且代理已经正确覆盖 `X-Forwarded-For`，再设置 `TRUST_PROXY=true`。否则保持默认 `false`，避免客户端伪造来源 IP 影响审计和限流。
+
+## Account Security
+
+注册成功后会生成一次性邮箱验证 token，并通过当前开发 mailer 输出验证链接。开发 mailer 不发真实邮件，只会写入 `app.locals.sentEmails` 并打印到控制台，便于本地测试；生产环境要替换成真实 SMTP 或邮件服务。
+
+找回密码流程不会暴露邮箱是否存在：无论邮箱是否存在，页面都返回相同提示。有效用户会收到一次性重置 token；密码重置成功后，旧账号中心 session 会被删除，该用户已有 refresh token 会被撤销。
+
+当前限流是单进程内存桶，适合 MVP 和单实例部署。多实例生产环境需要换成 Redis 等共享存储。
 
 ## Create Clients
 
@@ -133,6 +152,8 @@ src/config.js        runtime config
 src/db.js            SQLite schema and repositories
 src/keys.js          RSA keypair, JWT signing, JWKS
 src/oauth.js         OAuth/OIDC helpers
+src/mailer.js        development mailer adapter
+src/rate-limit.js    in-memory auth endpoint rate limiter
 src/app.js           Express routes
 src/index.js         server entry
 src/create-client.js client creation CLI

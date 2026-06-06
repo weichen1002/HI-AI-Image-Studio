@@ -14,13 +14,14 @@ function pkcePair() {
   return { verifier, challenge };
 }
 
-function makeServer() {
+function makeServer(overrides = {}) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sso-auth-center-'));
   const config = loadConfig({
     issuer: 'http://localhost:4100',
     dataDir: tmp,
     dbFile: path.join(tmp, 'auth.db'),
     keyFile: path.join(tmp, 'jwt-keypair.json'),
+    ...overrides,
   });
   const app = createApp({ config });
   return { agent: request.agent(app), app, config, tmp };
@@ -32,6 +33,11 @@ async function csrfFrom(agent, path) {
   const match = page.text.match(/name="csrfToken" value="([^"]+)"/);
   assert.ok(match, `csrf token not found on ${path}`);
   return match[1];
+}
+
+function urlToken(url) {
+  const parsed = new URL(url);
+  return parsed.searchParams.get('token');
 }
 
 async function registerAndAuthorize(agent, overrides = {}) {
@@ -477,6 +483,175 @@ test('login, register, and logout require CSRF token', async () => {
   const logout = await agent.post('/logout').send({});
   assert.equal(logout.status, 403);
   assert.equal(logout.body.error, 'invalid_csrf');
+});
+
+test('registration sends email verification link and token is single-use', async () => {
+  const { agent, app } = makeServer();
+  const csrfToken = await csrfFrom(agent, '/register');
+  const register = await agent
+    .post('/register')
+    .type('form')
+    .send({
+      csrfToken,
+      email: 'verify@example.com',
+      password: 'password123',
+      name: 'Verify User',
+      next: '/',
+    });
+  assert.equal(register.status, 302);
+
+  const verificationEmail = app.locals.sentEmails.find((message) => message.type === 'email_verification');
+  assert.equal(verificationEmail.to, 'verify@example.com');
+  const token = urlToken(verificationEmail.verifyUrl);
+  assert.ok(token?.startsWith('evf_'));
+
+  let user = app.locals.repo.findUserByEmail('verify@example.com');
+  assert.equal(user.email_verified, 0);
+
+  const verified = await agent.get('/verify-email').query({ token });
+  assert.equal(verified.status, 200);
+  user = app.locals.repo.findUserByEmail('verify@example.com');
+  assert.equal(user.email_verified, 1);
+
+  const reused = await agent.get('/verify-email').query({ token });
+  assert.equal(reused.status, 400);
+});
+
+test('forgot password hides account existence and reset token updates password once', async () => {
+  const { agent, app } = makeServer();
+  const registerCsrf = await csrfFrom(agent, '/register');
+  await agent
+    .post('/register')
+    .type('form')
+    .send({
+      csrfToken: registerCsrf,
+      email: 'reset@example.com',
+      password: 'old-password',
+      name: 'Reset User',
+      next: '/',
+    });
+
+  const { verifier, challenge } = pkcePair();
+  const authorize = await agent
+    .get('/oauth/authorize')
+    .query({
+      response_type: 'code',
+      client_id: 'demo-web',
+      redirect_uri: 'http://localhost:4100/demo/callback',
+      scope: 'openid profile email offline_access',
+      state: 'reset-state',
+      nonce: 'reset-nonce',
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
+    });
+  assert.equal(authorize.status, 302);
+  const code = new URL(authorize.headers.location).searchParams.get('code');
+  const token = await agent
+    .post('/oauth/token')
+    .type('form')
+    .set('Authorization', `Basic ${Buffer.from('demo-web:demo-secret').toString('base64')}`)
+    .send({
+      grant_type: 'authorization_code',
+      redirect_uri: 'http://localhost:4100/demo/callback',
+      code,
+      code_verifier: verifier,
+    });
+  assert.equal(token.status, 200);
+  assert.ok(token.body.refresh_token);
+
+  const missingCsrf = await csrfFrom(agent, '/forgot-password');
+  const missing = await agent
+    .post('/forgot-password')
+    .type('form')
+    .send({ csrfToken: missingCsrf, email: 'missing@example.com' });
+  assert.equal(missing.status, 200);
+  assert.equal(app.locals.sentEmails.filter((message) => message.type === 'password_reset').length, 0);
+
+  const forgotCsrf = await csrfFrom(agent, '/forgot-password');
+  const forgot = await agent
+    .post('/forgot-password')
+    .type('form')
+    .send({ csrfToken: forgotCsrf, email: 'reset@example.com' });
+  assert.equal(forgot.status, 200);
+
+  const resetEmail = app.locals.sentEmails.find((message) => message.type === 'password_reset');
+  assert.equal(resetEmail.to, 'reset@example.com');
+  const resetToken = urlToken(resetEmail.resetUrl);
+  assert.ok(resetToken?.startsWith('rst_'));
+
+  const resetPageCsrf = await csrfFrom(agent, `/reset-password?token=${encodeURIComponent(resetToken)}`);
+  const reset = await agent
+    .post('/reset-password')
+    .type('form')
+    .send({ csrfToken: resetPageCsrf, token: resetToken, password: 'new-password' });
+  assert.equal(reset.status, 200);
+
+  const reused = await agent
+    .post('/reset-password')
+    .type('form')
+    .send({ csrfToken: resetPageCsrf, token: resetToken, password: 'another-password' });
+  assert.equal(reused.status, 400);
+  assert.equal(reused.body.error, 'invalid_token');
+
+  const refreshedAfterReset = await agent
+    .post('/oauth/token')
+    .type('form')
+    .set('Authorization', `Basic ${Buffer.from('demo-web:demo-secret').toString('base64')}`)
+    .send({
+      grant_type: 'refresh_token',
+      refresh_token: token.body.refresh_token,
+    });
+  assert.equal(refreshedAfterReset.status, 400);
+  assert.equal(refreshedAfterReset.body.error, 'invalid_grant');
+
+  const loginCsrf = await csrfFrom(agent, '/login');
+  const oldLogin = await agent
+    .post('/login')
+    .type('form')
+    .send({
+      csrfToken: loginCsrf,
+      email: 'reset@example.com',
+      password: 'old-password',
+      next: '/',
+    });
+  assert.equal(oldLogin.status, 302);
+  assert.match(oldLogin.headers.location, /^\/login\?error=/);
+
+  const newLoginCsrf = await csrfFrom(agent, '/login');
+  const newLogin = await agent
+    .post('/login')
+    .type('form')
+    .send({
+      csrfToken: newLoginCsrf,
+      email: 'reset@example.com',
+      password: 'new-password',
+      next: '/',
+    });
+  assert.equal(newLogin.status, 302);
+  assert.equal(newLogin.headers.location, '/');
+});
+
+test('auth-sensitive endpoints are rate limited', async () => {
+  const { agent } = makeServer({
+    authRateLimitWindowSeconds: 60,
+    authRateLimitMax: 1,
+  });
+  const first = await agent
+    .post('/login')
+    .set('X-Forwarded-For', '203.0.113.10')
+    .type('form')
+    .send({ email: 'rate@example.com', password: 'password123', next: '/' });
+  assert.equal(first.status, 403);
+  assert.equal(first.body.error, 'invalid_csrf');
+  assert.equal(first.headers['ratelimit-limit'], '1');
+
+  const second = await agent
+    .post('/login')
+    .set('X-Forwarded-For', '203.0.113.10')
+    .type('form')
+    .send({ email: 'rate@example.com', password: 'password123', next: '/' });
+  assert.equal(second.status, 429);
+  assert.equal(second.body.error, 'rate_limited');
 });
 
 test('production-safe config can disable demo client seeding', () => {
