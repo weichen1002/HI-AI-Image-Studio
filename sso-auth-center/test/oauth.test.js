@@ -7,6 +7,7 @@ import crypto from 'node:crypto';
 import request from 'supertest';
 import { loadConfig } from '../src/config.js';
 import { createApp } from '../src/app.js';
+import { hashPassword } from '../src/crypto-utils.js';
 
 function pkcePair() {
   const verifier = crypto.randomBytes(32).toString('base64url');
@@ -676,6 +677,206 @@ test('auth-sensitive endpoints are rate limited', async () => {
     .send({ email: 'rate@example.com', password: 'password123', next: '/' });
   assert.equal(second.status, 429);
   assert.equal(second.body.error, 'rate_limited');
+});
+
+test('account center lets a user update profile and password', async () => {
+  const { agent, app } = makeServer();
+  const registerCsrf = await csrfFrom(agent, '/register');
+  await agent
+    .post('/register')
+    .type('form')
+    .send({
+      csrfToken: registerCsrf,
+      email: 'account@example.com',
+      password: 'old-password',
+      name: 'Old Name',
+      next: '/',
+    });
+
+  const accountPage = await agent.get('/account');
+  assert.equal(accountPage.status, 200);
+  const csrfToken = accountPage.text.match(/name="csrfToken" value="([^"]+)"/)?.[1];
+  assert.ok(csrfToken);
+
+  const profile = await agent
+    .post('/account/profile')
+    .type('form')
+    .send({ csrfToken, name: 'New Name' });
+  assert.equal(profile.status, 302);
+  assert.equal(app.locals.repo.findUserByEmail('account@example.com').name, 'New Name');
+
+  const password = await agent
+    .post('/account/password')
+    .type('form')
+    .send({
+      csrfToken,
+      currentPassword: 'old-password',
+      newPassword: 'new-password',
+    });
+  assert.equal(password.status, 302);
+
+  const logoutCsrf = await csrfFrom(agent, '/account');
+  await agent.post('/logout').type('form').send({ csrfToken: logoutCsrf });
+
+  const loginCsrf = await csrfFrom(agent, '/login');
+  const login = await agent
+    .post('/login')
+    .type('form')
+    .send({
+      csrfToken: loginCsrf,
+      email: 'account@example.com',
+      password: 'new-password',
+      next: '/account',
+    });
+  assert.equal(login.status, 302);
+  assert.equal(login.headers.location, '/account');
+});
+
+test('admin control center requires admin and can manage users and clients', async () => {
+  const { agent, app } = makeServer({ adminEmails: ['admin@example.com'] });
+  const repo = app.locals.repo;
+  const registerCsrf = await csrfFrom(agent, '/register');
+  await agent
+    .post('/register')
+    .type('form')
+    .send({
+      csrfToken: registerCsrf,
+      email: 'admin@example.com',
+      password: 'admin-password',
+      name: 'Admin User',
+      next: '/',
+    });
+
+  const user = repo.createUser({
+    email: 'managed@example.com',
+    passwordHash: hashPassword('managed-password'),
+    name: 'Managed User',
+  });
+  const userSession = repo.createSession(user.id);
+  assert.ok(repo.findSession(userSession.id));
+
+  const adminPage = await agent.get('/admin');
+  assert.equal(adminPage.status, 200);
+  assert.match(adminPage.text, /管理控制台/);
+
+  const userPage = await agent.get(`/admin/users/${encodeURIComponent(user.id)}`);
+  assert.equal(userPage.status, 200);
+  const csrfToken = userPage.text.match(/name="csrfToken" value="([^"]+)"/)?.[1];
+  assert.ok(csrfToken);
+
+  const ban = await agent
+    .post(`/admin/users/${encodeURIComponent(user.id)}/status`)
+    .type('form')
+    .send({ csrfToken, status: 'banned' });
+  assert.equal(ban.status, 302);
+  assert.equal(repo.findUserById(user.id).status, 'banned');
+  assert.equal(repo.findSession(userSession.id), null);
+
+  const createClient = await agent
+    .post('/admin/clients')
+    .type('form')
+    .send({
+      csrfToken,
+      id: 'review-web',
+      name: 'Review Web',
+      type: 'confidential',
+      redirectUris: 'https://review.example.com/callback',
+      allowedScopes: 'openid email',
+      trusted: '1',
+    });
+  assert.equal(createClient.status, 200);
+  assert.match(createClient.text, /Client secret 只显示这一次/);
+  assert.equal(createClient.headers.location, undefined);
+  const client = repo.findClient('review-web');
+  assert.equal(client.name, 'Review Web');
+  assert.deepEqual(client.redirectUris, ['https://review.example.com/callback']);
+
+  const audit = await agent.get('/admin/audit');
+  assert.equal(audit.status, 200);
+  assert.match(audit.text, /client_created/);
+});
+
+test('admin client creation rejects unsafe client ids and redirect URIs', async () => {
+  const { agent, app } = makeServer({ adminEmails: ['admin@example.com'] });
+  const registerCsrf = await csrfFrom(agent, '/register');
+  await agent
+    .post('/register')
+    .type('form')
+    .send({
+      csrfToken: registerCsrf,
+      email: 'admin@example.com',
+      password: 'admin-password',
+      name: 'Admin User',
+      next: '/',
+    });
+
+  const clientsPage = await agent.get('/admin/clients');
+  assert.equal(clientsPage.status, 200);
+  const csrfToken = clientsPage.text.match(/name="csrfToken" value="([^"]+)"/)?.[1];
+  assert.ok(csrfToken);
+
+  const longId = 'client'.repeat(20);
+  const invalidId = await agent
+    .post('/admin/clients')
+    .type('form')
+    .send({
+      csrfToken,
+      id: longId,
+      name: 'Too Long',
+      type: 'public',
+      redirectUris: 'https://safe.example.com/callback',
+      allowedScopes: 'openid email',
+    });
+  assert.equal(invalidId.status, 302);
+  assert.match(invalidId.headers.location, /client%20id%20must/);
+  assert.equal(app.locals.repo.findClient(longId.slice(0, 80)), null);
+
+  const unsafeRedirect = await agent
+    .post('/admin/clients')
+    .type('form')
+    .send({
+      csrfToken,
+      id: 'unsafe-redirect',
+      name: 'Unsafe Redirect',
+      type: 'public',
+      redirectUris: 'javascript:alert(1)',
+      allowedScopes: 'openid email',
+    });
+  assert.equal(unsafeRedirect.status, 302);
+  assert.match(unsafeRedirect.headers.location, /redirect%20URI%20must/);
+  assert.equal(app.locals.repo.findClient('unsafe-redirect'), null);
+
+  const nativeRedirect = await agent
+    .post('/admin/clients')
+    .type('form')
+    .send({
+      csrfToken,
+      id: 'native-review',
+      name: 'Native Review',
+      type: 'public',
+      redirectUris: 'com.example.app:/oauth/callback',
+      allowedScopes: 'openid email',
+    });
+  assert.equal(nativeRedirect.status, 302);
+  assert.equal(app.locals.repo.findClient('native-review').redirectUris[0], 'com.example.app:/oauth/callback');
+});
+
+test('non-admin users cannot access admin control center', async () => {
+  const { agent } = makeServer({ adminEmails: ['admin@example.com'] });
+  const registerCsrf = await csrfFrom(agent, '/register');
+  await agent
+    .post('/register')
+    .type('form')
+    .send({
+      csrfToken: registerCsrf,
+      email: 'regular@example.com',
+      password: 'password123',
+      name: 'Regular User',
+      next: '/',
+    });
+
+  const admin = await agent.get('/admin');
+  assert.equal(admin.status, 403);
 });
 
 test('production-safe config can disable demo client seeding', () => {

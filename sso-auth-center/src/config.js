@@ -33,6 +33,13 @@ function booleanValue(value, fallback = false) {
   return value === true || String(value).toLowerCase() === 'true';
 }
 
+function stringList(value) {
+  return String(value || '')
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 export function loadConfig(overrides = {}) {
   loadDotEnv(path.join(rootDir, '.env'));
   const issuer = trimSlash(overrides.issuer || process.env.ISSUER || 'http://localhost:4100');
@@ -64,6 +71,9 @@ export function loadConfig(overrides = {}) {
     authRateLimitMaxBuckets: Number(overrides.authRateLimitMaxBuckets || process.env.AUTH_RATE_LIMIT_MAX_BUCKETS || 5000),
     secureCookies: booleanValue(overrides.secureCookies ?? process.env.SECURE_COOKIES),
     trustProxy: booleanValue(overrides.trustProxy ?? process.env.TRUST_PROXY),
+    adminEmails: Array.isArray(overrides.adminEmails)
+      ? overrides.adminEmails.map((item) => String(item).trim().toLowerCase()).filter(Boolean)
+      : stringList(overrides.adminEmails ?? process.env.ADMIN_EMAILS),
     seedDemoClient,
   };
 }

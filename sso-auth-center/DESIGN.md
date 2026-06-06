@@ -29,7 +29,7 @@
 
 ```text
 accounts.example.com
-  注册 / 登录 / 邮箱验证 / 找回密码 / 会话 / OAuth / OIDC / JWKS
+  注册 / 登录 / 邮箱验证 / 找回密码 / 账号中心 / 管理控制台 / 会话 / OAuth / OIDC / JWKS
 
 image.example.com
   业务站点，作为 OIDC client
@@ -167,8 +167,9 @@ id              稳定 subject，例如 usr_xxx
 email           登录邮箱
 password_hash   PBKDF2 hash
 name            展示名
-status          active / banned / pending_verification
+status          active / banned
 email_verified  邮箱验证状态
+is_admin        管理员标记
 created_at
 updated_at
 last_login_at
@@ -277,7 +278,51 @@ created_at
 
 审计 IP 默认使用 Express `req.ip`。只有反向代理可信且会覆盖转发头时，才应该设置 `TRUST_PROXY=true`。
 
-## 6. 账号安全控制
+## 6. 控制中心
+
+### 用户账号中心
+
+```text
+GET /account
+POST /account/profile
+POST /account/password
+POST /account/logout-all
+```
+
+普通用户可以查看自己的统一身份信息、更新姓名、修改密码、查看账号中心 session、退出所有设备、查看最近账号事件。业务系统自己的套餐、积分、订单、作品仍然留在业务系统，不进入账号中心。
+
+### 管理控制台
+
+```text
+GET /admin
+GET /admin/users
+GET /admin/users/:id
+POST /admin/users/:id/profile
+POST /admin/users/:id/status
+POST /admin/users/:id/email-verified
+POST /admin/users/:id/admin
+POST /admin/users/:id/revoke-sessions
+GET /admin/clients
+POST /admin/clients
+POST /admin/clients/:id/rotate-secret
+POST /admin/clients/:id/delete
+GET /admin/audit
+```
+
+管理员权限第一版由 `ADMIN_EMAILS` 配置提升，并持久化到 `users.is_admin`。管理员可以查看用户、调整用户状态、设置邮箱验证状态、授予/移除管理员权限、强制退出用户所有设备、管理 OIDC clients、查看审计日志。
+
+保护规则：
+
+- 所有管理页面要求账号中心登录态。
+- 所有管理页面要求 `users.is_admin = 1`。
+- 管理员不能禁用当前自己的账号。
+- 管理员不能移除当前自己的管理员权限。
+- 用户被禁用时会删除其 session 并撤销 refresh token。
+- client secret 只在创建或轮换后显示一次，数据库只保存 hash。
+- client id 只允许 3-80 位字母、数字、点、下划线、冒号或短横线。
+- redirect URI 只接受 HTTPS、localhost HTTP，或 native custom scheme；生产 Web 回调不要使用 HTTP。
+
+## 7. 账号安全控制
 
 ### 邮件发送
 
@@ -296,7 +341,7 @@ created_at
 
 默认每个来源 IP 每 60 秒最多 20 次，并通过 `AUTH_RATE_LIMIT_MAX_BUCKETS` 限制内存桶数量。当前限流器是单进程内存桶，适合 MVP 和单实例部署；多实例或容器横向扩容时需要改成 Redis 等共享存储。
 
-## 7. Web 业务站接入
+## 8. Web 业务站接入
 
 业务站点登录流程：
 
@@ -323,7 +368,7 @@ created_at
 last_login_at
 ```
 
-## 8. Native App 接入
+## 9. Native App 接入
 
 手机 App / 桌面 App 使用 public client：
 
@@ -333,7 +378,7 @@ last_login_at
 - 回调用 custom scheme 或 loopback
 - App 只保存 refresh token 到系统安全存储
 
-## 9. 第三方接入
+## 10. 第三方接入
 
 第三方接入必须延后到开放平台阶段。需要补：
 
@@ -348,7 +393,7 @@ last_login_at
 
 第一版代码已经按 client/scope/redirect URI 建模，后续可以平滑扩展。
 
-## 9. 安全要求
+## 11. 安全要求
 
 生产必做：
 
@@ -365,30 +410,33 @@ last_login_at
 - refresh token 使用事务性轮换，旧 token 成功撤销后才写入新 token
 - 登录、授权、token 刷新写 audit log
 - 生产环境不 seed 内置 demo client
+- 生产环境用 `ADMIN_EMAILS` 初始化至少一个管理员，再在控制台管理后续管理员
 
 开放第三方前必补：
 
-- rate limit
 - 密钥轮换
-- 邮箱验证
-- 找回密码
 - MFA
 - consent 页面
 - refresh token 异常检测
-- 管理后台审计查询
 
-## 10. 实施分期
+## 12. 实施分期
 
 ### Phase 1: 账号中心内核
 
 当前已实现：
 
 - 注册/登录
+- 邮箱验证
+- 找回密码
+- 用户账号中心
+- 管理控制台
+- client 管理
+- 审计日志查看
 - session cookie
 - authorize
 - token
 - refresh token rotation
-- CSRF protection for login/register/logout
+- CSRF protection for state-changing forms
 - userinfo
 - discovery
 - JWKS

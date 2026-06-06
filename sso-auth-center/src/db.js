@@ -18,6 +18,7 @@ export function openDatabase(config) {
   db.pragma('journal_mode = WAL');
   migrate(db);
   if (config.seedDemoClient) seedDevClient(db, config);
+  syncConfiguredAdmins(db, config);
   return db;
 }
 
@@ -30,6 +31,7 @@ function migrate(db) {
       name TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT 'active',
       email_verified INTEGER NOT NULL DEFAULT 0,
+      is_admin INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       last_login_at TEXT
@@ -114,6 +116,14 @@ function migrate(db) {
     );
     CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_events(created_at DESC);
   `);
+  addColumnIfMissing(db, 'users', 'is_admin', 'INTEGER NOT NULL DEFAULT 0');
+}
+
+function addColumnIfMissing(db, table, column, definition) {
+  const existing = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!existing.some((item) => item.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
 }
 
 function seedDevClient(db, config) {
@@ -136,6 +146,30 @@ function seedDevClient(db, config) {
   });
 }
 
+function syncConfiguredAdmins(db, config) {
+  const adminEmails = config.adminEmails || [];
+  if (!adminEmails.length) return;
+  const update = db.prepare('UPDATE users SET is_admin = 1, updated_at = ? WHERE lower(email) = lower(?)');
+  for (const email of adminEmails) update.run(nowIso(), email);
+}
+
+function isValidClientId(value) {
+  return /^[a-zA-Z0-9._:-]{3,80}$/.test(String(value || ''));
+}
+
+function isValidRedirectUri(value) {
+  try {
+    const url = new URL(String(value || ''));
+    if (!url.protocol || !url.pathname) return false;
+    if (url.protocol === 'https:') return true;
+    if (url.protocol === 'http:') return ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+    const protocol = url.protocol.slice(0, -1);
+    return /^[a-z][a-z0-9]*(\.[a-z0-9]+)+$/i.test(protocol);
+  } catch {
+    return false;
+  }
+}
+
 export class AuthRepository {
   constructor(db, config) {
     this.db = db;
@@ -145,14 +179,16 @@ export class AuthRepository {
   createUser({ email, passwordHash, name = '' }) {
     const id = `usr_${nanoid(18)}`;
     const timestamp = nowIso();
+    const isAdmin = this.config.adminEmails?.includes(email.toLowerCase()) ? 1 : 0;
     this.db.prepare(
-      `INSERT INTO users(id, email, password_hash, name, status, email_verified, created_at, updated_at)
-       VALUES(@id, @email, @password_hash, @name, 'active', 0, @created_at, @updated_at)`,
+      `INSERT INTO users(id, email, password_hash, name, status, email_verified, is_admin, created_at, updated_at)
+       VALUES(@id, @email, @password_hash, @name, 'active', 0, @is_admin, @created_at, @updated_at)`,
     ).run({
       id,
       email: email.toLowerCase(),
       password_hash: passwordHash,
       name,
+      is_admin: isAdmin,
       created_at: timestamp,
       updated_at: timestamp,
     });
@@ -165,6 +201,57 @@ export class AuthRepository {
 
   findUserById(id) {
     return this.db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+  }
+
+  listUsers({ limit = 100 } = {}) {
+    return this.db
+      .prepare('SELECT id, email, name, status, email_verified, is_admin, created_at, updated_at, last_login_at FROM users ORDER BY created_at DESC LIMIT ?')
+      .all(limit);
+  }
+
+  countUsers() {
+    return this.db.prepare('SELECT COUNT(*) AS count FROM users').get().count;
+  }
+
+  updateUserProfile(userId, { name }) {
+    this.db.prepare('UPDATE users SET name = ?, updated_at = ? WHERE id = ?').run(
+      String(name || '').trim().slice(0, 80),
+      nowIso(),
+      userId,
+    );
+    return this.findUserById(userId);
+  }
+
+  updateUserStatus(userId, status) {
+    const normalized = status === 'banned' ? 'banned' : 'active';
+    this.db.prepare('UPDATE users SET status = ?, updated_at = ? WHERE id = ?').run(
+      normalized,
+      nowIso(),
+      userId,
+    );
+    if (normalized !== 'active') {
+      this.deleteUserSessions(userId);
+      this.revokeUserRefreshTokens(userId);
+    }
+    return this.findUserById(userId);
+  }
+
+  setUserEmailVerified(userId, verified) {
+    this.db.prepare('UPDATE users SET email_verified = ?, updated_at = ? WHERE id = ?').run(
+      verified ? 1 : 0,
+      nowIso(),
+      userId,
+    );
+    return this.findUserById(userId);
+  }
+
+  setUserAdmin(userId, isAdmin) {
+    this.db.prepare('UPDATE users SET is_admin = ?, updated_at = ? WHERE id = ?').run(
+      isAdmin ? 1 : 0,
+      nowIso(),
+      userId,
+    );
+    return this.findUserById(userId);
   }
 
   markLogin(userId) {
@@ -221,6 +308,12 @@ export class AuthRepository {
     this.db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
   }
 
+  listUserSessions(userId) {
+    return this.db
+      .prepare('SELECT id, expires_at, created_at, last_used_at FROM sessions WHERE user_id = ? ORDER BY last_used_at DESC')
+      .all(userId);
+  }
+
   findClient(clientId) {
     const client = this.db.prepare('SELECT * FROM clients WHERE id = ?').get(clientId);
     if (!client) return null;
@@ -243,8 +336,14 @@ export class AuthRepository {
   }) {
     const clientType = type === 'confidential' ? 'confidential' : 'public';
     const uris = Array.isArray(redirectUris) ? redirectUris : [];
-    if (!id || !name || uris.length === 0) {
+    if (!isValidClientId(id)) {
+      throw new Error('client id must be 3-80 chars: letters, numbers, dot, underscore, colon, or dash');
+    }
+    if (!name || uris.length === 0) {
       throw new Error('client id, name, and at least one redirect URI are required');
+    }
+    if (!uris.every(isValidRedirectUri)) {
+      throw new Error('redirect URI must be an absolute URI');
     }
     if (clientType === 'confidential' && !secret) {
       throw new Error('confidential clients require a secret');
@@ -266,6 +365,33 @@ export class AuthRepository {
     });
 
     return this.findClient(id);
+  }
+
+  listClients() {
+    return this.db
+      .prepare('SELECT * FROM clients ORDER BY created_at DESC')
+      .all()
+      .map((client) => ({
+        ...client,
+        redirectUris: JSON.parse(client.redirect_uris_json),
+        allowedScopes: String(client.allowed_scopes || '').split(/\s+/).filter(Boolean),
+        trusted: Boolean(client.trusted),
+      }));
+  }
+
+  countClients() {
+    return this.db.prepare('SELECT COUNT(*) AS count FROM clients').get().count;
+  }
+
+  rotateClientSecret(clientId, secret) {
+    const client = this.findClient(clientId);
+    if (!client || client.type !== 'confidential') return null;
+    this.db.prepare('UPDATE clients SET secret_hash = ? WHERE id = ?').run(hashSecret(secret), clientId);
+    return this.findClient(clientId);
+  }
+
+  deleteClient(clientId) {
+    return this.db.prepare('DELETE FROM clients WHERE id = ?').run(clientId).changes === 1;
   }
 
   createAuthCode(params) {
@@ -484,5 +610,20 @@ export class AuthRepository {
       detail_json: JSON.stringify(event.detail || {}),
       created_at: nowIso(),
     });
+  }
+
+  listAuditEvents({ limit = 100, userId = '' } = {}) {
+    if (userId) {
+      return this.db
+        .prepare('SELECT * FROM audit_events WHERE actor_user_id = ? ORDER BY created_at DESC LIMIT ?')
+        .all(userId, limit);
+    }
+    return this.db
+      .prepare('SELECT * FROM audit_events ORDER BY created_at DESC LIMIT ?')
+      .all(limit);
+  }
+
+  countAuditEvents() {
+    return this.db.prepare('SELECT COUNT(*) AS count FROM audit_events').get().count;
   }
 }

@@ -15,6 +15,10 @@
 - refresh token 轮换
 - `/oauth/userinfo`
 - client redirect URI 白名单
+- `/account` 用户账号中心
+- `/admin` 管理控制台
+- `/admin/clients` 应用接入管理
+- `/admin/audit` 审计日志查看
 - 登录/注册/退出 CSRF 防护
 - 登录、注册、邮箱验证、找回密码、重置密码、token 端点基础限流
 - SQLite 持久化
@@ -61,6 +65,7 @@ KEY_FILE=./data/jwt-keypair.json
 SECURE_COOKIES=false
 TRUST_PROXY=false
 SEED_DEMO_CLIENT=true
+ADMIN_EMAILS=admin@example.com
 EMAIL_VERIFICATION_TTL_SECONDS=86400
 PASSWORD_RESET_TTL_SECONDS=1800
 AUTH_RATE_LIMIT_WINDOW_SECONDS=60
@@ -86,6 +91,53 @@ SEED_DEMO_CLIENT=false
 内置 `demo-web/demo-secret` 只适合本地开发。生产环境默认不会 seed demo client，建议显式设置 `SEED_DEMO_CLIENT=false`。
 
 如果账号中心部署在 Nginx、Caddy、Cloudflare 等反向代理后面，并且代理已经正确覆盖 `X-Forwarded-For`，再设置 `TRUST_PROXY=true`。否则保持默认 `false`，避免客户端伪造来源 IP 影响审计和限流。
+
+## Control Center
+
+普通用户登录后可以访问：
+
+```text
+/account
+```
+
+第一版账号中心支持：
+
+- 查看邮箱、邮箱验证状态、账号状态、管理员状态
+- 修改姓名
+- 修改密码
+- 查看当前账号中心 session
+- 退出所有设备
+- 查看自己的最近账号事件
+
+管理员访问：
+
+```text
+/admin
+/admin/users
+/admin/clients
+/admin/audit
+```
+
+管理员由 `ADMIN_EMAILS` 配置提升。比如：
+
+```text
+ADMIN_EMAILS=admin@example.com,owner@example.com
+```
+
+这些邮箱注册或登录到账号中心后会拥有管理员权限。管理员控制台支持：
+
+- 查看用户、client、审计事件概览
+- 查看用户列表和用户详情
+- 禁用/恢复用户
+- 设置邮箱验证状态
+- 设置/移除管理员权限
+- 强制用户退出所有设备并撤销 refresh token
+- 创建 public/confidential client
+- 轮换 confidential client secret
+- 删除 client
+- 查看审计日志
+
+Client ID 只允许 3-80 位字母、数字、点、下划线、冒号或短横线。Redirect URI 只接受 HTTPS、localhost HTTP，或类似 `com.example.app:/oauth/callback` 的 native custom scheme；生产 Web 回调不要使用 HTTP。
 
 ## Account Security
 
@@ -164,14 +216,11 @@ DESIGN.md            full technical plan
 
 ## Important
 
-这是账号中心内核 MVP，不是开放平台最终版。开放第三方前至少还要补：
+这是账号中心 MVP，不是开放平台最终版。开放第三方前至少还要补：
 
-- client 管理后台和审核流程
+- client 审核流程
 - 用户授权 consent 页面
 - refresh token 风控与设备管理
 - 密钥轮换
-- 邮箱验证和找回密码
 - MFA
-- rate limit
-- 审计查询后台
 - 第三方应用封禁/撤销授权
