@@ -61,6 +61,7 @@ export function loadConfig(overrides = {}) {
     passwordResetTtlSeconds: Number(overrides.passwordResetTtlSeconds || process.env.PASSWORD_RESET_TTL_SECONDS || 60 * 30),
     authRateLimitWindowSeconds: Number(overrides.authRateLimitWindowSeconds || process.env.AUTH_RATE_LIMIT_WINDOW_SECONDS || 60),
     authRateLimitMax: Number(overrides.authRateLimitMax || process.env.AUTH_RATE_LIMIT_MAX || 20),
+    authRateLimitMaxBuckets: Number(overrides.authRateLimitMaxBuckets || process.env.AUTH_RATE_LIMIT_MAX_BUCKETS || 5000),
     secureCookies: booleanValue(overrides.secureCookies ?? process.env.SECURE_COOKIES),
     trustProxy: booleanValue(overrides.trustProxy ?? process.env.TRUST_PROXY),
     seedDemoClient,

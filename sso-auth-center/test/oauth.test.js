@@ -488,32 +488,55 @@ test('login, register, and logout require CSRF token', async () => {
 test('registration sends email verification link and token is single-use', async () => {
   const { agent, app } = makeServer();
   const csrfToken = await csrfFrom(agent, '/register');
-  const register = await agent
-    .post('/register')
-    .type('form')
-    .send({
-      csrfToken,
-      email: 'verify@example.com',
-      password: 'password123',
-      name: 'Verify User',
-      next: '/',
-    });
+  const logLines = [];
+  const originalLog = console.log;
+  console.log = (line) => logLines.push(String(line));
+  let register;
+  try {
+    register = await agent
+      .post('/register')
+      .type('form')
+      .send({
+        csrfToken,
+        email: 'verify@example.com',
+        password: 'password123',
+        name: 'Verify User',
+        next: '/',
+      });
+  } finally {
+    console.log = originalLog;
+  }
   assert.equal(register.status, 302);
 
   const verificationEmail = app.locals.sentEmails.find((message) => message.type === 'email_verification');
   assert.equal(verificationEmail.to, 'verify@example.com');
   const token = urlToken(verificationEmail.verifyUrl);
   assert.ok(token?.startsWith('evf_'));
+  assert.ok(logLines.some((line) => line.includes('token=%5Bredacted%5D')));
+  assert.ok(logLines.every((line) => !line.includes(token)));
 
   let user = app.locals.repo.findUserByEmail('verify@example.com');
   assert.equal(user.email_verified, 0);
 
-  const verified = await agent.get('/verify-email').query({ token });
+  const verifyPage = await agent.get('/verify-email').query({ token });
+  assert.equal(verifyPage.status, 200);
+  user = app.locals.repo.findUserByEmail('verify@example.com');
+  assert.equal(user.email_verified, 0);
+
+  const verifyCsrf = verifyPage.text.match(/name="csrfToken" value="([^"]+)"/)?.[1];
+  assert.ok(verifyCsrf);
+  const verified = await agent
+    .post('/verify-email')
+    .type('form')
+    .send({ csrfToken: verifyCsrf, token });
   assert.equal(verified.status, 200);
   user = app.locals.repo.findUserByEmail('verify@example.com');
   assert.equal(user.email_verified, 1);
 
-  const reused = await agent.get('/verify-email').query({ token });
+  const reused = await agent
+    .post('/verify-email')
+    .type('form')
+    .send({ csrfToken: verifyCsrf, token });
   assert.equal(reused.status, 400);
 });
 
@@ -635,6 +658,7 @@ test('auth-sensitive endpoints are rate limited', async () => {
   const { agent } = makeServer({
     authRateLimitWindowSeconds: 60,
     authRateLimitMax: 1,
+    authRateLimitMaxBuckets: 2,
   });
   const first = await agent
     .post('/login')

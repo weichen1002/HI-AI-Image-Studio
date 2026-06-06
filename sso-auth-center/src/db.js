@@ -345,6 +345,17 @@ export class AuthRepository {
     return token;
   }
 
+  findEmailVerificationToken(token) {
+    const tokenHash = hashSecret(token);
+    const record = this.db
+      .prepare('SELECT * FROM email_verification_tokens WHERE token_hash = ?')
+      .get(tokenHash);
+    if (!record) return null;
+    if (record.consumed_at) return null;
+    if (new Date(record.expires_at).getTime() <= Date.now()) return null;
+    return { ...record, tokenHash };
+  }
+
   consumeEmailVerificationToken(token) {
     const tokenHash = hashSecret(token);
     const consume = this.db.transaction(() => {

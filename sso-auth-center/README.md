@@ -16,7 +16,7 @@
 - `/oauth/userinfo`
 - client redirect URI 白名单
 - 登录/注册/退出 CSRF 防护
-- 登录、注册、找回密码、重置密码、token 端点基础限流
+- 登录、注册、邮箱验证、找回密码、重置密码、token 端点基础限流
 - SQLite 持久化
 
 ## Quick Start
@@ -65,6 +65,7 @@ EMAIL_VERIFICATION_TTL_SECONDS=86400
 PASSWORD_RESET_TTL_SECONDS=1800
 AUTH_RATE_LIMIT_WINDOW_SECONDS=60
 AUTH_RATE_LIMIT_MAX=20
+AUTH_RATE_LIMIT_MAX_BUCKETS=5000
 ```
 
 可以从示例配置开始：
@@ -88,11 +89,11 @@ SEED_DEMO_CLIENT=false
 
 ## Account Security
 
-注册成功后会生成一次性邮箱验证 token，并通过当前开发 mailer 输出验证链接。开发 mailer 不发真实邮件，只会写入 `app.locals.sentEmails` 并打印到控制台，便于本地测试；生产环境要替换成真实 SMTP 或邮件服务。
+注册成功后会生成一次性邮箱验证 token，并通过当前开发 mailer 输出验证链接。验证链接的 `GET` 请求只展示确认页，实际验证由带 CSRF 的 `POST` 完成，避免邮件安全扫描器预取链接时误消费 token。开发 mailer 不发真实邮件，只会写入 `app.locals.sentEmails` 并在控制台打印脱敏链接，便于本地测试；生产环境要替换成真实 SMTP 或邮件服务。
 
 找回密码流程不会暴露邮箱是否存在：无论邮箱是否存在，页面都返回相同提示。有效用户会收到一次性重置 token；密码重置成功后，旧账号中心 session 会被删除，该用户已有 refresh token 会被撤销。
 
-当前限流是单进程内存桶，适合 MVP 和单实例部署。多实例生产环境需要换成 Redis 等共享存储。
+当前限流是单进程内存桶，适合 MVP 和单实例部署，并通过 `AUTH_RATE_LIMIT_MAX_BUCKETS` 限制内存桶数量。多实例生产环境需要换成 Redis 等共享存储。
 
 ## Create Clients
 

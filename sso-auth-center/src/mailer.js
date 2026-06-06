@@ -1,3 +1,13 @@
+function redactTokenUrl(value) {
+  try {
+    const url = new URL(value);
+    if (url.searchParams.has('token')) url.searchParams.set('token', '[redacted]');
+    return url.toString();
+  } catch {
+    return '[redacted]';
+  }
+}
+
 export function createConsoleMailer(config) {
   const sent = [];
 
@@ -11,7 +21,7 @@ export function createConsoleMailer(config) {
         createdAt: new Date().toISOString(),
       };
       sent.push(message);
-      console.log(`[mail:email_verification] to=${to} verifyUrl=${verifyUrl}`);
+      console.log(`[mail:email_verification] to=${to} verifyUrl=${redactTokenUrl(verifyUrl)}`);
       return message;
     },
     async sendPasswordReset({ to, resetUrl }) {
@@ -22,7 +32,7 @@ export function createConsoleMailer(config) {
         createdAt: new Date().toISOString(),
       };
       sent.push(message);
-      console.log(`[mail:password_reset] to=${to} resetUrl=${resetUrl}`);
+      console.log(`[mail:password_reset] to=${to} resetUrl=${redactTokenUrl(resetUrl)}`);
       return message;
     },
   };

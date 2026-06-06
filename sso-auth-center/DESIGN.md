@@ -138,7 +138,7 @@ Authorization: Bearer <access_token>
 GET /verify-email?token=...
 ```
 
-邮箱验证 token 只在注册后生成，服务端只保存 hash。token 未消费且未过期时，将 `users.email_verified` 标记为 `1`，并把 token 标记为已消费。
+邮箱验证 token 只在注册后生成，服务端只保存 hash。`GET /verify-email` 只展示确认页，避免邮件安全扫描器预取链接时误消费 token；带 CSRF 的 `POST /verify-email` 才会消费 token。token 未消费且未过期时，将 `users.email_verified` 标记为 `1`，并把 token 标记为已消费。
 
 ### Forgot Password
 
@@ -281,7 +281,7 @@ created_at
 
 ### 邮件发送
 
-当前实现使用开发 mailer：邮件不会真正发出，只记录到 `app.locals.sentEmails` 并打印验证/重置链接。生产环境需要替换为真实 SMTP、SES、Resend、SendGrid 等邮件服务。
+当前实现使用开发 mailer：邮件不会真正发出，只记录到 `app.locals.sentEmails`，控制台只打印脱敏后的验证/重置链接。生产环境需要替换为真实 SMTP、SES、Resend、SendGrid 等邮件服务。
 
 ### 限流
 
@@ -289,11 +289,12 @@ created_at
 
 - `POST /register`
 - `POST /login`
+- `POST /verify-email`
 - `POST /forgot-password`
 - `POST /reset-password`
 - `POST /oauth/token`
 
-默认每个来源 IP 每 60 秒最多 20 次。当前限流器是单进程内存桶，适合 MVP 和单实例部署；多实例或容器横向扩容时需要改成 Redis 等共享存储。
+默认每个来源 IP 每 60 秒最多 20 次，并通过 `AUTH_RATE_LIMIT_MAX_BUCKETS` 限制内存桶数量。当前限流器是单进程内存桶，适合 MVP 和单实例部署；多实例或容器横向扩容时需要改成 Redis 等共享存储。
 
 ## 7. Web 业务站接入
 

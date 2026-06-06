@@ -108,6 +108,7 @@ export function createApp({ config, db = openDatabase(config), keyPair = loadOrC
   const authRateLimit = createRateLimiter({
     windowSeconds: config.authRateLimitWindowSeconds,
     max: config.authRateLimitMax,
+    maxBuckets: config.authRateLimitMaxBuckets,
   });
   const app = express();
   app.set('trust proxy', config.trustProxy);
@@ -200,12 +201,31 @@ export function createApp({ config, db = openDatabase(config), keyPair = loadOrC
 
   app.get('/verify-email', (req, res) => {
     const token = String(req.query.token || '');
-    const record = repo.consumeEmailVerificationToken(token);
-    if (!record) {
+    if (!repo.findEmailVerificationToken(token)) {
       return res.status(400).send(
         renderPage('邮箱验证失败', '<h1>邮箱验证失败</h1><p class="muted">验证链接无效或已过期。</p>'),
       );
     }
+    const csrfToken = issueCsrf(req, res, config);
+    return res.send(
+      renderPage(
+        '确认邮箱验证',
+        `<h1>确认邮箱验证</h1>
+        <p class="muted">点击按钮完成邮箱验证。</p>
+        <form method="post" action="/verify-email">
+          <input type="hidden" name="csrfToken" value="${escapeHtml(csrfToken)}" />
+          <input type="hidden" name="token" value="${escapeHtml(token)}" />
+          <button type="submit">验证邮箱</button>
+        </form>`,
+      ),
+    );
+  });
+
+  app.post('/verify-email', authRateLimit, (req, res) => {
+    if (!verifyCsrf(req)) return res.status(403).json({ error: 'invalid_csrf' });
+    const token = String(req.body.token || '');
+    const record = repo.consumeEmailVerificationToken(token);
+    if (!record) return res.status(400).json({ error: 'invalid_token' });
     repo.writeAudit({
       actorUserId: record.user_id,
       category: 'auth',
@@ -420,7 +440,7 @@ export function createApp({ config, db = openDatabase(config), keyPair = loadOrC
 
     if (client.type === 'confidential') {
       const secret = basicSecret || String(req.body.client_secret || '');
-      if (!client.secret_hash || hashSecret(secret) !== client.secret_hash) {
+      if (!client.secret_hash || !timingSafeEqualString(hashSecret(secret), client.secret_hash)) {
         return res.status(401).json({ error: 'invalid_client' });
       }
     }
