@@ -1,0 +1,12 @@
+{
+  "id": "diagnose-studio-502",
+  "title": "Diagnose 502 response from studio.hiapis.cloud",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "medium",
+  "domain": "ops",
+  "currentPhase": "completed",
+  "nextAction": "Archived after restoring PM2 frontend process to npm run dev",
+  "createdAt": "2026-06-06T05:38:14Z",
+  "branch": "main"
+}
